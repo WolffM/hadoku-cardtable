@@ -641,6 +641,21 @@ describe('Lobby.setSettings', () => {
 		}
 	});
 
+	it('turns the pick timer on mid-draft for the leader or an operator, and nothing else: no member, no other setting', async () => {
+		const lobby = await openLobby({ dir: await tempDir() });
+		const id = await startedDraft(lobby, [ALICE, BOB]);
+		expect(lobby.setSettings(id, ALICE.id, { pickTimer: { on: true, speed: 2 } }).ok, 'the ordinary setting is locked mid-draft').toBe(false);
+		expect(lobby.setPickTimer(id, BOB.id, { on: true, speed: 2 })).toEqual({ ok: false, reason: 'not-leader' });
+		const changed: string[] = [];
+		lobby.onChange((roomId) => changed.push(roomId));
+		expect(lobby.setPickTimer(id, ALICE.id, { on: true, speed: 2 })).toEqual({ ok: true });
+		expect(magicView(lobby.get(id))!.settings.pickTimer).toEqual({ on: true, speed: 2 });
+		expect(changed, 'the draft socket hears it').toContain(id);
+		expect(lobby.setPickTimer(id, CAROL.id, { on: true, speed: 0.5 }, true)).toEqual({ ok: true });
+		expect(magicView(lobby.get(id))!.settings.pickTimer).toEqual({ on: true, speed: 0.5 });
+		expect(lobby.setPickTimer('no-such', ALICE.id, { on: true, speed: 1 })).toEqual({ ok: false, reason: 'no-room' });
+	});
+
 	it('refuses a change while a draft is running', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const id = await startedDraft(lobby, [ALICE]);

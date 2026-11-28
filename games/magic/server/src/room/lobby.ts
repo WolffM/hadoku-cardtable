@@ -32,6 +32,7 @@ import {
 	type PoolVerdict,
 	type RoomLocks,
 	type RoomMode,
+	type PickTimer,
 	type RoomSettings,
 	type RoomView as PublicRoomView,
 	type Tournament,
@@ -597,6 +598,12 @@ export interface Lobby
 	 * The leader's, or `override`'s.
 	 */
 	replayMatch(roomId: string, leaderId: string, tableId: string, override?: boolean): ResetGameResult;
+	/**
+	 * A room's pick timer, set whenever, a running draft's included (the ordinary setting is locked once
+	 * a draft starts): a drafter who closed their tab otherwise holds the whole pod. The draft socket hears
+	 * the change (`onChange`) and puts every human seat's pick on the rope. The leader's, or `override`'s.
+	 */
+	setPickTimer(roomId: string, leaderId: string, timer: PickTimer, override?: boolean): { ok: true } | { ok: false; reason: 'no-room' | 'not-leader' };
 	/**
 	 * The leader cleans up the room without closing it (the operator, 2026-11-11: *"we shouldn't close
 	 * it automatically but leader needs a way to clean up a room"*): every table starts over as a mode
@@ -1742,6 +1749,16 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		this.persist(room);
 		this.log({ event: 'match-awarded', roomId, tableId, by: leaderId, override, winner, matchId, wins });
 		return { ok: true, matchId, loser, wins };
+	}
+
+	setPickTimer(roomId: string, leaderId: string, timer: PickTimer, override = false): { ok: true } | { ok: false; reason: 'no-room' | 'not-leader' } {
+		const room = this.#room(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!override && room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
+		room.game.settings = { ...room.game.settings, pickTimer: { on: timer.on, speed: timer.speed } };
+		this.persist(room);
+		this.log({ event: 'pick-timer-set', roomId, by: leaderId, override, timer });
+		return { ok: true };
 	}
 
 	replayMatch(roomId: string, leaderId: string, tableId: string, override = false): ResetGameResult {

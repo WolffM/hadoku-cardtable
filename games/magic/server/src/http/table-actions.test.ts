@@ -40,6 +40,7 @@ interface Harness {
 	restored: string[];
 	awarded: { table: string; winner: 0 | 1 }[];
 	events: Record<string, unknown>[];
+	pickedFor: { roomId: string; memberId: string; on: boolean }[];
 }
 
 /** A room alice leads and bob is in, its table playing `MATCH` with alice at seat 0 and bob at seat 1 — mounted after the rooms router, as `index.ts` mounts it. */
@@ -83,6 +84,7 @@ async function open(opts: { refuse?: string; pod?: boolean; starting?: boolean; 
 	const restored: string[] = [];
 	const awarded: Harness['awarded'] = [];
 	const events: Harness['events'] = [];
+	const pickedFor: Harness['pickedFor'] = [];
 	const seats = new Map<string, number>(players.map((id, seat) => [id, seat]));
 	const app = express();
 	const api = express.Router();
@@ -97,6 +99,7 @@ async function open(opts: { refuse?: string; pod?: boolean; starting?: boolean; 
 		restore: (id) => (id === MATCH && !stopped.includes(MATCH) ? (restored.push(id), { from: 'snapshot', turn: 7 }) : null),
 		awardGame: (_room, table, winner) => (awarded.push({ table, winner }), true),
 		epochsOf: (id) => [`${id}-e1`],
+		draft: () => ({ pickFor: (roomId, memberId, on) => (memberId === BOB ? (pickedFor.push({ roomId, memberId, on }), 'ok') : 'not-a-drafter') }),
 		match: (id) => {
 			if (id !== MATCH) return undefined;
 			const fromClient = (seat: number, frame: { kind: 'act'; method: 'concede' }) => {
@@ -121,7 +124,7 @@ async function open(opts: { refuse?: string; pod?: boolean; starting?: boolean; 
 		await snapshotWriter().idle();
 		await rm(dir, { recursive: true, force: true });
 	});
-	return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, lobby, roomId, tableId, acts, stopped, ended, restored, awarded, events };
+	return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, lobby, roomId, tableId, acts, stopped, ended, restored, awarded, events, pickedFor };
 }
 
 const concede = (h: Harness, as: string, tableId = h.tableId) =>
@@ -461,5 +464,30 @@ describe('the room’s seat routes take an operator as the leader (before the lo
 		expect(seats()[0]).toBe('ai');
 		expect((await post('pod/close', { seat: 1, closed: true }, as(OUTSIDER, 'wife'))).status).toBe(200);
 		expect(lobby.get(roomId)!.members.map((m) => m.id), 'evicted to the spectator row, still in the room').toContain(BOB);
+	});
+});
+
+describe('mid-draft: POST /api/rooms/:roomId/draft/timer and /draft/pick-for', () => {
+	it('the leader or an operator turns the pick timer on while a draft runs; a member may not', async () => {
+		const h = await open({ pod: true });
+		expect((await leader(h, BOB, 'draft/timer', { on: true, speed: 2 }, 'member')).status).toBe(403);
+		expect((await leader(h, ALICE, 'draft/timer', { on: true })).status, 'a whole timer or nothing').toBe(400);
+		expect((await leader(h, OUTSIDER, 'draft/timer', { on: true, speed: 2 }, 'wife')).status).toBe(200);
+		expect(magicView(h.lobby.get(h.roomId))!.settings.pickTimer).toEqual({ on: true, speed: 2 });
+		expect(h.events.at(-1)).toMatchObject({ event: 'admin-act', act: 'pick-timer-set', by: OUTSIDER, tier: 'wife', on: true, speed: 2, ok: true });
+	});
+
+	it('the draft bot picks for a seat on the leader’s or an operator’s word; a member, an unknown drafter and a stray field are refused', async () => {
+		const h = await open({ pod: true });
+		expect((await leader(h, CAROL, 'draft/pick-for', { memberId: BOB }, 'member')).status).toBe(403);
+		expect((await leader(h, ALICE, 'draft/pick-for', { memberId: BOB, seat: 1 })).status).toBe(400);
+		expect((await leader(h, ALICE, 'draft/pick-for', { memberId: CAROL })).status).toBe(404);
+		expect((await leader(h, OUTSIDER, 'draft/pick-for', { memberId: BOB }, 'admin')).status).toBe(200);
+		expect((await leader(h, ALICE, 'draft/pick-for', { memberId: BOB, on: false })).status).toBe(200);
+		expect(h.pickedFor).toEqual([
+			{ roomId: h.roomId, memberId: BOB, on: true },
+			{ roomId: h.roomId, memberId: BOB, on: false },
+		]);
+		expect(h.events.filter((e) => e.act === 'pick-for').map((e) => [e.by, e.ok])).toEqual([[CAROL, false], [ALICE, false], [OUTSIDER, true], [ALICE, true]]);
 	});
 });

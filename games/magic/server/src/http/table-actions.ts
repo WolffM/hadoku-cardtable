@@ -42,13 +42,14 @@ import { httpCaller } from '@hadoku/game-server/http/request';
 import { report } from '@hadoku/game-server/telemetry';
 import type { MatchInspection } from '../play/match.js';
 import { isAiEntrant } from '../room/pods.js';
+import { PICK_TIMER_SPEED_MAX, PICK_TIMER_SPEED_MIN, PickTimerSchema } from '@hadoku/shared';
 
 type TableMatch = Pick<Match, 'seatOf' | 'fromClient' | 'stop' | 'concedeFor' | 'concedeAi' | 'inspect'>;
 
 export interface TableActionsDeps {
 	lobby: Pick<
 		Lobby,
-		'get' | 'isMember' | 'abandonTable' | 'dropTableMatch' | 'resetGame' | 'resetRoom' | 'dqPlayer' | 'awardMatch' | 'replayMatch'
+		'get' | 'isMember' | 'abandonTable' | 'dropTableMatch' | 'resetGame' | 'resetRoom' | 'dqPlayer' | 'awardMatch' | 'replayMatch' | 'setPickTimer'
 	>;
 	/** A live match by id, or undefined. */
 	match(matchId: string): TableMatch | undefined;
@@ -60,6 +61,12 @@ export interface TableActionsDeps {
 	epochsOf?: (matchId: string) => string[];
 	/** A game recorded as `winner`'s with no game to end (`TablesHandle.awardGame`). */
 	awardGame(roomId: string, tableId: string, winner: 0 | 1): boolean;
+	/**
+	 * The draft socket's hand on a running draft (`DraftSocketHandle.pickFor`): `memberId`'s seat picks by
+	 * the draft bot now and at every pick until they come back (`on`), or no longer. Read when asked: play
+	 * attaches the socket after these routes.
+	 */
+	draft?: () => { pickFor(roomId: string, memberId: string, on: boolean): 'ok' | 'not-drafting' | 'not-a-drafter' } | undefined;
 	callerOf?: (req: Request) => ParticipantId;
 	log?: (entry: Record<string, unknown>) => void;
 	/** The server event every leader or operator act posts (`report`, service cardtable). */
@@ -92,6 +99,8 @@ const LEADER_REFUSED: Record<string, [number, string]> = {
 	'not-entrant': [404, 'that player is not in this tournament'],
 	'already-dropped': [409, 'that player is already out'],
 	'pod-under-way': [409, 'a draft or tournament under way can only be closed'],
+	'not-drafting': [409, 'there is no draft running in this room'],
+	'not-a-drafter': [404, 'that player is not drafting here'],
 };
 
 /** Each refusal of `Lobby.abandonTable` / `dropTableMatch`, as a status and the words the card shows. */
@@ -203,6 +212,43 @@ export function attachTableActions(api: Router, deps: TableActionsDeps): void {
 		if (!done.ok) return refuse(res, done.reason);
 		for (const matchId of done.matchIds) deps.match(matchId)?.stop();
 		for (const tableId of done.tableIds) deps.seriesEnded(roomId, tableId);
+		res.json({ ok: true });
+	});
+
+	/**
+	 * The pick timer, set mid-draft too (`Lobby.setPickTimer`): with it on, a drafter who closed their tab
+	 * gets the draft bot's pick when their time runs out instead of holding the pod.
+	 */
+	router.post('/:roomId/draft/timer', (req: Request, res: Response) => {
+		const roomId = String(req.params.roomId);
+		const who = authority(req, res, roomId);
+		if (who === null) return;
+		const timer = PickTimerSchema.safeParse(req.body);
+		if (!timer.success) return res.status(400).json({ error: `body: { on: boolean, speed: ${PICK_TIMER_SPEED_MIN}–${PICK_TIMER_SPEED_MAX} }` });
+		const done = deps.lobby.setPickTimer(roomId, who.me, timer.data, who.override);
+		acted(req, 'pick-timer-set', roomId, { ...timer.data, ok: done.ok, ...(done.ok ? {} : { reason: done.reason }) });
+		if (!done.ok) return refuse(res, done.reason);
+		res.json({ ok: true });
+	});
+
+	/** A drafter's seat picked for by the draft bot, now and until they come back (`on`), or no longer. */
+	router.post('/:roomId/draft/pick-for', (req: Request, res: Response) => {
+		const roomId = String(req.params.roomId);
+		const who = authority(req, res, roomId);
+		if (who === null) return;
+		const body = req.body as Record<string, unknown> | undefined;
+		const memberId = body?.memberId;
+		const on = body?.on ?? true;
+		if (typeof memberId !== 'string' || memberId === '' || typeof on !== 'boolean' || Object.keys(body ?? {}).some((k) => k !== 'memberId' && k !== 'on')) {
+			return res.status(400).json({ error: 'body: { memberId, on? } and nothing else' });
+		}
+		if (!who.override && magicView(deps.lobby.get(roomId))?.leader !== who.me) {
+			acted(req, 'pick-for', roomId, { memberId, on, ok: false, reason: 'not-leader' });
+			return refuse(res, 'not-leader');
+		}
+		const done = deps.draft?.()?.pickFor(roomId, memberId, on) ?? 'not-drafting';
+		acted(req, 'pick-for', roomId, { memberId, on, ok: done === 'ok', ...(done === 'ok' ? {} : { reason: done }) });
+		if (done !== 'ok') return refuse(res, done);
 		res.json({ ok: true });
 	});
 
