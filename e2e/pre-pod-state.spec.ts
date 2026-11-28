@@ -10,8 +10,8 @@
  * - the leader DQs a player between rounds: their next match is their opponent's, and the standings name
  *   everyone who left or was DQ'd.
  *
- * Four drafters (alice, bob, carol, dave) at seats 0–3, the other four seats closed: round 1 pairs across
- * the table, alice–carol and bob–dave. `[pre-pod]` lines are the evidence.
+ * Four drafters (alice, bob, carol, erin) at seats 0–3, the other four seats closed: round 1 pairs across
+ * the table, alice–carol and bob–erin. `[pre-pod]` lines are the evidence.
  */
 import { expect, test, type Page } from '@playwright/test';
 
@@ -94,15 +94,15 @@ test(
       const alice = await openFriend(browser, 'alice');
       const bob = await openFriend(browser, 'bob');
       const carol = await openFriend(browser, 'carol');
-      const dave = await openFriend(browser, 'dave');
-      const players = [alice, bob, carol, dave];
+      const erin = await openFriend(browser, 'erin');
+      const players = [alice, bob, carol, erin];
 
       /* ── alice makes the pod, the others come in, four sit, the rest close ── */
       await alice.page.goto(`${origin}${PREFIX}/`);
       await submitCreateRoom(alice.page, { name: `e2e pre-pod ${Date.now()}`, gameType: 'draft' });
       const roomId = await roomIdFromAddress(alice.page);
       const roomUrl = `${origin}${PREFIX}/#/room/${roomId}`;
-      for (const p of [bob, carol, dave]) {
+      for (const p of [bob, carol, erin]) {
         await p.page.goto(roomUrl);
         await expect(p.page.getByTestId('draft-lobby'), `${p.name}: joined the room`).toBeVisible({ timeout: UI_TIMEOUT });
       }
@@ -122,7 +122,7 @@ test(
         [alice.page, 0],
         [bob.page, 1],
         [carol.page, 2],
-        [dave.page, 3],
+        [erin.page, 3],
       ]);
       for (const seat of [4, 5, 6, 7]) await alice.page.locator(`[data-testid="pod-seat-close"][data-seat="${seat}"]`).click();
       await expect(alice.page.locator('[data-testid^="pod-seat-"][data-closed]')).toHaveCount(4);
@@ -140,7 +140,7 @@ test(
       /* ── carol presses Leave mid-draft; the pick timer is off ─────────── */
       expect((await api(carol, origin, 'POST', `/rooms/${roomId}/leave`)).status, 'carol leaves').toBe(200);
       await carol.page.close();
-      const drafting = [alice, bob, dave];
+      const drafting = [alice, bob, erin];
       // Her seat is picked for (the draft bot), or this never finishes and the test times out.
       await Promise.all(drafting.map((p) => draftUntilDone(p.page)));
       console.log('[pre-pod] the draft finished without carol');
@@ -151,40 +151,40 @@ test(
         await p.page.waitForURL(ROOM_PAGE, { timeout: UI_TIMEOUT });
       }
 
-      /* ── round 1: carol is out, alice has the win; bob plays dave ─────── */
+      /* ── round 1: carol is out, alice has the win; bob plays erin ─────── */
       let pod = (await roomOf(alice, origin, roomId)).game.pod;
       console.log(`[pre-pod] round 1: pairings ${JSON.stringify(pod.pairings)} results ${JSON.stringify(pod.results)} dropped ${JSON.stringify(pod.dropped)}`);
       expect(pod.dropped, 'carol is out from round 1').toContain(idOf.get(carol));
       expect(pod.pairings.some((x) => x.players.includes(idOf.get(carol)!)), 'no table waits for carol').toBe(false);
       expect(pod.results.find((r) => r.round === 1 && r.playerA === idOf.get(alice)), 'alice has round 1').toMatchObject({ gamesA: 2, gamesB: 0 });
       expect(await myTableThisRound(alice.page, roomId), 'alice has no table in round 1').toBeNull();
-      await enterMyGames([bob.page, dave.page], matchUrl, UI_TIMEOUT);
-      for (const p of [bob, dave]) await expect(board(p), `${p.name}: on round 1's board`).toBeVisible({ timeout: UI_TIMEOUT });
+      await enterMyGames([bob.page, erin.page], matchUrl, UI_TIMEOUT);
+      for (const p of [bob, erin]) await expect(board(p), `${p.name}: on round 1's board`).toBeVisible({ timeout: UI_TIMEOUT });
       const matchId = matchUrl.exec(bob.page.url())![1]!;
 
       /* ── a deploy mid-round ───────────────────────────────────────────── */
       await stack.restart();
-      for (const p of [bob, dave]) {
+      for (const p of [bob, erin]) {
         await expect(p.page.getByTestId('live-status'), `${p.name}: rejoined after the restart`).toHaveCount(0, { timeout: 60_000 });
         await expect(board(p)).toBeVisible({ timeout: UI_TIMEOUT });
         expect(matchUrl.exec(p.page.url())?.[1], `${p.name}: the same match`).toBe(matchId);
       }
       console.log(`[pre-pod] restart mid-round: both back on ${matchId}`);
-      await concedeMatch(bob, dave, roomUrl);
+      await concedeMatch(bob, erin, roomUrl);
 
-      /* ── round 2, and the leader DQs dave before his game ─────────────── */
+      /* ── round 2, and the leader DQs erin before his game ─────────────── */
       await expect.poll(async () => (await roomOf(alice, origin, roomId)).game.pod.round, { timeout: UI_TIMEOUT, message: 'round 2 pairs' }).toBe(2);
       pod = (await roomOf(alice, origin, roomId)).game.pod;
       console.log(`[pre-pod] round 2: pairings ${JSON.stringify(pod.pairings)} results ${JSON.stringify(pod.results)}`);
-      const daveId = idOf.get(dave)!;
-      const dq = await api<{ tableId: string | null }>(alice, origin, 'POST', `/rooms/${roomId}/pod/dq`, { memberId: daveId });
-      expect(dq.status, 'the leader DQs dave').toBe(200);
+      const erinId = idOf.get(erin)!;
+      const dq = await api<{ tableId: string | null }>(alice, origin, 'POST', `/rooms/${roomId}/pod/dq`, { memberId: erinId });
+      expect(dq.status, 'the leader DQs erin').toBe(200);
       pod = (await roomOf(alice, origin, roomId)).game.pod;
-      expect(pod.dropped, 'dave is out').toContain(daveId);
-      const daves = pod.results.find((r) => r.round === 2 && (r.playerA === daveId || r.playerB === daveId));
-      if (daves !== undefined && daves.playerB !== null) {
-        const theirs = daves.playerA === daveId ? daves.gamesA : daves.gamesB;
-        const other = daves.playerA === daveId ? daves.gamesB : daves.gamesA;
+      expect(pod.dropped, 'erin is out').toContain(erinId);
+      const erins = pod.results.find((r) => r.round === 2 && (r.playerA === erinId || r.playerB === erinId));
+      if (erins !== undefined && erins.playerB !== null) {
+        const theirs = erins.playerA === erinId ? erins.gamesA : erins.gamesB;
+        const other = erins.playerA === erinId ? erins.gamesB : erins.gamesA;
         expect(other, 'his round-2 match is conceded').toBeGreaterThan(theirs);
       }
       console.log(`[pre-pod] after DQ: results ${JSON.stringify(pod.results)} dropped ${JSON.stringify(pod.dropped)}`);
