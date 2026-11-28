@@ -67,6 +67,14 @@ export function signatureOf(match: LiveMatch): string {
 }
 
 /**
+ * Whether this seat is the one the game waits on: an ask is open, or its input is live. A seat
+ * blocked with no progress for `stuckMs` is flagged `stuck`.
+ */
+export function isBlocked(match: LiveMatch): boolean {
+  return match.asks.length > 0 || match.inputLive;
+}
+
+/**
  * What this seat's client holds that decides whether it can act: the input, the bar and its hold, and
  * what is offered. A `stuck` flag carries it, so a seat with nothing to press says why.
  */
@@ -204,7 +212,7 @@ export async function driveSeat(
     }
 
     const signature = signatureOf(match);
-    const blocked = match.asks.length > 0 || match.inputLive;
+    const blocked = isBlocked(match);
     if (signature !== lastSignature) {
       blockedSince = Date.now();
       lastSignature = signature;

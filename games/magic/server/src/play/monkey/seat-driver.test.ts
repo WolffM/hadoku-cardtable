@@ -17,7 +17,7 @@ import { SERVER_FRAME_EXAMPLES } from '../../../../packages/forge-wire/src/examp
 
 import type { LiveMatch } from '../../../../ui/src/play/live/match.ts';
 
-import { clearDeclineStreak, declineStreak, hasNoLegalAnswer, signatureOf, type DeclinedStreaks } from './seat-driver.ts';
+import { clearDeclineStreak, declineStreak, hasNoLegalAnswer, isBlocked, signatureOf, type DeclinedStreaks } from './seat-driver.ts';
 import type { LiveAsk } from './random-answer.ts';
 import { isRefusal, logEnd, makeLogTail, serverFlagsOf } from './run-match.ts';
 import { seedArg, seedFrom } from './rng.ts';
@@ -73,6 +73,37 @@ describe('signatureOf — what flag (b), stuck, counts as progress', () => {
 
   it('holds still when nothing at all changes, so a game that stopped is still flagged', () => {
     expect(signatureOf(waiting(201, 'MAIN1'))).toBe(signatureOf(waiting(201, 'MAIN1')));
+  });
+});
+
+describe('isBlocked — who flag (b), stuck, waits on', () => {
+  // Monkey run 45959106636, match m-d6c51357ff5a, the AI's turn 8: the server auto-passed seat 0's
+  // priority step after step, Forge handed priority to the AI, and the AI took 30–44 s at each step.
+  // Seat 0's input stayed live under a dead "Waiting for Forge AI..." bar the whole time.
+  const seat = (over: { hasPriority: boolean; enable1?: boolean; enable2?: boolean; selectable?: number[]; asks?: unknown[] }): LiveMatch =>
+    ({
+      asks: over.asks ?? [],
+      inputLive: true,
+      forgeSeq: 352,
+      view: { turn: 8, phase: 'COMBAT_BEGIN', players: [{ isViewer: true, hasPriority: over.hasPriority }, { isViewer: false, hasPriority: !over.hasPriority }] },
+      prompt: 'Waiting for Forge AI...',
+      buttons: { label1: 'OK', label2: 'Cancel', enable1: over.enable1 ?? false, enable2: over.enable2 ?? false },
+      selectables: over.selectable === undefined ? null : { cards: new Set(over.selectable), min: 1, max: 1 },
+    }) as unknown as LiveMatch;
+
+  it('a seat waiting on the other player, nothing to press and no priority, is not what the game waits on', () => {
+    expect(isBlocked(seat({ hasPriority: false }))).toBe(false);
+  });
+
+  it('a seat Forge says holds priority is blocked even with a dead bar: the softlock the flag is for', () => {
+    expect(isBlocked(seat({ hasPriority: true }))).toBe(true);
+  });
+
+  it('a seat with something to press, or an ask open, is blocked whoever Forge says holds priority', () => {
+    expect(isBlocked(seat({ hasPriority: false, enable1: true }))).toBe(true);
+    expect(isBlocked(seat({ hasPriority: false, enable2: true }))).toBe(true);
+    expect(isBlocked(seat({ hasPriority: false, selectable: [12] }))).toBe(true);
+    expect(isBlocked(seat({ hasPriority: false, asks: [{ method: 'getChoices' }] }))).toBe(true);
   });
 });
 
