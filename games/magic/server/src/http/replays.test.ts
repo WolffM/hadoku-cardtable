@@ -10,17 +10,12 @@ import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { writeFileSync } from 'node:fs';
 import express from 'express';
-import { personOf } from '@hadoku/game-server/erase/index';
-import { recordingsStep } from '@hadoku/game-server/erase/recordings';
-import { sweepRecordings } from '@hadoku/game-server/play/recording/retention';
-import { createMatchRecordingWriter, keepEarlierEpoch } from '@hadoku/game-server/play/recording/writer';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
 import { UNNAMED } from '@hadoku/game-server/room/constants';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DELTA_TYPE, deltaKeyType } from '@hadoku/forge-wire';
 import { REPLAY_BODY_VERSION } from '@hadoku/shared';
 import type { ArtIds } from '../play/art-ids.ts';
-import { writePublicStream } from '../play/recording/rebuild.ts';
 import { fixtureFrames } from '../play/fixtures/transcript.ts';
 import { createProjector, EVERY_PLAYER, type StateFrame } from '../play/visibility.ts';
 
@@ -28,6 +23,13 @@ const EDGE_SECRET = 'test-edge-auth-secret';
 
 let replaysMod: typeof import('./replays.ts');
 let edgeMod: typeof import('@hadoku/game-server/edge-auth');
+// Loaded with the route, after the module reset: each writer must tell the same change listeners the route's index heard.
+let personOf: typeof import('@hadoku/game-server/erase/index').personOf;
+let recordingsStep: typeof import('@hadoku/game-server/erase/recordings').recordingsStep;
+let sweepRecordings: typeof import('@hadoku/game-server/play/recording/retention').sweepRecordings;
+let createMatchRecordingWriter: typeof import('@hadoku/game-server/play/recording/writer').createMatchRecordingWriter;
+let keepEarlierEpoch: typeof import('@hadoku/game-server/play/recording/writer').keepEarlierEpoch;
+let writePublicStream: typeof import('../play/recording/rebuild.ts').writePublicStream;
 
 beforeAll(async () => {
 	process.env.EDGE_AUTH_SECRET = EDGE_SECRET;
@@ -35,6 +37,11 @@ beforeAll(async () => {
 	vi.resetModules();
 	replaysMod = await import('./replays.ts');
 	edgeMod = await import('@hadoku/game-server/edge-auth');
+	({ personOf } = await import('@hadoku/game-server/erase/index'));
+	({ recordingsStep } = await import('@hadoku/game-server/erase/recordings'));
+	({ sweepRecordings } = await import('@hadoku/game-server/play/recording/retention'));
+	({ createMatchRecordingWriter, keepEarlierEpoch } = await import('@hadoku/game-server/play/recording/writer'));
+	({ writePublicStream } = await import('../play/recording/rebuild.ts'));
 });
 
 const dirs: string[] = [];

@@ -27,6 +27,7 @@ import { promisify } from 'node:util';
 
 
 import type { JsonLog } from '@hadoku/service-kernel/log';
+import { recordingChanged } from './changes.js';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from './retention.js';
 
 const gzip = promisify(gzipCb);
@@ -260,6 +261,8 @@ export function keepEarlierEpoch(dir: string, matchId: string, log: JsonLog): vo
 	} catch (err) {
 		log({ evt: 'recording-epoch-keep-failed', matchId, epoch: n, error: (err as Error).message });
 	}
+	recordingChanged(dir, matchId);
+	recordingChanged(dir, `${matchId}-e${String(n)}`);
 }
 
 /** The recordings a match's earlier epochs left (`keepEarlierEpoch`), oldest first, by the id each is served under. */
@@ -321,6 +324,7 @@ export function createMatchRecordingWriter(deps: MatchRecordingWriterDeps): Matc
 				flush(join(deps.dir, `${id}${ACTIONS_SUFFIX}`), actionLines, log, 'actions'),
 				flush(join(deps.dir, `${id}${PUBLIC_SUFFIX}`), publicLines, log, 'public'),
 			]);
+			recordingChanged(deps.dir, id);
 		},
 	};
 }

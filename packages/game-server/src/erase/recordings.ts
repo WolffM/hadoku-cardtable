@@ -30,7 +30,8 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { gunzip as gunzipCb, gzip as gzipCb } from 'node:zlib';
 import { UNNAMED } from '../room/constants.js';
-import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '../play/recording/retention.js';
+import { recordingChanged } from '../play/recording/changes.js';
+import { ACTIONS_SUFFIX, PUBLIC_SUFFIX, recordingOf } from '../play/recording/retention.js';
 import { renameIds, replaceIds } from './anonymise.js';
 import type { EraseStep } from './index.js';
 
@@ -104,7 +105,7 @@ async function rewriteRecordings(dir: string, userId: string, change: (recording
 		if ((err as NodeJS.ErrnoException).code === 'ENOENT') return 0;
 		throw err;
 	}
-	const matchIds = new Set(files.flatMap((f) => (f.endsWith(PUBLIC_SUFFIX) ? [f.slice(0, -PUBLIC_SUFFIX.length)] : f.endsWith(ACTIONS_SUFFIX) ? [f.slice(0, -ACTIONS_SUFFIX.length)] : [])));
+	const matchIds = new Set(files.flatMap((f) => recordingOf(f)?.id ?? []));
 	let changed = 0;
 	for (const matchId of matchIds) {
 		const texts: { path: string; text: string }[] = [];
@@ -121,7 +122,11 @@ async function rewriteRecordings(dir: string, userId: string, change: (recording
 		if (!texts.some(({ text }) => text.includes(userId))) continue;
 		const recording = texts.map(({ path, text }) => ({ path, lines: parseLines(text) }));
 		if (!change(recording)) continue;
-		for (const { path, lines } of recording) await writeLines(path, lines);
+		try {
+			for (const { path, lines } of recording) await writeLines(path, lines);
+		} finally {
+			recordingChanged(dir, matchId);
+		}
 		changed++;
 	}
 	return changed;

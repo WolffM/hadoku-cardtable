@@ -17,6 +17,7 @@ import { readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import type { JsonLog } from '@hadoku/service-kernel/log';
+import { recordingChanged } from './changes.js';
 
 export const PUBLIC_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 export const ACTIONS_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -25,6 +26,13 @@ export const RECORDINGS_CAP_BYTES = 2 * 1024 * 1024 * 1024;
 
 export const ACTIONS_SUFFIX = '.actions.jsonl.gz';
 export const PUBLIC_SUFFIX = '.public.jsonl.gz';
+
+/** A file name in the recordings directory as the recording it belongs to; null for anything else. */
+export function recordingOf(name: string): { id: string; kind: 'public' | 'actions' } | null {
+	if (name.endsWith(PUBLIC_SUFFIX)) return { id: name.slice(0, -PUBLIC_SUFFIX.length), kind: 'public' };
+	if (name.endsWith(ACTIONS_SUFFIX)) return { id: name.slice(0, -ACTIONS_SUFFIX.length), kind: 'actions' };
+	return null;
+}
 
 export interface SweepResult {
 	/** Files removed for being past their own retention window, by suffix. */
@@ -54,7 +62,7 @@ function list(dir: string, errors: SweepResult['errors']): Entry[] {
 	}
 	const out: Entry[] = [];
 	for (const name of names) {
-		if (!name.endsWith(ACTIONS_SUFFIX) && !name.endsWith(PUBLIC_SUFFIX)) continue;
+		if (recordingOf(name) === null) continue;
 		try {
 			const st = statSync(join(dir, name));
 			out.push({ name, path: join(dir, name), size: st.size, mtimeMs: st.mtimeMs });
@@ -65,13 +73,14 @@ function list(dir: string, errors: SweepResult['errors']): Entry[] {
 	return out;
 }
 
-function remove(entry: Entry, log: JsonLog, evt: string, errors: SweepResult['errors']): void {
+function remove(dir: string, entry: Entry, log: JsonLog, evt: string, errors: SweepResult['errors']): void {
 	try {
 		rmSync(entry.path, { force: true });
 		log({ evt, file: entry.name, ageMs: Date.now() - entry.mtimeMs, sizeBytes: entry.size });
 	} catch (err) {
 		errors.push({ file: entry.name, error: (err as Error).message });
 	}
+	recordingChanged(dir, recordingOf(entry.name)!.id);
 }
 
 /** One pass over `dir`: age-based expiry, then the size cap. See the module header. `capBytes` is overridable for a test; production never passes one. */
@@ -85,7 +94,7 @@ export function sweepRecordings(dir: string, now: number = Date.now(), log: Json
 		const suffix = entry.name.endsWith(ACTIONS_SUFFIX) ? 'actions' : 'public';
 		const limit = suffix === 'actions' ? ACTIONS_RETENTION_MS : PUBLIC_RETENTION_MS;
 		if (now - entry.mtimeMs > limit) {
-			remove(entry, log, 'recording-expired', errors);
+			remove(dir, entry, log, 'recording-expired', errors);
 			(suffix === 'actions' ? result.expiredActions : result.expiredPublic).push(entry.name);
 		} else {
 			kept.push(entry);
@@ -98,7 +107,7 @@ export function sweepRecordings(dir: string, now: number = Date.now(), log: Json
 		const publicOldestFirst = entries.filter((e) => e.name.endsWith(PUBLIC_SUFFIX)).sort((a, b) => a.mtimeMs - b.mtimeMs);
 		for (const entry of publicOldestFirst) {
 			if (total <= capBytes) break;
-			remove(entry, log, 'recording-over-cap', errors);
+			remove(dir, entry, log, 'recording-over-cap', errors);
 			result.overCap.push(entry.name);
 			total -= entry.size;
 			entries = entries.filter((e) => e !== entry);

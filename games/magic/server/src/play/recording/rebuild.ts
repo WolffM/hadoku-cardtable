@@ -68,6 +68,7 @@ import type { ForgeMatchSpec } from '../forge-spec.js';
 import { createProjector, EVERY_PLAYER, type StateFrame } from '../visibility.js';
 import { createArtIds, type ArtCatalog, type ArtIds } from '../art-ids.js';
 import { bridgeDigest, forgePin } from './recorder.js';
+import { recordingChanged } from '@hadoku/game-server/play/recording/changes';
 import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '@hadoku/game-server/play/recording/retention';
 import { boardDigest, createSeatPosition, isStateLine, normalisedBoard } from './position.js';
 import { PUBLIC_VERSION, type ActionsCmdLine, type ActionsEndLine, type ActionsHeader, type PublicEndLine, type PublicEnvLine, type PublicHeader } from '@hadoku/game-server/play/recording/writer';
@@ -113,6 +114,7 @@ export function readActionLog(dir: string, matchId: string): ActionLogLine[] {
 export function writePublicStream(dir: string, matchId: string, lines: readonly PublicStreamLine[]): void {
 	const text = lines.map((l) => JSON.stringify(l)).join('\n') + (lines.length > 0 ? '\n' : '');
 	writeFileSync(publicStreamPath(dir, matchId), gzipSync(Buffer.from(text, 'utf8')));
+	recordingChanged(dir, matchId);
 }
 
 /* ── canRebuild ──────────────────────────────────────────────────────────────────────────────── */

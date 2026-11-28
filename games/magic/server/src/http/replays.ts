@@ -7,12 +7,15 @@
  *                                 never a recording whose seats it cannot tell)
  *   GET /api/replays/:matchId   → 200 { header, envs, presence, relays, end } | 404
  *
- * Reads `CARDTABLE_RECORDINGS_DIR` directly — never the live recorder's
- * in-memory state, so this answers the same way across a restart. The list
- * only ever decompresses the PUBLIC stream (never the action log, which is
- * read only to ask `canRebuild`), and reads it a line at a time without
- * keeping every envelope in memory: it needs the header and the end, not the
- * body. The detail route is the one place a whole stream is read.
+ * Reads `CARDTABLE_RECORDINGS_DIR` — never the live recorder's in-memory
+ * state, so this answers the same way across a restart. The list and a
+ * replay's people are answered from an index of every recording's row
+ * ({@link openReplayIndex}), read once at boot and again, one recording at a
+ * time, whenever a writer of the directory says that recording changed
+ * (`@hadoku/game-server/play/recording/changes`): a request does no disk work.
+ * A row is read a line at a time without keeping every envelope in memory: it
+ * needs the header and the end, not the body. The detail route is the one
+ * place a whole stream is read.
  *
  * Mounted on `api`, which is already behind `requireMinTier` (member tier) —
  * same gate as every other `/api` route; `isAdmin` only decides whether a
@@ -33,7 +36,8 @@ import { Router as makeRouter } from 'express';
 import { isAdmin } from '@hadoku/game-server/edge-auth';
 import { httpCaller } from '@hadoku/game-server/http/request';
 import type { JsonLog } from '@hadoku/service-kernel/log';
-import { ACTIONS_SUFFIX, PUBLIC_SUFFIX } from '@hadoku/game-server/play/recording/retention';
+import { onRecordingChanged } from '@hadoku/game-server/play/recording/changes';
+import { ACTIONS_SUFFIX, PUBLIC_SUFFIX, recordingOf } from '@hadoku/game-server/play/recording/retention';
 import { PUBLIC_VERSION, type ActionsEndLine, type PublicEndLine, type PublicEnvLine, type PublicPresenceLine, type PublicRelayLine } from '@hadoku/game-server/play/recording/writer';
 import { REPLAY_BODY_VERSION, type PersonFace } from '@hadoku/shared';
 import { faceOfPerson, SCREEN_WAIT_MS, type People, type Person } from '@hadoku/game-server/people';
@@ -145,53 +149,53 @@ export interface ReplayPace {
 	waitMs: number;
 }
 
-/**
- * Read a gzip JSONL file a line at a time, keeping only the first line and the running last one — never the
- * whole body — and the recording's {@link ReplayPace} on the way past.
- */
-async function firstAndLastLine(path: string): Promise<{ first: string; last: string; pace: ReplayPace } | null> {
+/** Each non-empty line of a gzip JSONL file, in order, streamed: rejects on any read or gunzip error. */
+function eachLine(path: string, onLine: (line: string) => void): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const input = createReadStream(path);
 		const gunzip = createGunzip();
-		input.on('error', (err) => reject(err));
-		gunzip.on('error', (err) => reject(err));
+		input.on('error', reject);
+		gunzip.on('error', reject);
 		const rl = createInterface({ input: input.pipe(gunzip), crlfDelay: Infinity });
-		let first: string | null = null;
-		let last: string | null = null;
-		const pace: ReplayPace = { envs: 0, durationMs: 0, waitMs: 0 };
-		let startAt: number | null = null;
-		let prevAt = 0;
+		// readline re-emits its input's error on itself: unheard, a corrupt file is an uncaught exception.
+		rl.on('error', reject);
 		rl.on('line', (line) => {
-			if (line === '') return;
-			if (first === null) first = line;
-			last = line;
-			const at = ENV_AT.exec(line);
-			if (at === null) return;
-			const ms = Number(at[1]);
-			startAt ??= ms;
-			if (ms - prevAt > WAIT_GAP_MS && pace.envs > 0) pace.waitMs += ms - prevAt;
-			prevAt = ms;
-			pace.envs += 1;
-			pace.durationMs = ms - startAt;
+			if (line !== '') onLine(line);
 		});
-		rl.on('close', () => resolve(first === null || last === null ? null : { first, last, pace }));
+		rl.on('close', () => resolve());
 	});
+}
+
+/**
+ * A gzip JSONL file's first line and last, never the whole body, and the recording's
+ * {@link ReplayPace} on the way past.
+ */
+async function firstAndLastLine(path: string): Promise<{ first: string; last: string; pace: ReplayPace } | null> {
+	let first: string | null = null;
+	let last: string | null = null;
+	const pace: ReplayPace = { envs: 0, durationMs: 0, waitMs: 0 };
+	let startAt: number | null = null;
+	let prevAt = 0;
+	await eachLine(path, (line) => {
+		first ??= line;
+		last = line;
+		const at = ENV_AT.exec(line);
+		if (at === null) return;
+		const ms = Number(at[1]);
+		startAt ??= ms;
+		if (ms - prevAt > WAIT_GAP_MS && pace.envs > 0) pace.waitMs += ms - prevAt;
+		prevAt = ms;
+		pace.envs += 1;
+		pace.durationMs = ms - startAt;
+	});
+	return first === null || last === null ? null : { first, last, pace };
 }
 
 /** Every line, in order — the detail route needs the whole stream. */
 async function allLines(path: string): Promise<string[]> {
-	return new Promise((resolve, reject) => {
-		const input = createReadStream(path);
-		const gunzip = createGunzip();
-		input.on('error', (err) => reject(err));
-		gunzip.on('error', (err) => reject(err));
-		const rl = createInterface({ input: input.pipe(gunzip), crlfDelay: Infinity });
-		const lines: string[] = [];
-		rl.on('line', (line) => {
-			if (line !== '') lines.push(line);
-		});
-		rl.on('close', () => resolve(lines));
-	});
+	const lines: string[] = [];
+	await eachLine(path, (line) => lines.push(line));
+	return lines;
 }
 
 /** The two state frames a watcher stream's faces ride in. */
@@ -240,33 +244,6 @@ interface Row {
 	hasActions: boolean;
 }
 
-/**
- * The recordings on disk, by match. Asynchronous, as every read of the directory here is: on a stalled
- * disk a synchronous one holds the event loop, and every match on the server with it (PPE 2026-11-28,
- * 6 s). No directory yet is no recordings; any other failure is logged and lists none.
- */
-async function rowsOf(dir: string, log: JsonLog): Promise<Row[]> {
-	let names: string[];
-	try {
-		names = await readdir(dir);
-	} catch (err) {
-		if ((err as NodeJS.ErrnoException).code !== 'ENOENT') log({ evt: 'replay-dir-read-failed', dir, error: (err as Error).message });
-		return [];
-	}
-	const byMatch = new Map<string, Row>();
-	for (const name of names) {
-		const isPublic = name.endsWith(PUBLIC_SUFFIX);
-		const isActions = !isPublic && name.endsWith(ACTIONS_SUFFIX);
-		if (!isPublic && !isActions) continue;
-		const matchId = name.slice(0, name.length - (isPublic ? PUBLIC_SUFFIX.length : ACTIONS_SUFFIX.length));
-		const row = byMatch.get(matchId) ?? { matchId, hasPublic: false, hasActions: false };
-		if (isPublic) row.hasPublic = true;
-		else row.hasActions = true;
-		byMatch.set(matchId, row);
-	}
-	return [...byMatch.values()];
-}
-
 /** {@link withRecordedArt} with the art ids the match's own decks resolve, read from its action log while that is kept. */
 async function recordedArt(
 	row: Row,
@@ -279,28 +256,21 @@ async function recordedArt(
 	return withRecordedArt(header, envs, artIds(specDecks(read === null ? null : parseJson<ActionsHeaderLine>(read.first))));
 }
 
-type Summary = { header: PublicHeaderLine; seatsKnown: boolean; endedAt: string | null; winner: 0 | 1 | null; source: 'stream' | 'rebuild' | 'none'; pace: ReplayPace | null; users: { seat: number; userId: string }[] };
-/** A list row as read from disk; a rebuildable one keeps its header, since whether it can rebuild is asked on every list. */
-type Read = { kind: 'stream'; summary: Summary } | { kind: 'actions'; summary: Omit<Summary, 'source'>; actionsHeader: ActionsHeaderLine };
+/** What the list says of a recording's header; its art and decks' cards stay on disk. */
+type ListedHeader = Pick<PublicHeaderLine, 'matchId' | 'roomId' | 'players' | 'ai' | 'decks' | 'startedAt'>;
+type Summary = { header: ListedHeader; seatsKnown: boolean; endedAt: string | null; winner: 0 | 1 | null; source: 'stream' | 'rebuild' | 'none'; pace: ReplayPace | null; users: { seat: number; userId: string }[] };
 
-/** A recording's files as a stat sees them (size, mtime, inode): any write or rename-over changes it. */
-async function stamp(dir: string, row: Row): Promise<string> {
-	const one = async (suffix: string): Promise<string> => {
-		const st = await stat(join(dir, `${row.matchId}${suffix}`));
-		return `${st.size}:${st.mtimeMs}:${st.ino}`;
-	};
-	const [pub, actions] = await Promise.all([row.hasPublic ? one(PUBLIC_SUFFIX) : '-', row.hasActions ? one(ACTIONS_SUFFIX) : '-']);
-	return `${pub}|${actions}`;
-}
+const listed = (h: ListedHeader): ListedHeader => ({ matchId: h.matchId, roomId: h.roomId, players: h.players, ai: h.ai, decks: h.decks, startedAt: h.startedAt });
 
-async function readRow(dir: string, row: Row): Promise<Read | null> {
+/** A recording's list row, read from its files; null when neither is one (an older stream and no action log, or no header). */
+async function readRow(dir: string, row: Row, canRebuild: (header: ActionsHeaderLine) => boolean): Promise<Summary | null> {
 	if (row.hasPublic) {
 		const read = await firstAndLastLine(join(dir, `${row.matchId}${PUBLIC_SUFFIX}`));
 		const header = read === null ? null : parseJson<PublicHeaderLine>(read.first);
 		// An older stream draws no hand: it is no replay, but its action log may still rebuild one.
 		if (header !== null && header.v === PUBLIC_VERSION) {
 			const end = read === null ? null : parseJson<PublicEndLine>(read.last);
-			return { kind: 'stream', summary: { header, seatsKnown: true, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream', pace: read === null ? null : read.pace, users: publicUsers(end) } };
+			return { header: listed(header), seatsKnown: true, endedAt: end?.t === 'end' ? end.endedAt : null, winner: end?.t === 'end' ? end.winner : null, source: 'stream', pace: read === null ? null : read.pace, users: publicUsers(end) };
 		}
 	}
 	if (!row.hasActions) return null;
@@ -312,9 +282,7 @@ async function readRow(dir: string, row: Row): Promise<Read | null> {
 	// (the action log's `spec` holds the raw `.dck` text, which this route never reads out).
 	const spec = actionsHeader.spec as { seats?: { name: string; ai: boolean }[] } | undefined;
 	const seats = Array.isArray(spec?.seats) && spec.seats.length === 2 ? spec.seats : null;
-	const header: PublicHeaderLine = {
-		t: 'header',
-		v: PUBLIC_VERSION,
+	const header: ListedHeader = {
 		matchId: actionsHeader.matchId,
 		roomId: actionsHeader.roomId,
 		players: seats === null ? ['', ''] : [seats[0]!.name, seats[1]!.name],
@@ -323,12 +291,77 @@ async function readRow(dir: string, row: Row): Promise<Read | null> {
 		startedAt: actionsHeader.startedAt,
 	};
 	const end = read === null ? null : parseJson<ActionsEndLine>(read.last);
-	return { kind: 'actions', summary: { header, seatsKnown: seats !== null, endedAt: end?.t === 'end' ? end.endedAt : null, winner: null, pace: null, users: actionUsers(end) }, actionsHeader };
+	// Whether this server's Forge can rebuild it is fixed for the process: asked once, as it is read.
+	return { header, seatsKnown: seats !== null, endedAt: end?.t === 'end' ? end.endedAt : null, winner: null, source: canRebuild(actionsHeader) ? 'rebuild' : 'none', pace: null, users: actionUsers(end) };
+}
+
+/** A recording as the index holds it: which of its files are on disk, and its list row. */
+interface Indexed {
+	row: Row;
+	summary: Summary;
+}
+
+/** How many recordings the boot index reads at once: libuv's pool is four threads, and a live match's disk work shares it. */
+const INDEX_READS = 2;
+
+const present = (path: string): Promise<boolean> => stat(path).then(() => true, (err: NodeJS.ErrnoException) => (err.code === 'ENOENT' ? false : Promise.reject(err)));
+
+/**
+ * Every recording's row, by its own id (`<matchId>`, or an earlier epoch's `<matchId>-e<N>`), in
+ * memory. Built once at boot, a few files at a time, off the event loop; then each recording a writer
+ * says changed (`onRecordingChanged`) is read again, alone, after any read of it already under way. A
+ * restart rebuilds it. One that is no replay, or cannot be read (logged), is not held: every route
+ * answers it as missing. `ready` settles once the boot read is done, whatever it found.
+ */
+function openReplayIndex(dir: string, canRebuild: (header: ActionsHeaderLine) => boolean, log: JsonLog): { ready: Promise<void>; entries(): IterableIterator<[string, Indexed]>; get(id: string): Indexed | undefined } {
+	const entries = new Map<string, Indexed>();
+	const reading = new Map<string, Promise<void>>();
+	const read = async (id: string): Promise<void> => {
+		try {
+			const [hasPublic, hasActions] = await Promise.all([present(join(dir, `${id}${PUBLIC_SUFFIX}`)), present(join(dir, `${id}${ACTIONS_SUFFIX}`))]);
+			const row = { matchId: id, hasPublic, hasActions };
+			const summary = hasPublic || hasActions ? await readRow(dir, row, canRebuild) : null;
+			if (summary === null) entries.delete(id);
+			else entries.set(id, { row, summary });
+		} catch (err) {
+			entries.delete(id);
+			log({ evt: 'replay-list-read-failed', matchId: id, error: (err as Error).message });
+		}
+	};
+	const refresh = (id: string): Promise<void> => {
+		const next = (reading.get(id) ?? Promise.resolve()).then(() => read(id));
+		reading.set(id, next);
+		void next.finally(() => reading.get(id) === next && reading.delete(id));
+		return next;
+	};
+	// Heard from before the directory is listed, so a write during the boot read is never missed.
+	onRecordingChanged(dir, (id) => void refresh(id));
+	const ready = (async () => {
+		const started = Date.now();
+		const names = await readdir(dir).catch((err: NodeJS.ErrnoException) => {
+			if (err.code !== 'ENOENT') log({ evt: 'replay-dir-read-failed', dir, error: err.message });
+			return [];
+		});
+		const ids = [...new Set(names.flatMap((name) => recordingOf(name)?.id ?? []))];
+		let next = 0;
+		await Promise.all(Array.from({ length: INDEX_READS }, async () => {
+			while (next < ids.length) await refresh(ids[next++]!);
+		}));
+		log({ evt: 'replay-index-built', recordings: entries.size, ms: Date.now() - started });
+	})();
+	return { ready, entries: () => entries.entries(), get: (id) => entries.get(id) };
 }
 
 export function attachReplays(api: Router, deps: ReplaysDeps): void {
 	const log = deps.log ?? (() => undefined);
 	const replays = makeRouter();
+	const index = openReplayIndex(deps.dir, (header) => deps.canRebuild?.(header) ?? false, log);
+	/** A recording the index holds, once the boot read is done; never a path for an id that is not one. */
+	const indexed = async (matchId: string): Promise<Indexed | undefined> => {
+		if (!MATCH_ID_RE.test(matchId)) return undefined;
+		await index.ready;
+		return index.get(matchId);
+	};
 	/** Whether this caller may not see this game's replay: a testing room's, to a non-admin, or their own series' while it goes on. */
 	const hiddenFrom = (req: Request, header: { matchId: string; roomId: string | null }): boolean =>
 		(!isAdmin(req) && deps.isTesting(header.roomId)) || (deps.stillPlaying?.(header.matchId, httpCaller(req)) ?? false);
@@ -340,51 +373,24 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 		return new Map([...found].flatMap(([id, person]) => (person.name === null ? [] : [[id, person.name] as const])));
 	};
 
-	/**
-	 * What each recording's list row was read as, by match, and the stat it was read at: a finished
-	 * recording never changes, so a list opens only the new ones and the ones still being written
-	 * (PPE 2026-11-28: every page load gunzipped all 300, p95 2.5 s).
-	 */
-	const listCache = new Map<string, { at: string; read: Read | null }>();
-
 	replays.get('/', async (req: Request, res: Response) => {
 		const limitParam = Number(req.query.limit ?? DEFAULT_LIST_LIMIT);
 		const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(Math.floor(limitParam), MAX_LIST_LIMIT) : DEFAULT_LIST_LIMIT;
 		const humansOnly = req.query.humans === 'only';
 
-		const rows = await rowsOf(deps.dir, log);
-		// Every recording's stat at once, on the threadpool: a list of hundreds must not wait on them one by one.
-		const stamps = await Promise.all(rows.map((row) => stamp(deps.dir, row).catch((err: unknown) => err as Error)));
+		await index.ready;
 		// Named by the row's own id: an earlier epoch's header carries the match's id (`<id>-e<N>` is the file's).
-		const summaries: (Summary & { id: string })[] = [];
-		for (const id of [...listCache.keys()]) if (!rows.some((r) => r.matchId === id)) listCache.delete(id);
-		for (const [i, row] of rows.entries()) {
-			try {
-				const at = stamps[i]!;
-				if (at instanceof Error) throw at;
-				const cached = listCache.get(row.matchId);
-				let read: Read | null;
-				if (cached !== undefined && cached.at === at) read = cached.read;
-				else {
-					read = await readRow(deps.dir, row);
-					listCache.set(row.matchId, { at, read });
-				}
-				if (read === null) continue;
-				summaries.push({ ...(read.kind === 'stream' ? read.summary : { ...read.summary, source: (deps.canRebuild?.(read.actionsHeader) ?? false) ? 'rebuild' : 'none' }), id: row.matchId });
-			} catch (err) {
-				log({ evt: 'replay-list-read-failed', matchId: row.matchId, error: (err as Error).message });
-			}
-		}
+		const summaries = [...index.entries()].map(([id, { summary }]) => ({ ...summary, id }));
 
 		// A recording that cannot be played is not offered (wave 81): the worst case is no replay.
 		const people = (s: (typeof summaries)[number]): boolean => s.seatsKnown && !s.header.ai[0] && !s.header.ai[1];
 		const visible = summaries.filter((s) => s.source !== 'none' && !hiddenFrom(req, s.header) && (!humansOnly || people(s)));
 		visible.sort((a, b) => (a.header.startedAt < b.header.startedAt ? 1 : a.header.startedAt > b.header.startedAt ? -1 : 0));
-		const listed = visible.slice(0, limit);
-		const now = await namesNow(listed.flatMap((s) => s.users.map((u) => u.userId)));
+		const shown = visible.slice(0, limit);
+		const now = await namesNow(shown.flatMap((s) => s.users.map((u) => u.userId)));
 		res.set('Cache-Control', LIST_CACHE);
 		res.json({
-			replays: listed.map((s) => ({
+			replays: shown.map((s) => ({
 				// The file's own id: a restored match's earlier epoch (`<matchId>-e<N>`) keeps the match's id in its header.
 				matchId: s.id,
 				roomId: s.header.roomId,
@@ -428,45 +434,30 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 	 */
 	replays.get('/:matchId/people', async (req: Request, res: Response) => {
 		const matchId = String(req.params.matchId);
-		const row = MATCH_ID_RE.test(matchId) ? (await rowsOf(deps.dir, log)).find((r) => r.matchId === matchId) : undefined;
-		if (row === undefined) {
+		// The stream's own roster while it is kept; after, the action log's `users` (a rebuilt replay).
+		const summary = (await indexed(matchId))?.summary;
+		if (summary === undefined || hiddenFrom(req, summary.header)) {
 			res.status(404).json({ error: 'no such replay' });
 			return;
 		}
-		try {
-			// The stream's own roster while it is kept; after, the action log's `users` (a rebuilt replay).
-			const read = await firstAndLastLine(join(deps.dir, `${matchId}${row.hasPublic ? PUBLIC_SUFFIX : ACTIONS_SUFFIX}`));
-			const header = parseJson<{ t?: string; matchId: string; roomId: string | null }>(read?.first ?? '');
-			if (header === null || header.t !== 'header' || hiddenFrom(req, header)) {
-				res.status(404).json({ error: 'no such replay' });
-				return;
-			}
-			const seats = row.hasPublic ? publicUsers(parseJson<PublicEndLine>(read?.last ?? '')) : actionUsers(parseJson<ActionsEndLine>(read?.last ?? ''));
-			const found = deps.people === undefined || seats.length === 0 ? new Map<string, Person>() : await deps.people.resolve(
-							seats.map((s) => s.userId),
-							{ within: SCREEN_WAIT_MS },
-						);
-			const people: Record<string, { name?: string } & PersonFace> = {};
-			for (const { seat, userId } of seats) {
-				const person = found.get(userId);
-				if (person !== undefined) people[String(seat)] = { ...(person.name === null ? {} : { name: person.name }), ...faceOfPerson(person) };
-			}
-			res.set('Cache-Control', PEOPLE_CACHE);
-			res.json({ people });
-		} catch (err) {
-			log({ evt: 'replay-people-read-failed', matchId, error: (err as Error).message });
-			res.status(404).json({ error: 'no such replay' });
+		const seats = summary.users;
+		const found = deps.people === undefined || seats.length === 0 ? new Map<string, Person>() : await deps.people.resolve(
+						seats.map((s) => s.userId),
+						{ within: SCREEN_WAIT_MS },
+					);
+		const people: Record<string, { name?: string } & PersonFace> = {};
+		for (const { seat, userId } of seats) {
+			const person = found.get(userId);
+			if (person !== undefined) people[String(seat)] = { ...(person.name === null ? {} : { name: person.name }), ...faceOfPerson(person) };
 		}
+		res.set('Cache-Control', PEOPLE_CACHE);
+		res.json({ people });
 	});
 
 	replays.get('/:matchId', async (req: Request, res: Response) => {
 		const matchId = String(req.params.matchId);
-		if (!MATCH_ID_RE.test(matchId)) {
-			res.status(404).json({ error: 'no such replay' });
-			return;
-		}
 		const publicPath = join(deps.dir, `${matchId}${PUBLIC_SUFFIX}`);
-		const row = (await rowsOf(deps.dir, log)).find((r) => r.matchId === matchId);
+		const row = (await indexed(matchId))?.row;
 		if (row === undefined) {
 			res.status(404).json({ error: 'no such replay' });
 			return;
