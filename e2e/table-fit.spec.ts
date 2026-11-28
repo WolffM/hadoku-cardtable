@@ -1056,7 +1056,12 @@ test(TITLE, async ({ browser }) => {
       // minus that one case.
       const notDeclaring = /^COMBAT_DECLARE_(ATTACKERS|BLOCKERS)$/;
       const decision = f.page.getByTestId('live-decision');
-      const blockingDecision = async (): Promise<boolean> => (await decision.count()) > 0 && (await nextPhaseLive(f.page).count()) === 0;
+      // A target pick is one too: a players-only one (Quiet Speculation's "target player") is the
+      // selection sheet, with Forge's Cancel in it, and it holds the board like any other.
+      const selection = f.page.getByTestId('live-selection-host');
+      const blockingDecision = async (): Promise<boolean> =>
+        (await selection.count()) > 0 || ((await decision.count()) > 0 && (await nextPhaseLive(f.page).count()) === 0);
+      const cancel = f.page.getByTestId('live-decision-cancel').or(selection.getByTestId('selection-cancel'));
       const declareDeadline = Date.now() + 30_000;
       let decidingSince = 0;
       while (
@@ -1068,7 +1073,7 @@ test(TITLE, async ({ browser }) => {
         }
         if (await blockingDecision()) {
           if (decidingSince === 0) decidingSince = Date.now();
-          if (Date.now() - decidingSince > 2_000) await f.page.getByTestId('live-decision-cancel').click({ timeout: 2_000 }).catch(() => {});
+          if (Date.now() - decidingSince > 2_000) await cancel.first().click({ timeout: 2_000 }).catch(() => {});
         } else {
           // The window may be the OTHER seat's (blockers, while this one attacked), and the
           // bots are paused: answer it on whichever page has the OK.

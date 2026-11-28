@@ -135,14 +135,17 @@ test(titled('the empty-stack pass is the pop-up’s Next Phase; a target’s Can
     await expect(endTurn(bob.page), 'bob: Auto Yield, pressable on alice’s turn').toBeEnabled();
 
     /* ── a target's Cancel is the pop-up's, and it backs out ──────────── */
+    // With no creature out, the bolt's only targets are the two players: a players-only pick is
+    // asked in the selection sheet, which lists them, and Forge's Cancel is that sheet's.
     await clickHandCard(page, bolt);
-    await expect(page.getByTestId('live-decision-cancel'), 'choosing a target: Forge’s Cancel, in the pop-up').toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('live-decision-cancel')).toHaveText('Cancel');
+    const targetCancel = page.getByTestId('live-selection-host').getByTestId('selection-cancel');
+    await expect(targetCancel, 'choosing a target: Forge’s Cancel, in the pop-up').toBeVisible({ timeout: 15_000 });
+    await expect(targetCancel).toHaveText('Cancel');
     await expect(nextPhaseLive(page), 'choosing a target: the pass pop-up is gone, this one is a target pick').toHaveCount(0);
     await expect(endTurn(page), 'End Turn is greyed, not absent, while Forge has no End Turn').toBeDisabled();
     await expectBox(page, 'choosing a target');
     await page.screenshot({ path: resolve(SHOTS, 'target-cancel.png') });
-    await page.getByTestId('live-decision-cancel').click();
+    await targetCancel.click();
     await expect(nextPhaseLive(page), 'backed out: the plain pass pop-up is back').toHaveCount(1, { timeout: 15_000 });
     await expect(page.locator(`[data-zone="hand"][data-owner="you"] [data-board-card="${bolt}"]`), 'the bolt is back in hand').toHaveCount(1, { timeout: 15_000 });
     expect(await stackCount(page), 'nothing went on the stack').toBe(0);
