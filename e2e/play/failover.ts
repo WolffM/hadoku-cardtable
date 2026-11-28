@@ -7,11 +7,11 @@ import { execFileSync } from 'node:child_process';
 
 import type { Page } from '@playwright/test';
 
-import type { Claws } from './claws.ts';
+import { fillDisk, type Claws } from './claws.ts';
 import type { PlayStack } from './harness.ts';
 
 export type Row = Record<string, unknown>;
-export const FAULTS = ['agent-kill', 'agent-stall', 'coord-stall', 'jvm-kill', 'disk-full', 'coord-restart', 'coord-kill'] as const;
+export const FAULTS = ['agent-kill', 'agent-stall', 'coord-stall', 'jvm-kill', 'disk-full', 'coord-disk-full', 'coord-restart', 'coord-kill'] as const;
 export type Fault = (typeof FAULTS)[number];
 /** Faults whose matches are restored from a turn snapshot; the rest are re-attached or go on. */
 export const RESTORING: ReadonlySet<Fault> = new Set(['agent-kill', 'agent-stall', 'jvm-kill', 'coord-stall']);
@@ -110,6 +110,14 @@ export async function fire(fault: Fault, stack: PlayStack, claws: Claws, host: s
       await sleep(13_000);
       process.kill(pid, 'SIGCONT');
       return { at, detail: { stalledMs: Date.now() - at, pid } };
+    }
+    case 'coord-disk-full': {
+      // The coordinator's own disk (prod: hokon's /tmp, where each claw match's records and frames are
+      // kept), full; 20 s on, a deploy while it still is, the restart that needs those records.
+      fillDisk(stack.workDir);
+      await sleep(20_000);
+      await stack.restart();
+      return { at, detail: { filled: stack.workDir, restartedMs: Date.now() - at } };
     }
     case 'coord-restart':
       await stack.restart();

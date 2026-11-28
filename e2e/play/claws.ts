@@ -71,6 +71,30 @@ function pidsUnder(dir: string): number[] {
   return out;
 }
 
+/** A tmpfs of `mb` MB mounted on `dir` (sudo), for a disk to fill; `unmount` takes it away. */
+export function mountTmpfs(dir: string, mb: number): { unmount(): void } {
+  mkdirSync(dir, { recursive: true });
+  execFileSync('sudo', ['-n', 'mount', '-t', 'tmpfs', '-o', `size=${mb}m,uid=${process.getuid?.() ?? 1000},gid=${process.getgid?.() ?? 1000}`, 'tmpfs', dir]);
+  return { unmount: () => execFileSync('sudo', ['-n', 'umount', '-l', dir]) };
+}
+
+/** Fill the filesystem `dir` is on: all but a block in one file, then the rest until it refuses (ENOSPC is the point). */
+export function fillDisk(dir: string): void {
+  const avail = (): string => execFileSync('df', ['--output=avail', '-B1', dir], { encoding: 'utf8' }).split('\n')[1]?.trim() ?? '0';
+  const free = Number(avail());
+  execFileSync('fallocate', ['-l', String(Math.max(0, free - (1 << 20))), join(dir, 'fill')]);
+  try {
+    execFileSync('dd', ['if=/dev/zero', `of=${join(dir, 'fill2')}`, 'bs=4k'], { stdio: 'ignore' });
+  } catch {
+    // dd ends on ENOSPC: the disk is full
+  }
+  console.log(`[claws] ${dir}: filled ${free} bytes, ${avail()} left`);
+}
+
+export function freeDisk(dir: string): void {
+  execFileSync('rm', ['-f', join(dir, 'fill'), join(dir, 'fill2')]);
+}
+
 export async function startClaws(opts: { count?: number; diskMb?: Record<number, number>; fenceMs?: number } = {}): Promise<Claws> {
   const count = opts.count ?? 2;
   const dir = mkdtempSync(join(process.env.CARDTABLE_E2E_CLAWS_DIR ?? tmpdir(), 'claws-'));
@@ -85,17 +109,14 @@ export async function startClaws(opts: { count?: number; diskMb?: Record<number,
   const nodes = Array.from({ length: count }, (_, i) => ({ node: `127.0.0.${i + 2}`, reachable: true, memoryMb: 6000 }));
   const writeState = (): void => writeFileSync(stateFile, JSON.stringify({ nodes }));
   writeState();
-  const mounted: string[] = [];
+  const mounted: { unmount(): void }[] = [];
 
   const agents: ClawAgent[] = nodes.map(({ node }, i) => {
     const home = join(dir, node);
     const log = join(dir, `${node}.log`);
     mkdirSync(home, { recursive: true });
     const diskMb = opts.diskMb?.[i];
-    if (diskMb !== undefined) {
-      execFileSync('sudo', ['-n', 'mount', '-t', 'tmpfs', '-o', `size=${diskMb}m,uid=${process.getuid?.() ?? 1000},gid=${process.getgid?.() ?? 1000}`, 'tmpfs', home]);
-      mounted.push(home);
-    }
+    if (diskMb !== undefined) mounted.push(mountTmpfs(home, diskMb));
     let proc: ChildProcess | null = null;
     return {
       node,
@@ -124,21 +145,8 @@ export async function startClaws(opts: { count?: number; diskMb?: Record<number,
         const pid = proc?.pid;
         if (pid !== undefined && alive(pid)) process.kill(pid, signal);
       },
-      fillDisk() {
-        const free = Number(execFileSync('df', ['--output=avail', '-B1', home], { encoding: 'utf8' }).split('\n')[1]?.trim() ?? '0');
-        // All but a block in one go, then the rest by writing until the filesystem refuses (ENOSPC is the point).
-        execFileSync('fallocate', ['-l', String(Math.max(0, free - (1 << 20))), join(home, 'fill')]);
-        try {
-          execFileSync('dd', ['if=/dev/zero', `of=${join(home, 'fill2')}`, 'bs=4k'], { stdio: 'ignore' });
-        } catch {
-          // dd ends on ENOSPC: the disk is full
-        }
-        const left = execFileSync('df', ['--output=avail', '-B1', home], { encoding: 'utf8' }).split('\n')[1]?.trim();
-        console.log(`[claws] ${node}: filled ${free} bytes, ${left} left`);
-      },
-      freeDisk() {
-        execFileSync('rm', ['-f', join(home, 'fill'), join(home, 'fill2')]);
-      },
+      fillDisk: () => fillDisk(home),
+      freeDisk: () => freeDisk(home),
     };
   });
   for (const a of agents) a.start();
@@ -172,7 +180,7 @@ export async function startClaws(opts: { count?: number; diskMb?: Record<number,
         }
       }
       await sleep(500);
-      for (const home of mounted) execFileSync('sudo', ['-n', 'umount', '-l', home]);
+      for (const m of mounted) m.unmount();
     },
   };
 }

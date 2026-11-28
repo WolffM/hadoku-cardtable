@@ -164,9 +164,10 @@ export const PLAY_CATALOG = resolve(import.meta.dirname, '..', 'fixtures', 'sets
  * The PARENT of every stack's work dir — never itself a server's
  * `CARDTABLE_PLAY_WORK_DIR`. See "…and the work dir must not be shared with
  * ANOTHER STACK either". Never production's `/tmp/cardtable-play`, and the
- * reaper refuses to signal anything outside it.
+ * reaper refuses to signal anything outside it. `CARDTABLE_E2E_PLAY_WORK_ROOT` moves it, for a
+ * fault spec that puts it on a filesystem of its own to fill (`scripts/stress/hosting/failover.spec.ts`).
  */
-export const PLAY_WORK_ROOT = resolve(RUN_DIR, 'play-work');
+export const PLAY_WORK_ROOT = process.env.CARDTABLE_E2E_PLAY_WORK_ROOT ?? resolve(RUN_DIR, 'play-work');
 /** Each stack's own subdirectory of `PLAY_WORK_ROOT`. */
 const STACK_DIR_PREFIX = 'stack-';
 /**
