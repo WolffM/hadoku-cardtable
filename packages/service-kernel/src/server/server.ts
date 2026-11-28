@@ -229,10 +229,12 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 			return;
 		}
 		const start = process.hrtime.bigint();
+		// Read now: a mounted router strips its prefix from req.path while it routes, so on finish an /api route reads "/".
+		const path = req.path;
 		res.on('finish', () => {
 			const ms = Number(process.hrtime.bigint() - start) / 1e6;
 			// The identity the handlers saw, post-sanitize: a spoofed request logs as public.
-			console.log(JSON.stringify({ t: new Date().toISOString(), svc: id, method: req.method, path: req.path, status: res.statusCode, ms: Math.round(ms), user: userIdOf(req), tier: tierOf(req) }));
+			console.log(JSON.stringify({ t: new Date().toISOString(), svc: id, method: req.method, path, status: res.statusCode, ms: Math.round(ms), user: userIdOf(req), tier: tierOf(req) }));
 		});
 		next();
 	});

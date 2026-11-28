@@ -126,6 +126,27 @@ describe('createGameServer: a fake two-plugin game', () => {
 		expect(await (await fetch(`${base}/health/busy`)).json()).toEqual({ busy: true, count: 1, runs: [{ id: 't1', kind: 'table', label: 'live' }] });
 	});
 
+	it("logs a request under its whole path, a mounted router's prefix included", async () => {
+		// PPE 2026-11-28: every /api route logged as "/", so a slow /api/replays read as a slow index page.
+		const printed: string[] = [];
+		const spy = vi.spyOn(console, 'log').mockImplementation((line: unknown) => void printed.push(String(line)));
+		try {
+			await (await fetch(`${base}/api/scores`, { headers: sealed })).json();
+			await new Promise<void>((done) => setImmediate(done));
+		} finally {
+			spy.mockRestore();
+		}
+		const requests = printed.flatMap((l) => {
+			try {
+				const r = JSON.parse(l) as { method?: string; path?: string };
+				return r.method === undefined ? [] : [r.path];
+			} catch {
+				return []; // a line that is not the request log's JSON
+			}
+		});
+		expect(requests).toEqual(['/api/scores']);
+	});
+
 	it("serves a sealed route to the edge at any tier, and nothing of it to a direct hit", async () => {
 		expect(await (await fetch(`${base}/preview`, { headers: { 'x-edge-auth': SEAL, 'x-hadoku-tier': 'public' } })).text()).toBe('preview');
 		expect((await fetch(`${base}/preview`)).status).toBe(404);
