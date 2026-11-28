@@ -218,6 +218,28 @@ export async function noSideways(page: Page): Promise<void> {
   expect(scrollWidth, 'the page body does not scroll sideways').toBe(clientWidth);
 }
 
+/**
+ * The screen sits between equal page edges: each box `selector` matches is as far from the window's
+ * right edge as from its left, and neither is under `min` px. A phone screen whose one side meets the
+ * glass while the other keeps its gutter is the fault this reads.
+ */
+export async function evenGutters(page: Page, selector: string, min = 12): Promise<void> {
+  const boxes = await page.locator(selector).evaluateAll((els) =>
+    els
+      .filter((el) => el.getClientRects().length > 0)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        const cls = typeof el.className === 'string' ? el.className.split(/\s+/)[0] : el.tagName;
+        return { what: cls, left: Math.round(r.left), right: Math.round(window.innerWidth - r.right) };
+      }),
+  );
+  expect(boxes.length, `something matches ${selector}`).toBeGreaterThan(0);
+  for (const b of boxes) {
+    expect(b.left, `${b.what}: its left gutter`).toBeGreaterThanOrEqual(min);
+    expect(Math.abs(b.right - b.left), `${b.what}: its right gutter (${b.right}px) matches its left (${b.left}px)`).toBeLessThanOrEqual(1);
+  }
+}
+
 /** One edge cue of a portrait lane, read off its pseudo-element: the glyph it draws and its width. */
 export interface LaneCue {
   glyph: string;
