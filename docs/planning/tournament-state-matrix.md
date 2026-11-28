@@ -101,8 +101,9 @@ it in every cell, a restart included, with the real `attachPeople` sweep.
 1. **Turn the pick timer on in the draft room before dealing.** Without it, a drafter who closes the tab
    (rather than pressing Leave) holds their pod until they come back. With it, their seat picks the card
    they last pointed at, or the bot's, when time runs out. Severity: high (one AFK drafter stalls 7 people).
-   Workaround if it is off and someone vanishes: the vanished player presses Leave from any tab. Their seat
-   then picks at once (bug 5).
+   Workaround if it is off and someone vanishes: the vanished player presses Leave, with no other tab of
+   theirs still open on the room. Their seat then picks at once (bug 5). A second tab left on the room joins
+   them again on its next read, and they are an AFK seat once more.
 2. **DQ waits for the draft to end.** `dqPlayer` refuses until round 1 is dealt, and round 1 is dealt the
    instant the last pick is made. Severity: low. Workaround: DQ them the moment the draft ends. Their round-1
    match is conceded, and their opponent plays on.
@@ -124,6 +125,16 @@ it in every cell, a restart included, with the real `attachPeople` sweep.
 - **Humans-first pairing falls back to the whole field only when the split would repeat** (bug 3).
   Rejected: always pairing the whole field. That changes rounds the operator has already seen pair the way
   they ruled.
+- **`9p leavers` (a nine-person split room, one leaver per pod) runs in every full Forge run on the claws**
+  (`CLAW_FIELDS`). Rejected: keeping it behind `CARDTABLE_E2E_BIG_FIELDS`, which only hokon sets, and hokon
+  is prod this weekend.
+- **This lane fixed `scripts/ci/e2e-rerun.ts` itself** (a re-run is matched by title as well as file and
+  line). Rejected: only splitting this spec's `test()` calls onto separate lines. That hides the judge's bug
+  for every other spec that builds tests in a loop.
+- **The e2e leaver leaves from off the room screen.** A Leave POSTed while the page still draws the room
+  makes the room's own read join them again, so the "leaver" was an AFK drafter (prove5, 2 of 3). The real
+  Leave goes home as it answers. Rejected: having the room screen stop joining once its viewer has left.
+  That join is how an invite link works, and the real button never hits it.
 
 ## The claw e2e for Sunday
 
