@@ -409,6 +409,8 @@ async function fire(pod: Pod, event: Event, phase: Phase): Promise<Pod> {
 			// A plan's verdict is checked again by every new process (`restored`), so it is not part of the shape.
 			const shapeOf = (p: Pod) => ({ ...view(p).game!.pod, verdict: null });
 			const shape = JSON.stringify(shapeOf(pod));
+			// A deploy's shutdown drains the snapshot writes before the process exits (`Lobby.flushed`).
+			await pod.lobby.flushed();
 			const lobby = await namedLobby(pod.dir, pod.archived);
 			lobby.useGameType('draft', pod.side.hooks);
 			lobby.useGameType('constructed-1v1', pod.side.hooks);
