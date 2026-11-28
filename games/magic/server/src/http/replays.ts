@@ -345,7 +345,8 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 		const humansOnly = req.query.humans === 'only';
 
 		const rows = rowsOf(deps.dir);
-		const summaries: Summary[] = [];
+		// Named by the row's own id: an earlier epoch's header carries the match's id (`<id>-e<N>` is the file's).
+		const summaries: (Summary & { id: string })[] = [];
 		for (const id of [...listCache.keys()]) if (!rows.some((r) => r.matchId === id)) listCache.delete(id);
 		for (const row of rows) {
 			try {
@@ -358,7 +359,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 					listCache.set(row.matchId, { at, read });
 				}
 				if (read === null) continue;
-				summaries.push(read.kind === 'stream' ? read.summary : { ...read.summary, source: (deps.canRebuild?.(read.actionsHeader) ?? false) ? 'rebuild' : 'none' });
+				summaries.push({ ...(read.kind === 'stream' ? read.summary : { ...read.summary, source: (deps.canRebuild?.(read.actionsHeader) ?? false) ? 'rebuild' : 'none' }), id: row.matchId });
 			} catch (err) {
 				log({ evt: 'replay-list-read-failed', matchId: row.matchId, error: (err as Error).message });
 			}
@@ -373,7 +374,8 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 		res.set('Cache-Control', LIST_CACHE);
 		res.json({
 			replays: listed.map((s) => ({
-				matchId: s.header.matchId,
+				// The file's own id: a restored match's earlier epoch (`<matchId>-e<N>`) keeps the match's id in its header.
+				matchId: s.id,
 				roomId: s.header.roomId,
 				players: s.header.players.map((name, seat) => {
 					const userId = s.users.find((u) => u.seat === seat)?.userId;

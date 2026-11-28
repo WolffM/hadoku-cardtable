@@ -117,6 +117,20 @@ describe('GET /api/replays', () => {
 		expect(json.replays).toEqual([{ matchId: 'm-1', roomId: 'r-1', players: ['A', 'B'], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z', endedAt: '2026-01-01T00:10:00.000Z', winner: 1, source: 'stream', pace: { envs: 1, durationMs: 0, waitMs: 0 } }]);
 	});
 
+	it('lists a restored match’s earlier epoch by its own id, which its header still names the match by', async () => {
+		const dir = await recordingsDir();
+		writePublic(dir, 'm-1', { startedAt: '2026-01-01T00:00:00.000Z' });
+		writeGz(join(dir, 'm-1-e1.public.jsonl.gz'), [
+			{ t: 'header', v: 2, matchId: 'm-1', roomId: null, players: ['A', 'B'], ai: [false, false], decks: [null, null], startedAt: '2026-01-01T00:00:00.000Z' },
+			{ t: 'env', at: 0, env: { matchId: 'm-1', cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify', method: 'openView', payload: { myPlayers: [0] } } } },
+			{ t: 'end', endedAt: '2026-01-01T00:04:00.000Z', winner: null },
+		]);
+		const base = await openApp(dir);
+		const ids = ((await call(base, '/api/replays')).json.replays as { matchId: string }[]).map((r) => r.matchId).sort();
+		expect(ids).toEqual(['m-1', 'm-1-e1']);
+		expect((await call(base, '/api/replays/m-1-e1')).status).toBe(200);
+	});
+
 	it("measures each stream's pace: its frames, their span, and the gaps over five seconds", async () => {
 		const dir = await recordingsDir();
 		const env = (at: number): unknown => ({ t: 'env', at, env: { matchId: 'm-1', cursor: { epoch: 'e', seq: at }, frame: { kind: 'notify' } } });

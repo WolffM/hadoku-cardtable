@@ -203,7 +203,11 @@ export interface MatchRecordingWriter {
 	 * Never throws; a failed write is one `log` line, not a rejection. Resolves
 	 * once both attempts (success or failure) are done.
 	 */
-	finish(actionsEnd: Omit<ActionsEndLine, 't'>, publicEnd: Omit<PublicEndLine, 't'>): Promise<void>;
+	/**
+	 * `aside`: this is an earlier epoch whose match already plays on under a new one (`MatchRegistry.restore`),
+	 * so it is written straight to the first free `<matchId>-e<N>`, never over the match's own name.
+	 */
+	finish(actionsEnd: Omit<ActionsEndLine, 't'>, publicEnd: Omit<PublicEndLine, 't'>, opts?: { aside?: boolean }): Promise<void>;
 }
 
 export interface MatchRecordingWriterDeps {
@@ -234,13 +238,20 @@ async function flush(path: string, lines: readonly unknown[], log: JsonLog, whic
  * ages it, an erase rewrites it, and `/replays/<matchId>-e<N>` serves it — so the game as it was before
  * the restore survives for a dispute.
  */
-function keepEarlierEpoch(dir: string, matchId: string, log: JsonLog): void {
-	const paths = (id: string) => [join(dir, `${id}${ACTIONS_SUFFIX}`), join(dir, `${id}${PUBLIC_SUFFIX}`)];
-	const current = paths(matchId);
-	if (!current.some((p) => existsSync(p))) return;
+const epochPaths = (dir: string, id: string) => [join(dir, `${id}${ACTIONS_SUFFIX}`), join(dir, `${id}${PUBLIC_SUFFIX}`)];
+
+/** The first `<matchId>-e<N>` no recording holds yet. */
+function freeEpoch(dir: string, matchId: string): number {
 	let n = 1;
-	while (paths(`${matchId}-e${String(n)}`).some((p) => existsSync(p))) n += 1;
-	const aside = paths(`${matchId}-e${String(n)}`);
+	while (epochPaths(dir, `${matchId}-e${String(n)}`).some((p) => existsSync(p))) n += 1;
+	return n;
+}
+
+export function keepEarlierEpoch(dir: string, matchId: string, log: JsonLog): void {
+	const current = epochPaths(dir, matchId);
+	if (!current.some((p) => existsSync(p))) return;
+	const n = freeEpoch(dir, matchId);
+	const aside = epochPaths(dir, `${matchId}-e${String(n)}`);
 	try {
 		current.forEach((p, i) => {
 			if (existsSync(p)) renameSync(p, aside[i]!);
@@ -298,13 +309,17 @@ export function createMatchRecordingWriter(deps: MatchRecordingWriterDeps): Matc
 			actionsHeader.roomId = roomId;
 			publicHeader.roomId = roomId;
 		},
-		async finish(actionsEnd, publicEnd) {
+		async finish(actionsEnd, publicEnd, opts = {}) {
 			actionLines.push({ t: 'end', ...actionsEnd });
 			publicLines.push({ t: 'end', ...publicEnd });
-			keepEarlierEpoch(deps.dir, deps.matchId, log);
+			let id = deps.matchId;
+			if (opts.aside === true) {
+				id = `${deps.matchId}-e${String(freeEpoch(deps.dir, deps.matchId))}`;
+				log({ evt: 'recording-epoch-kept', matchId: deps.matchId, epoch: id });
+			} else keepEarlierEpoch(deps.dir, deps.matchId, log);
 			await Promise.all([
-				flush(join(deps.dir, `${deps.matchId}${ACTIONS_SUFFIX}`), actionLines, log, 'actions'),
-				flush(join(deps.dir, `${deps.matchId}${PUBLIC_SUFFIX}`), publicLines, log, 'public'),
+				flush(join(deps.dir, `${id}${ACTIONS_SUFFIX}`), actionLines, log, 'actions'),
+				flush(join(deps.dir, `${id}${PUBLIC_SUFFIX}`), publicLines, log, 'public'),
 			]);
 		},
 	};

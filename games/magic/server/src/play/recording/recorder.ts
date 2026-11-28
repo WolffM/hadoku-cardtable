@@ -50,7 +50,7 @@ import { gameOutcome } from '../match.js';
 import { WATCHER_SEAT } from '../match/forge-session.js';
 import type { OutcomeFacts } from '@hadoku/game-server/play/match/outcome';
 import { createSeatPosition, type SeatPosition } from './position.js';
-import { createMatchRecordingWriter, type MatchRecordingWriter, type RecordedSeat } from '@hadoku/game-server/play/recording/writer';
+import { createMatchRecordingWriter, keepEarlierEpoch, type MatchRecordingWriter, type RecordedSeat } from '@hadoku/game-server/play/recording/writer';
 
 const FORGE_PIN_RE = /^[0-9a-f]{40}$/;
 
@@ -258,6 +258,22 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 	};
 	const randomSeed = deps.randomSeed ?? randomSeed32;
 	const sessions = new Map<string, Session>();
+	/** Each match's last finish still being written, so a restore's start moves it aside only once it is on disk. */
+	const finishing = new Map<string, Promise<void>>();
+
+	/** A match that ended without a game over (stopped, crashed, restored past) finished winnerless; `aside` for an earlier epoch. */
+	const finishSession = (matchId: string, session: Session, reason: string, aside: boolean): void => {
+		writeHeldBack(matchId, session, 'received');
+		const endedAt = new Date(now()).toISOString();
+		const boards = finalBoards(session);
+		const ended = endSeats(matchId, session);
+		session.carryArtPins();
+		const done = session.writer.finish({ endedAt, reason, ...(boards === undefined ? {} : { boards }), ...usersOfSeats(ended.seats) }, { endedAt, winner: null, ...ended }, { aside });
+		finishing.set(matchId, done);
+		void done.finally(() => {
+			if (finishing.get(matchId) === done) finishing.delete(matchId);
+		});
+	};
 
 	return {
 		host(inner) {
@@ -299,6 +315,17 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 				const session: Session = { writer, startedAtMs: now(), lastPresence: null, heldBack: null, seats: null, seatsAt: 0, roomKnown: roomId !== null, positions: [createSeatPosition(0), createSeatPosition(1)], carryArtPins: () => guarded(log, matchId, 'art-pins', carryArtPins) };
 				// Every ask's callId per seat, in the order Forge sent them: a reply's `ask` number.
 				const asks = new Map<number, string[]>();
+				// A restore (`MatchRegistry.restore`) starts the same id again. The game before it is an earlier
+				// epoch, kept as its own recording now, not when the new one ends: still live, it is finished aside
+				// here (its exit, later, then finds it no longer the match's); already finished, its files move
+				// aside once their write lands.
+				const earlier = sessions.get(matchId);
+				if (earlier !== undefined) {
+					sessions.delete(matchId);
+					finishSession(matchId, earlier, 'restored', true);
+				} else {
+					void (finishing.get(matchId) ?? Promise.resolve()).then(() => keepEarlierEpoch(deps.dir, matchId, log));
+				}
 				sessions.set(matchId, session);
 
 				const host = inner(matchId, seeded, {
@@ -329,13 +356,8 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					// A match that ends without a game over (stopped, crashed) is finished here, winnerless.
 					exit: (reason) => {
 						if (sessions.get(matchId) === session) {
-							writeHeldBack(matchId, session, 'received');
 							sessions.delete(matchId);
-							const endedAt = new Date(now()).toISOString();
-							const boards = finalBoards(session);
-							const ended = endSeats(matchId, session);
-							session.carryArtPins();
-							void writer.finish({ endedAt, reason, ...(boards === undefined ? {} : { boards }), ...usersOfSeats(ended.seats) }, { endedAt, winner: null, ...ended });
+							finishSession(matchId, session, reason, false);
 						}
 						events.exit(reason);
 					},

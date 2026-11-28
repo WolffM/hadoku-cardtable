@@ -149,6 +149,32 @@ describe('createRecorder', () => {
 		expect(logged.some((e) => e.evt === 'recording-failed')).toBe(true);
 	});
 
+	it('a restore keeps the game before it: the old epoch is its own recording at once, and the new one is the match’s, whichever of the old exit and the new start comes first', async () => {
+		for (const order of ['start-then-exit', 'exit-then-start'] as const) {
+			dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
+			const inner = fakeFactory();
+			const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS });
+			const hosted = recorder.host(inner);
+			const applied = (k: number, method: string) => inner.calls[k]!.events.line({ t: 'applied', seat: 0, seq: 1, input: 'x', act: { kind: 'act', method } } as unknown as BridgeLine);
+			hosted('m-5', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+			applied(0, 'before');
+			// `MatchRegistry.restore`: the old game is stopped, the new one started under the same id.
+			if (order === 'exit-then-start') inner.calls[0]!.events.exit('stopped');
+			hosted('m-5', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
+			if (order === 'start-then-exit') inner.calls[0]!.events.exit('stopped');
+			applied(1, 'after');
+			const cmds = (id: string) => linesOf(join(dir, `${id}.actions.jsonl.gz`)).filter((l) => l.t === 'cmd').map((l) => (l.cmd as { frame: { method: string } }).frame.method);
+			await vi.waitFor(() => expect(existsSync(join(dir, 'm-5-e1.actions.jsonl.gz')), `${order}: the game before, while the new one plays`).toBe(true));
+			expect(cmds('m-5-e1')).toEqual(['before']);
+			recorder.onGameOver({ id: 'm-5', endedAt: Date.now(), winner: null, winnerSeat: null, concededBy: null, spec: spec(1) });
+			await vi.waitFor(() => expect(existsSync(join(dir, 'm-5.actions.jsonl.gz'))).toBe(true));
+			expect(cmds('m-5'), order).toEqual(['after']);
+			expect(cmds('m-5-e1'), order).toEqual(['before']);
+			expect(existsSync(join(dir, 'm-5-e2.actions.jsonl.gz')), `${order}: no third recording`).toBe(false);
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
 	it('logs an act from its applied echo, never from the send, and other command kinds are not logged at all', async () => {
 		dir = mkdtempSync(join(tmpdir(), 'cardtable-recorder-'));
 		const inner = fakeFactory();
