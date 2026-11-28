@@ -917,7 +917,7 @@ test(titled('fire drill: the tournament runbook, symptom by symptom, in an 8-sea
         const reset = await pressTool(t1.tableId, 'Reset game');
         if (reset !== null) throw new Error(`Reset game answered: ${reset}`);
       } else {
-        miss('no lossy turn reached in this game: the refusal and its Reset game were not exercised here (the plain Restart turn was)');
+        miss('no lossy turn: on this pin nothing on a Bloomburrow board is beyond the snapshot (restore.jvm.test), so the refusal and its Reset game are proven there, not here (the plain Restart turn was)');
         if (error !== null) throw new Error(`Restart turn answered: ${error}`);
         await expect
           .poll(async () => (await live()).find((t) => t.tableId === t1.tableId)?.epochs.length ?? 0, {
@@ -954,10 +954,14 @@ test(titled('fire drill: the tournament runbook, symptom by symptom, in an 8-sea
     await drill('A player must leave the tournament mid-round', '⋯ → DQ ‹player›', async () => {
       await expect.poll(async () => (await live()).find((t) => t.tableId === d1.tableId)?.match?.status, { timeout: START_TIMEOUT * 3, message: 'the match is under way' }).toBe('running');
       await sleep(10_000);
+      const ended = d1.players.map((p) => p.results.length);
       const error = await pressTool(d1.tableId, `DQ e2e-${dqd.name}`);
       if (error !== null) throw new Error(`DQ answered: ${error}`);
       await closeTools();
-      await expect(dqd.f.page.getByTestId('game-result'), `${dqd.name}: the board ends`).toBeVisible({ timeout: UI_TIMEOUT });
+      // Read off what each board showed (the players' loop presses on from the result at once, so the overlay does not stay).
+      for (const [k, p] of d1.players.entries()) {
+        await expect.poll(() => p.results.slice(ended[k]).at(0), { timeout: UI_TIMEOUT, message: `${p.name}: the board ends` }).toBe(p === dqd ? 'defeat' : 'victory');
+      }
       await expect
         .poll(async () => (await room()).game.pod!.results.some((x) => x.round === 2 && [x.playerA, x.playerB].includes(dqd.id)), { timeout: UI_TIMEOUT, message: 'their match is conceded' })
         .toBe(true);
