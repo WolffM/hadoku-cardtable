@@ -159,7 +159,19 @@ describe('PodBracket', () => {
     fireEvent.click(more);
     expect(screen.getByRole('dialog').getAttribute('data-testid'), 'in a modal, not inside the card').toBe('pod-tables-row-tools');
     expect(more.closest('[data-testid="pod-tables-row"]')!.contains(screen.getByRole('dialog'))).toBe(false);
-    expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Concede game', 'Drop match', 'Reset game', 'DQ Alice', 'DQ Carol']);
+    expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toEqual([
+      'Concede game',
+      'Drop match',
+      'Reset game',
+      'Restart turn',
+      'Replay match',
+      'Game to Alice',
+      'Game to Carol',
+      'Match to Alice',
+      'Match to Carol',
+      'DQ Alice',
+      'DQ Carol',
+    ]);
     fireEvent.click(screen.getByTestId('pod-tables-row-drop'));
     expect(screen.queryByRole('menu'), 'choosing one closes the menu').toBeNull();
     expect(screen.getByTestId('pod-tables-row-drop-confirm').querySelector('.table-card__change')?.textContent).toBe('1–0→1–2');
@@ -167,6 +179,50 @@ describe('PodBracket', () => {
       fireEvent.click(screen.getByTestId('pod-tables-row-drop-yes'));
     });
     expect(posted.some((u) => u.endsWith('rooms/r-1/tables/t-3/drop'))).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('the leader’s modal opens on how the game stands, and awards a game or the match by the player’s table seat', async () => {
+    const calls: { url: string; body: unknown }[] = [];
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      calls.push({ url: String(url), body: init?.body === undefined ? null : JSON.parse(String(init.body)) });
+      if (String(url).endsWith('/admin/live')) {
+        const seat = (over: object) => ({ seat: 0, ai: false, here: true, away: false, asks: [], waitingOn: null, clock: null, ...over });
+        return Promise.resolve(
+          Response.json({
+            now: 600_000,
+            tables: [
+              {
+                tableId: 't-3',
+                matchId: 'm-000000000003',
+                epochs: ['m-000000000003-e1'],
+                // Carol sits at table seat 0 here, Alice at 1: the pairing's order is not the table's.
+                match: { status: 'running', turn: 9, active: 0, restoreTurn: 9, lastActivityAt: 300_000, seats: [seat({ waitingOn: 'declareBlockers', asks: [{ method: 'declareBlockers', ageMs: 245_000 }] }), seat({ seat: 1, away: true, clock: { ms: 754_000, running: false } })] },
+              },
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
+    const swapped = midTables.map((t) => (t.id === 't-3' ? { ...t, players: [player('u-carol'), player('u-alice')] } : t));
+    bracket({ leader: true, myMemberId: 'u-bob', tables: swapped });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('pod-tables-row-more'));
+    });
+    const state = screen.getByTestId('pod-tables-row-state');
+    const rows = [...state.querySelectorAll('.table-card__state-seat')];
+    expect(rows.map((r) => r.textContent)).toEqual(['Alice⏱ 12:34', 'CaroldeclareBlockers4:05']);
+    expect(rows[0]!.hasAttribute('data-away'), 'Alice has left').toBe(true);
+    expect(rows[1]!.hasAttribute('data-active'), 'Carol’s turn').toBe(true);
+    expect(state.querySelector('.table-card__state-idle')?.textContent).toBe('↻ 5:00');
+    expect(state.querySelector('a')?.getAttribute('href')).toContain('replay/m-000000000003-e1');
+    fireEvent.click(screen.getByTestId('pod-tables-row-game0'));
+    expect(screen.getByTestId('pod-tables-row-game0-confirm').querySelector('.table-card__change')?.textContent).toBe('1–0→2–0');
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('pod-tables-row-game0-yes'));
+    });
+    expect(calls.find((c) => c.url.endsWith('tables/t-3/award'))?.body, 'Alice is table seat 1').toEqual({ seat: 1, match: false });
     vi.unstubAllGlobals();
   });
 

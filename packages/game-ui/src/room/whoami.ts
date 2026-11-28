@@ -59,6 +59,14 @@ export function atLeastFriend(who: WhoState): boolean {
   return who !== null && who !== 'pending' && rankOf(who.edgeTier) >= rankOf('friend');
 }
 
+/**
+ * Whether the fleet names this viewer wife or admin: an operator, with the room leader's tools in every
+ * room (the server's `isOperator`, read from the raw edge tier, never the member-promoting one).
+ */
+export function isOperatorViewer(who: WhoState): boolean {
+  return who !== null && who !== 'pending' && rankOf(who.edgeTier) >= rankOf('wife');
+}
+
 /** The page's one resolution, when an app shell above has made it (`../app/GameAppShell.tsx`). */
 const WhoContext = createContext<WhoState | undefined>(undefined);
 

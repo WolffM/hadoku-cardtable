@@ -25,11 +25,11 @@ import type { RoomTable, TableGame } from '@hadoku/shared';
 import { Avatar, type Face as AvatarFace } from '@hadoku/game-ui/components/Avatar.tsx';
 import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { routeHash } from '@hadoku/game-ui/screens/route.ts';
-import { dqPlayer, resolveTable } from '../tableActions.ts';
+import { awardTable, dqPlayer, liveTables, resolveTable } from '../tableActions.ts';
 import { tablePhase } from '../TableCard.tsx';
 import { doorGo, seatAt, tableDoor } from '../tableDoor.ts';
 import { GoLink } from '../GoLink.tsx';
-import { useTableResolve } from '../tableResolve.tsx';
+import { useTableResolve, type TableState } from '../tableResolve.tsx';
 import { onPath, SWISS, swissLayout, type SwissMatch } from './swiss.ts';
 import { isPodAi, type PodView } from './wire.ts';
 import './PodBracket.css';
@@ -39,7 +39,7 @@ export interface PodBracketProps {
   pod: PodView;
   tables: readonly RoomTable[];
   myMemberId: string | null;
-  /** I lead the room: each live match offers Reset game and DQ, seated or watching. */
+  /** I lead the room, or am an operator: each live match offers the leader's tools, seated or watching. */
   leader?: boolean | undefined;
   nameOf: (memberId: string) => string;
   /** A player's watchparty character, or `null` for none. */
@@ -184,6 +184,13 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
       ? (door ?? { label: 'Play', href: routeHash({ kind: 'room', roomId, tableId: tableId! }), testId: 'pod-tables-play' })
       : (doorGo(tableDoor(table, game, null), roomId, tableId!, 'pod-tables-watch') ?? { label: 'Watch', href: routeHash({ kind: 'room', roomId, tableId: tableId! }), testId: 'pod-tables-watch' });
   const series = { length: table?.series.length ?? 1, wins, played: table?.series.games.length ?? wins[0] + wins[1], phase };
+  // A pairing's player at their table seat: a human where the table seats them, the AI at the seat its human is not.
+  const seatOfPlayer = (k: 0 | 1): 0 | 1 => {
+    const at = table === null ? null : seatAt(table, players[k]);
+    if (at === 0 || at === 1) return at;
+    const other = table === null ? null : seatAt(table, players[k === 0 ? 1 : 0]);
+    return other === 1 ? 0 : 1;
+  };
   const resolve = useTableResolve({
     testId: 'pod-tables-row',
     players,
@@ -195,7 +202,17 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
     menu: true,
     ...(live && mine ? { onDrop: () => resolveTable('drop', roomId, tableId!) } : {}),
     ...(live && mine && matchId !== null ? { onConcede: () => resolveTable('concede', roomId, tableId!) } : {}),
-    ...(live && leader ? { onReset: () => resolveTable('reset', roomId, tableId!), onDq: (id: string) => dqPlayer(roomId, id), dqable: (id: string) => !isPodAi(id) && !dropped.includes(id) } : {}),
+    ...(live && leader
+      ? {
+          onReset: () => resolveTable('reset', roomId, tableId!),
+          onRestore: () => resolveTable('restore', roomId, tableId!),
+          onReplay: () => resolveTable('replay', roomId, tableId!),
+          onAward: (k: 0 | 1, whole: boolean) => awardTable(roomId, tableId!, seatOfPlayer(k), whole),
+          inspect: () => tableState(roomId, tableId!, seatOfPlayer),
+          onDq: (id: string) => dqPlayer(roomId, id),
+          dqable: (id: string) => !isPodAi(id) && !dropped.includes(id),
+        }
+      : {}),
   });
   const decided = phase === 'done';
   const gameNo = Math.min(series.played + 1, series.length);
@@ -244,4 +261,20 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
       {resolve.panel}
     </div>
   );
+}
+
+/** How a table's game stands, read from the room's live tables, by the pairing's players (`seatOf` maps each to its table seat). */
+async function tableState(roomId: string, tableId: string, seatOf: (k: 0 | 1) => 0 | 1): Promise<TableState | null> {
+  const live = await liveTables(roomId);
+  const t = live?.tables.find((x) => x.tableId === tableId);
+  if (live === null || t === undefined || t.match === null) return null;
+  const m = t.match;
+  const seat = (k: 0 | 1): TableState['seats'][number] => {
+    const s = m.seats[seatOf(k)];
+    if (s === undefined) return null;
+    const oldest = s.asks[0];
+    return { waitingOn: s.waitingOn ?? oldest?.method ?? null, askAgeMs: oldest?.ageMs ?? null, clockMs: s.clock?.ms ?? null, away: s.away, here: s.here || s.ai };
+  };
+  const active = m.active === null ? null : seatOf(0) === m.active ? 0 : 1;
+  return { turn: m.turn, active, now: live.now, lastActivityAt: m.lastActivityAt, seats: [seat(0), seat(1)], epochs: t.epochs };
 }

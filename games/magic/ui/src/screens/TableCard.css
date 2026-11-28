@@ -344,3 +344,47 @@
 .table-card__tools .table-card__error {
   padding: 0;
 }
+
+/* How the game stands, over the tools (`tableResolve.tsx`'s `TableStateRows`): one row a seat, the one whose turn it is marked. */
+.table-card__state {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.table-card__state-seat {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.table-card__state-seat[data-active] .table-card__state-name {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.table-card__state-seat[data-away] .table-card__state-name {
+  color: var(--danger);
+}
+
+.table-card__state-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-card__state-ask {
+  color: var(--color-text);
+}
+
+.table-card__state-clock {
+  margin-left: auto;
+}
+
+.table-card__state-epoch {
+  color: var(--accent);
+}

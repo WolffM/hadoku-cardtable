@@ -15,6 +15,8 @@
 import type { ReactNode } from 'react';
 import type { RoomTable, TableGame } from '@hadoku/shared';
 
+import { isOperatorViewer, useWhoami } from '@hadoku/game-ui/room/whoami.ts';
+
 import { PodBracket } from './PodBracket.tsx';
 import { PodPodium } from './PodPodium.tsx';
 import { PodStandings } from './PodStandings.tsx';
@@ -36,6 +38,8 @@ export interface RoomHubProps {
 
 export function RoomHub({ roomId, pod, tables, myMemberId, nameOf, avatarOf, leaderId, games, children }: RoomHubProps) {
   const building = pod.phase === 'building';
+  // The leader's tools are an operator's too, in any room (`table-actions.ts`'s `isOperator`).
+  const operator = isOperatorViewer(useWhoami());
   return (
     <div className="pod__room">
       <div className="pod__rounds" data-testid={building ? 'pod-ready' : pod.phase === 'rounds' ? 'pod-rounds' : 'pod-final'}>
@@ -50,7 +54,7 @@ export function RoomHub({ roomId, pod, tables, myMemberId, nameOf, avatarOf, lea
           </h2>
         )}
         {children}
-        <PodBracket roomId={roomId} pod={pod} tables={tables} myMemberId={myMemberId} leader={myMemberId !== null && myMemberId === leaderId} nameOf={nameOf} avatarOf={avatarOf} games={games} />
+        <PodBracket roomId={roomId} pod={pod} tables={tables} myMemberId={myMemberId} leader={operator || (myMemberId !== null && myMemberId === leaderId)} nameOf={nameOf} avatarOf={avatarOf} games={games} />
         {!building && <PodStandings rows={pod.standings} results={pod.results} nameOf={nameOf} avatarOf={avatarOf} myMemberId={myMemberId} dropped={pod.dropped} />}
       </div>
     </div>
