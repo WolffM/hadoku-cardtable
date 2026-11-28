@@ -62,7 +62,7 @@ const at = (x: number, y: number, extra: CSSProperties = {}): CSSProperties => (
 
 export function PodBracket({ roomId, pod, tables, myMemberId, leader = false, nameOf, avatarOf, games }: PodBracketProps) {
   const [picked, setPicked] = useState<string | null>(null);
-  const layout = swissLayout(pod, tables);
+  const layout = swissLayout(pod, tables, leader);
   const entrants = new Set(pod.standings.map((r) => r.id));
   const focus = picked ?? (myMemberId !== null && entrants.has(myMemberId) ? myMemberId : null);
   const faces = { nameOf, avatarOf };
@@ -167,7 +167,7 @@ interface MatchCardProps extends Faces {
 }
 
 function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dropped, game, pick, nameOf, avatarOf }: MatchCardProps) {
-  const { players, wins, table, phase } = match;
+  const { players, wins, table, phase, amendable } = match;
   const matchId = table?.matchId ?? null;
   const live = match.live && table !== null;
   // My seat at the table (`seatAt`), which its door reads: never my place in the pairing.
@@ -202,7 +202,7 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
     menu: true,
     ...(live && mine ? { onDrop: () => resolveTable('drop', roomId, tableId!) } : {}),
     ...(live && mine && matchId !== null ? { onConcede: () => resolveTable('concede', roomId, tableId!) } : {}),
-    ...(live && leader
+    ...((live || amendable) && leader
       ? {
           onReset: () => resolveTable('reset', roomId, tableId!),
           onUnstick: () => resolveTable('unstick', roomId, tableId!),
@@ -237,6 +237,7 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
           {resolve.more}
         </div>
       )}
+      {go === null && amendable && <div className="swiss__bar">{resolve.more}</div>}
       {([0, 1] as const).map((k) => {
         const id = players[k];
         const won = decided && wins[k] > wins[1 - k]!;

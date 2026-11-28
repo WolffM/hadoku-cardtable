@@ -57,6 +57,8 @@ export interface SwissMatch {
   phase: SeriesPhase;
   /** Being played now: the way into its table. */
   live: boolean;
+  /** Decided in the round in play, at its table, and the leader's to correct (`swissLayout`'s `leader`): its card keeps a bar for the ⋯. */
+  amendable: boolean;
 }
 
 export interface SwissCard {
@@ -165,7 +167,7 @@ const sameMatch = (r: PodMatchResult, players: readonly [string, string]): boole
   (r.playerA === players[0] && r.playerB === players[1]) || (r.playerA === players[1] && r.playerB === players[0]);
 
 /** One round's entries: its matches (a live round's pairings, as they stand) and its bye. */
-function roundEntries(pod: PodView, tables: readonly RoomTable[], round: number, claimed: Set<string>): { matches: SwissMatch[]; bye: string | null } {
+function roundEntries(pod: PodView, tables: readonly RoomTable[], round: number, claimed: Set<string>, leader: boolean): { matches: SwissMatch[]; bye: string | null } {
   const results = pod.results.filter((r) => r.round === round);
   const live = pod.phase === 'rounds' && round === pod.round;
   const matches: SwissMatch[] = [];
@@ -176,24 +178,24 @@ function roundEntries(pod: PodView, tables: readonly RoomTable[], round: number,
     const table = tables.find((t) => t.id === p.tableId) ?? null;
     if (table !== null) claimed.add(table.id);
     if (recorded.some((r) => sameMatch(r, p.players))) continue;
-    matches.push({ players: p.players, wins: table?.series.wins ?? [0, 0], table, phase: table?.series.phase ?? 'seating', live: true });
+    matches.push({ players: p.players, wins: table?.series.wins ?? [0, 0], table, phase: table?.series.phase ?? 'seating', live: true, amendable: false });
   }
   // Two AIs playing their bot game out: under way, at no table.
   for (const g of live ? (pod.botGames ?? []) : []) {
-    if (!recorded.some((r) => sameMatch(r, g.players))) matches.push({ players: g.players, wins: [0, 0], table: null, phase: 'playing', live: true });
+    if (!recorded.some((r) => sameMatch(r, g.players))) matches.push({ players: g.players, wins: [0, 0], table: null, phase: 'playing', live: true, amendable: false });
   }
   for (const r of recorded) {
     const players: [string, string] = [r.playerA, r.playerB!];
     const pairing = paired.find((p) => sameMatch(r, p.players));
     const table = (pairing === undefined ? tables.find((t) => !claimed.has(t.id) && sameSeats(t, players)) : tables.find((t) => t.id === pairing.tableId)) ?? null;
     if (table !== null) claimed.add(table.id);
-    matches.push({ players, wins: [r.gamesA, r.gamesB], table, phase: 'done', live: false });
+    matches.push({ players, wins: [r.gamesA, r.gamesB], table, phase: 'done', live: false, amendable: leader && pairing !== undefined && table !== null });
   }
   const bye = results.find((r) => r.playerB === null)?.playerA ?? (live ? pod.bye : null);
   return { matches, bye };
 }
 
-const cardH = (m: SwissMatch): number => SWISS.rowH * 2 + 2 + (m.live && m.table !== null ? SWISS.barH : 0);
+const cardH = (m: SwissMatch): number => SWISS.rowH * 2 + 2 + ((m.live || m.amendable) && m.table !== null ? SWISS.barH : 0);
 const BYE_H = SWISS.rowH + 2;
 
 interface Pending {
@@ -206,9 +208,10 @@ interface Pending {
 
 /**
  * The whole bracket. `standings` order the final column (already ranked by the server); every other
- * place comes from the results, the pairings and the tables.
+ * place comes from the results, the pairings and the tables. For the room's `leader`, a match decided in the
+ * round in play stays correctable from its card (`amendable`).
  */
-export function swissLayout(pod: PodView, tables: readonly RoomTable[]): SwissLayout {
+export function swissLayout(pod: PodView, tables: readonly RoomTable[], leader = false): SwissLayout {
   const rounds = Math.max(1, pod.rounds);
   const done = pod.phase === 'done';
   const shown = done ? rounds : pod.phase === 'rounds' ? Math.min(pod.round, rounds) : 0;
@@ -226,7 +229,7 @@ export function swissLayout(pod: PodView, tables: readonly RoomTable[]): SwissLa
     const state = round > shown ? 'next' : !done && round === pod.round ? 'now' : 'past';
     columns.push({ round, state, x, w: SWISS.cardW });
     if (round <= shown) {
-      const { matches, bye } = roundEntries(pod, tables, round, claimed);
+      const { matches, bye } = roundEntries(pod, tables, round, claimed, leader);
       const byNet = new Map<number, Pending>();
       const into = (record: Record3): Pending => {
         const n = net(record);

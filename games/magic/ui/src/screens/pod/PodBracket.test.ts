@@ -69,6 +69,9 @@ const midPod = pod({
 });
 const midTables = [table('t-0', []), t1, t2, t3, t4];
 
+/** The ⋯ on one table's card: a leader has one on each match of the round in play, the finished ones too. */
+const moreOn = (tableId: string): HTMLElement => screen.getAllByTestId('pod-tables-row').find((r) => r.dataset.tableId === tableId)!.querySelector<HTMLElement>('[data-testid="pod-tables-row-more"]')!;
+
 const bracket = (over: Partial<Parameters<typeof PodBracket>[0]> = {}) =>
   render(createElement(PodBracket, { roomId: 'r-1', pod: midPod, tables: midTables, myMemberId: 'u-alice', nameOf, avatarOf, ...over }));
 
@@ -154,7 +157,7 @@ describe('PodBracket', () => {
     });
     bracket({ leader: true });
     expect(screen.queryByTestId('pod-tables-row-drop'), 'none drawn until asked for').toBeNull();
-    const more = screen.getByTestId('pod-tables-row-more');
+    const more = moreOn('t-3');
     expect(more.closest('a'), 'never inside the way in').toBeNull();
     fireEvent.click(more);
     expect(screen.getByRole('dialog').getAttribute('data-testid'), 'in a modal, not inside the card').toBe('pod-tables-row-tools');
@@ -209,7 +212,7 @@ describe('PodBracket', () => {
     const swapped = midTables.map((t) => (t.id === 't-3' ? { ...t, players: [player('u-carol'), player('u-alice')] } : t));
     bracket({ leader: true, myMemberId: 'u-bob', tables: swapped });
     await act(async () => {
-      fireEvent.click(screen.getByTestId('pod-tables-row-more'));
+      fireEvent.click(moreOn('t-3'));
     });
     const state = screen.getByTestId('pod-tables-row-state');
     const rows = [...state.querySelectorAll('.table-card__state-seat')];
@@ -225,6 +228,30 @@ describe('PodBracket', () => {
       fireEvent.click(screen.getByTestId('pod-tables-row-game0-yes'));
     });
     expect(calls.find((c) => c.url.endsWith('tables/t-3/award'))?.body, 'Alice is table seat 1').toEqual({ seat: 1, match: false });
+    vi.unstubAllGlobals();
+  });
+
+  // The fire drill, 2026-11-28: the runbook's "Wrong result, this round still playing: ⋯ → Match to ‹right player›"
+  // had no ⋯ to press, because a match recorded in the round in play was drawn as a past one, with no bar.
+  it('a finished match of the round in play keeps the leader’s ⋯, offering the match to either player', async () => {
+    const calls: { url: string; body: unknown }[] = [];
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      calls.push({ url: String(url), body: init?.body === undefined ? null : JSON.parse(String(init.body)) });
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
+    bracket({ leader: false });
+    expect(moreOn('t-4'), 'nobody else’s to correct').toBeNull();
+    cleanup();
+    bracket({ leader: true });
+    const more = moreOn('t-4');
+    expect(more, 'the leader corrects it from its card').not.toBeNull();
+    fireEvent.click(more!);
+    expect(screen.getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Match to Bob', 'Match to Dave']);
+    fireEvent.click(screen.getByTestId('pod-tables-row-match0'));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('pod-tables-row-match0-yes'));
+    });
+    expect(calls.find((c) => c.url.endsWith('tables/t-4/award'))?.body).toEqual({ seat: 0, match: true });
     vi.unstubAllGlobals();
   });
 
