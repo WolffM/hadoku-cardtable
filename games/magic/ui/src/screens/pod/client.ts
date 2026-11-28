@@ -283,9 +283,15 @@ const tableClient = tablesClient();
  * the SECOND player's call succeeds once both are readied. A refusal for
  * any OTHER reason is reported.
  */
+/** The table routes' refusal of a ready, a deck or a seat change while the table's match is live (`routes.ts`). */
+const MATCH_ALREADY_STARTED = 'the match has already started';
+
 export async function startTableMatch(roomId: string, tableId: string): Promise<StartTableMatchOutcome> {
   const readied = await tableClient.ready(roomId, true, tableId);
-  if (!readied.ok) return { ok: false, message: readied.error };
+  // Both seats' pages start the match once both are ready; the one that loses the race finds its ready
+  // refused because the match is already running (`POST …/ready`'s own 409, exactly this text). The start
+  // below answers with that match (200). Any other refusal is the player's to see.
+  if (!readied.ok && readied.error !== MATCH_ALREADY_STARTED) return { ok: false, message: readied.error };
   const started = await tableClient.startRoom(roomId, tableId);
   if (started.ok) return { ok: true, matchId: started.matchId };
   // The other seat has not readied yet — expected the first time either

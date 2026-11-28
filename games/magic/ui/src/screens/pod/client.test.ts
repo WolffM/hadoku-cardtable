@@ -190,6 +190,31 @@ describe('startTableMatch', () => {
     expect(outcome).toEqual({ ok: true, matchId: null });
   });
 
+  // Both seats' table pages start the match on their own once both are ready, so one loses the race: by
+  // the time its ready arrives the other has started the match. That is the match the loser goes into,
+  // not an error (an iPhone tour showed "the match has already started" and Try again, 2026-11-28).
+  it('takes a ready refused because the other seat already started the match as success, not an error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      if (String(input).includes('/ready')) return Promise.resolve(new Response(JSON.stringify({ error: 'the match has already started' }), { status: 409 }));
+      return Promise.resolve(new Response(JSON.stringify({ matchId: 'm-aaaaaaaaaaaa' }), { status: 200 }));
+    });
+    const outcome = await startTableMatch('r-cube', 't-aaaaaaaa');
+    expect(outcome, 'no error is shown: the running match').toEqual({ ok: true, matchId: 'm-aaaaaaaaaaaa' });
+  });
+
+  it('still shows every other refusal of the ready, a look-alike included, and starts nothing', async () => {
+    for (const error of ['the pod has already started — the pool is fixed', 'you are not seated at this table', 'your deck is locked for this tournament']) {
+      const calls: string[] = [];
+      vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+        calls.push(String(input));
+        return Promise.resolve(new Response(JSON.stringify({ error }), { status: 409 }));
+      });
+      expect(await startTableMatch('r-cube', 't-aaaaaaaa'), error).toEqual({ ok: false, message: error });
+      expect(calls.filter((u) => u.includes('/play/matches')), `${error}: no start asked`).toEqual([]);
+      vi.restoreAllMocks();
+    }
+  });
+
   it('surfaces a refusal to ready my own seat', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'the lobby phase has ended' }), { status: 409 }));
     const outcome = await startTableMatch('r-cube', 't-aaaaaaaa');
