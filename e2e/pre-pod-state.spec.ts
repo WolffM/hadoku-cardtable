@@ -18,7 +18,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { trimMainDeck } from './deckBuilder.ts';
 import { PREFIX } from './identities.ts';
 import { arrangePod, draftUntilDone, readyPod } from './podSeats.ts';
-import { enterMyGames, makeTitled, pressEnterGame, pressIntoGame2, resizeWindow, roomIdFromAddress, ROOM_PAGE, sideboardFromTablePage } from './play/board.ts';
+import { enterMyGames, makeTitled, pressIntoGame2, resizeWindow, roomIdFromAddress, ROOM_PAGE, sideboardFromTablePage } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
 import { myTableThisRound, openHub, openMyTable, submitCreateRoom } from './play/rooms.ts';
@@ -74,8 +74,8 @@ async function concedeMatch(winner: Friend, loser: Friend, roomUrl: string): Pro
       await sideboardFromTablePage(p.page, UI_TIMEOUT);
       await p.page.getByTestId('sideboard-ready').click({ timeout: UI_TIMEOUT });
     }
-    await pressEnterGame(winner.page);
-    await pressIntoGame2(loser.page, matchUrl, UI_TIMEOUT);
+    // The next game exists once both are ready; each enters it by their own press.
+    for (const p of [winner, loser]) await pressIntoGame2(p.page, matchUrl, UI_TIMEOUT);
     for (const p of [winner, loser]) await expect(board(p), `${p.name}: on game 2`).toBeVisible({ timeout: UI_TIMEOUT });
     const choose = loser.page.getByTestId('live-play-or-draw-play');
     await choose.click({ timeout: UI_TIMEOUT }).catch(() => undefined);
