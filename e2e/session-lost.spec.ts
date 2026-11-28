@@ -39,21 +39,32 @@ async function openBehindTheGate(browser: Browser): Promise<{ context: BrowserCo
     const { pathname } = new URL(url);
     if (pathname.startsWith(`${PREFIX}/`)) sent.push({ at: Date.now(), what: `${kind} ${pathname}` });
   };
+  // A socket counts once a frame has come back on it: the page makes a WebSocket before its upgrade
+  // reaches the edge, and the edge can only drop the ones it holds.
+  let answered = 0;
   page.on('request', (req) => note(req.method(), req.url()));
-  page.on('websocket', (ws) => note('WS', ws.url()));
+  page.on('websocket', (ws) => {
+    note('WS', ws.url());
+    ws.once('framereceived', () => (answered += 1));
+  });
   await page.goto(`${EDGE_ORIGIN}${PREFIX}/`);
   await expect(page.getByTestId('lobby')).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => sent.filter((s) => s.what.startsWith('WS')).length, { message: 'the lobby opens its sockets', timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(() => answered, { message: 'the lobby opens its sockets, through the edge', timeout: 30_000 }).toBeGreaterThan(0);
   return { context, page, sent };
 }
 
-/** The session cookie goes, and the edge drops this browser's sockets. */
+/**
+ * The session cookie goes, and the edge drops this browser's sockets. The loss starts when the cookie
+ * goes, so that is the time returned: the page's next request meets the edge's 401 from then on, and
+ * its probe may leave before the drop's own answer is back.
+ */
 async function loseTheSession(context: BrowserContext): Promise<number> {
+  const lost = Date.now();
   await context.clearCookies({ name: SESSION_COOKIE });
   const res = await context.request.post(`${EDGE_ORIGIN}/__e2e/drop-gated-sockets`);
   const { dropped } = (await res.json()) as { dropped: number };
   expect(dropped, 'the browser had sockets open to drop').toBeGreaterThan(0);
-  return Date.now();
+  return lost;
 }
 
 /** The probe the session watch asks to confirm a suspicion. */
