@@ -5,6 +5,8 @@
 # Alice holds two Windbrisk Heights at her own main phase, and Exploration lets her play both: each
 # Hideaway 4 looks at the top four of her library (eight different cards) and exiles one face down. Forge
 # lets her look at hers (the Hideaway effect's MayLookAt), so her screen is sent their names; bob's is not.
+# Each is drawn under the Heights that exiled it (the operator, 2026-11-27), not in the exile pile, so a
+# face-up Shock already in her exile is what the pile is opened by: its expanded view lists every exiled card.
 turn=1
 activeplayer=human
 activephase=MAIN1
@@ -14,6 +16,7 @@ humanhand=Windbrisk Heights;Windbrisk Heights
 humanbattlefield=Plains;Exploration
 humanlibrary=Serra Angel;Lightning Bolt;Counterspell;Grizzly Bears;Llanowar Elves;Savannah Lions;Giant Growth;Dark Ritual;Mountain;Mountain;Mountain;Mountain
 humangraveyard=
+humanexile=Shock
 aihand=
 aibattlefield=Forest
 ailibrary=Forest;Forest;Forest;Forest;Forest;Forest
