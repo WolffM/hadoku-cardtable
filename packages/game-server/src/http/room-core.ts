@@ -66,11 +66,11 @@ export interface LobbyCore<V extends RoomViewCore, C> {
 	 * union: this file never names the real ones (`RemoveFromSeatResult` et al.), only maps whatever
 	 * comes back to a status code below.
 	 */
-	removeFromSeat(roomId: string, callerId: string, targetId: string): { ok: true; room: V } | { ok: false; reason: string };
-	lowerSeatCapacity(roomId: string, callerId: string, count: number): { ok: true; room: V; evicted: readonly string[] } | { ok: false; reason: string };
-	botReplacesHuman(roomId: string, callerId: string, seat: number): { ok: true; room: V; evicted: string | null } | { ok: false; reason: string };
+	removeFromSeat(roomId: string, callerId: string, targetId: string, override?: boolean): { ok: true; room: V } | { ok: false; reason: string };
+	lowerSeatCapacity(roomId: string, callerId: string, count: number, override?: boolean): { ok: true; room: V; evicted: readonly string[] } | { ok: false; reason: string };
+	botReplacesHuman(roomId: string, callerId: string, seat: number, override?: boolean): { ok: true; room: V; evicted: string | null } | { ok: false; reason: string };
 	/** The leader hands the room's leadership to another member (`room/lobby.ts`'s `passLeader`). */
-	passLeader(roomId: string, callerId: string, targetId: string): { ok: true; room: V } | { ok: false; reason: string };
+	passLeader(roomId: string, callerId: string, targetId: string, override?: boolean): { ok: true; room: V } | { ok: false; reason: string };
 	/** The leader changes some of the room's settings (`room/lobby.ts`'s `setSettings`); called only when `RoomCoreDeps.settings` is set. */
 	setSettings?(roomId: string, callerId: string, patch: Record<string, unknown>): { ok: true; room: V } | { ok: false; reason: string };
 }
@@ -192,8 +192,8 @@ export const ROOM_CREATE_RATE_LIMIT: RateLimitConfig = {
 export interface SeatRouteLobby<V> {
 	sitSeat(roomId: string, callerId: string, seat?: number): { ok: true; room: V } | { ok: false; reason: string };
 	standSeat(roomId: string, callerId: string): { ok: true; room: V } | { ok: false; reason: string };
-	closeSeat(roomId: string, callerId: string, seat: number, closed: boolean): { ok: true; room: V } | { ok: false; reason: string };
-	aiSeat(roomId: string, callerId: string, seat: number, on: boolean): { ok: true; room: V } | { ok: false; reason: string };
+	closeSeat(roomId: string, callerId: string, seat: number, closed: boolean, override?: boolean): { ok: true; room: V } | { ok: false; reason: string };
+	aiSeat(roomId: string, callerId: string, seat: number, on: boolean, override?: boolean): { ok: true; room: V } | { ok: false; reason: string };
 }
 
 export interface RoomCoreDeps<V extends RoomViewCore, C, P extends object, G = never> {
@@ -203,6 +203,12 @@ export interface RoomCoreDeps<V extends RoomViewCore, C, P extends object, G = n
 	 * leader's; `/seats/bot` puts one in). Absent: none of the four is registered.
 	 */
 	seatRoutes?: SeatRouteLobby<V>;
+	/**
+	 * Whether this caller has the leader's reach in every room (the game's operators: cardtable's are
+	 * the edge's wife and admin, `isOperator`): the leader's seat ops are theirs too, member or not.
+	 * Absent: only the leader.
+	 */
+	operator?: (req: Request) => boolean;
 	lobby: LobbyCore<V, C>;
 	wire: RoomCoreWire<C, P>;
 	/** Structured log lines. Never carries a password, hash or salt. */
@@ -502,7 +508,7 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		const caller = callerOf(req);
 		const id = String(req.params.id);
 		if (!wire.roomIdRe.test(id)) return noMatch(res);
-		const result = lobby.removeFromSeat(id, caller.id, body.memberId);
+		const result = lobby.removeFromSeat(id, caller.id, body.memberId, deps.operator?.(req) === true);
 		if (!result.ok) return seatOpStatus(res, result.reason);
 		res.json(roomBody(result.room, caller.id));
 	});
@@ -514,7 +520,7 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		const caller = callerOf(req);
 		const id = String(req.params.id);
 		if (!wire.roomIdRe.test(id)) return noMatch(res);
-		const result = lobby.lowerSeatCapacity(id, caller.id, body.count);
+		const result = lobby.lowerSeatCapacity(id, caller.id, body.count, deps.operator?.(req) === true);
 		if (!result.ok) return seatOpStatus(res, result.reason);
 		res.json({ ...roomBody(result.room, caller.id), evicted: result.evicted });
 	});
@@ -526,7 +532,7 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		const caller = callerOf(req);
 		const id = String(req.params.id);
 		if (!wire.roomIdRe.test(id)) return noMatch(res);
-		const result = lobby.botReplacesHuman(id, caller.id, body.seat);
+		const result = lobby.botReplacesHuman(id, caller.id, body.seat, deps.operator?.(req) === true);
 		if (!result.ok) return seatOpStatus(res, result.reason);
 		res.json({ ...roomBody(result.room, caller.id), evicted: result.evicted });
 	});
@@ -534,7 +540,12 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 	const seats = deps.seatRoutes;
 	if (seats !== undefined) {
 		// Opted in (`RoomCoreDeps.seatRoutes`): a member sits and stands; the leader closes, opens and takes the AI back out.
-		const seatRoute = (path: string, schema: typeof sitSeatBody | typeof emptyBody | typeof closeSeatBody | typeof botReplacesHumanBody, leaders: boolean, run: (id: string, callerId: string, body: never) => { ok: true; room: V } | { ok: false; reason: string }): void => {
+		const seatRoute = (
+			path: string,
+			schema: typeof sitSeatBody | typeof emptyBody | typeof closeSeatBody | typeof botReplacesHumanBody,
+			leaders: boolean,
+			run: (id: string, callerId: string, body: never, override: boolean) => { ok: true; room: V } | { ok: false; reason: string },
+		): void => {
 			rooms.post(`/:id/seats/${path}`, (req: Request, res: Response) => {
 				const body = parseBody(schema, req, res);
 				// The leader's ops spend the seat-op limit, as `remove`/`capacity`/`bot` do; a member's own sit and stand do not.
@@ -542,15 +553,15 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 				const caller = callerOf(req);
 				const id = String(req.params.id);
 				if (!wire.roomIdRe.test(id)) return noMatch(res);
-				const result = run(id, caller.id, body as never);
+				const result = run(id, caller.id, body as never, leaders && deps.operator?.(req) === true);
 				if (!result.ok) return seatOpStatus(res, result.reason);
 				res.json(roomBody(result.room, caller.id));
 			});
 		};
 		seatRoute('sit', sitSeatBody, false, (id, callerId, body: { seat?: number }) => seats.sitSeat(id, callerId, body.seat));
 		seatRoute('stand', emptyBody, false, (id, callerId) => seats.standSeat(id, callerId));
-		seatRoute('close', closeSeatBody, true, (id, callerId, body: { seat: number; closed: boolean }) => seats.closeSeat(id, callerId, body.seat, body.closed));
-		seatRoute('bot-off', botReplacesHumanBody, true, (id, callerId, body: { seat: number }) => seats.aiSeat(id, callerId, body.seat, false));
+		seatRoute('close', closeSeatBody, true, (id, callerId, body: { seat: number; closed: boolean }, override) => seats.closeSeat(id, callerId, body.seat, body.closed, override));
+		seatRoute('bot-off', botReplacesHumanBody, true, (id, callerId, body: { seat: number }, override) => seats.aiSeat(id, callerId, body.seat, false, override));
 	}
 
 	// The leader hands the room to another member, seated or watching. Spends the seat-op limit.
@@ -560,7 +571,7 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		const caller = callerOf(req);
 		const id = String(req.params.id);
 		if (!wire.roomIdRe.test(id)) return noMatch(res);
-		const result = lobby.passLeader(id, caller.id, body.memberId);
+		const result = lobby.passLeader(id, caller.id, body.memberId, deps.operator?.(req) === true);
 		if (!result.ok) return seatOpStatus(res, result.reason);
 		res.json(roomBody(result.room, caller.id));
 	});

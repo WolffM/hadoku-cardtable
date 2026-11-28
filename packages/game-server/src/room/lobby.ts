@@ -965,10 +965,10 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	}
 
 	/** The room by id when it seats through its game seats, with the refusal every seat op shares otherwise. */
-	#seatRoom(roomId: string, memberId: string): { room: LobbyRoom; hooks: RoomTypeHooks<unknown, I> } | { refused: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' } {
+	#seatRoom(roomId: string, memberId: string, override = false): { room: LobbyRoom; hooks: RoomTypeHooks<unknown, I> } | { refused: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' } {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { refused: 'no-room' };
-		if (!isRoomMember(room, memberId)) return { refused: 'not-member' };
+		if (!override && !isRoomMember(room, memberId)) return { refused: 'not-member' };
 		const hooks = this.hooksOf(room);
 		// `not-draft`, the wire's name for a room that does not seat through its game seats.
 		if (!hooks.usesSeats(room)) return { refused: 'not-draft' };
@@ -1063,12 +1063,12 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		return { ok: true, room: this.view(room) };
 	}
 
-	/** Put the AI in an open seat (`on`), or take it out. The leader's. */
-	aiSeat(roomId: string, memberId: string, seat: number, on: boolean): AiSeatResult<V> {
-		const found = this.#seatRoom(roomId, memberId);
+	/** Put the AI in an open seat (`on`), or take it out. The leader's, or `override`'s (see `removeFromSeat`). */
+	aiSeat(roomId: string, memberId: string, seat: number, on: boolean, override = false): AiSeatResult<V> {
+		const found = this.#seatRoom(roomId, memberId, override);
 		if ('refused' in found) return { ok: false, reason: found.refused };
 		const { room, hooks } = found;
-		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		if (!override && room.leader !== memberId) return { ok: false, reason: 'not-leader' };
 		if (hooks.fieldFixed?.(room) === true) return { ok: false, reason: 'historical' };
 		if (on && this.seatsShut(room) !== null) return { ok: false, reason: 'not-open' };
 		if (!this.#inReach(room, hooks, seat) || (!on && seat >= room.seats.length)) return { ok: false, reason: 'bad-seat' };
@@ -1085,13 +1085,13 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 		return { ok: true, room: this.view(room) };
 	}
 
-	/** Close an empty seat, or open a closed one: the leader's; never fewer than `MIN_OPEN_SEATS` open. */
-	closeSeat(roomId: string, memberId: string, seat: number, closed: boolean): CloseSeatResult<V> {
+	/** Close an empty seat, or open a closed one: the leader's, or `override`'s (see `removeFromSeat`); never fewer than `MIN_OPEN_SEATS` open. */
+	closeSeat(roomId: string, memberId: string, seat: number, closed: boolean, override = false): CloseSeatResult<V> {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
-		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
-		const found = this.#seatRoom(roomId, memberId);
+		if (!override && !isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
+		if (!override && room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		const found = this.#seatRoom(roomId, memberId, override);
 		if ('refused' in found) return { ok: false, reason: found.refused };
 		const { hooks } = found;
 		if (hooks.fieldFixed?.(room) === true) return { ok: false, reason: 'historical' };
@@ -1112,11 +1112,11 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	 * The leader hands the room's leadership to `targetId`, another member, seated or watching.
 	 * Passing it to yourself is answered `ok` and changes nothing.
 	 */
-	passLeader(roomId: string, memberId: string, targetId: string): PassLeaderResult<V> {
+	passLeader(roomId: string, memberId: string, targetId: string, override = false): PassLeaderResult<V> {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
-		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		if (!override && !isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
+		if (!override && room.leader !== memberId) return { ok: false, reason: 'not-leader' };
 		if (targetId === memberId) return { ok: true, room: this.view(room) };
 		if (!passRoomLeader(room, targetId)) return { ok: false, reason: 'target-not-member' };
 		this.persist(room);
@@ -1168,12 +1168,12 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	 * (same as Magic's pod view carries AI through `podAi`, a field of its own, not this one's).
 	 * Resolved through `#seatOpRoom` (wave 120 §S2): see `removeFromSeat`'s header.
 	 */
-	lowerSeatCapacity(roomId: string, memberId: string, count: number): LowerSeatCapacityResult<V> {
+	lowerSeatCapacity(roomId: string, memberId: string, count: number, override = false): LowerSeatCapacityResult<V> {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
-		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
-		const found = this.#seatOpRoom(roomId, memberId);
+		if (!override && !isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
+		if (!override && room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		const found = this.#seatOpRoom(roomId, memberId, override);
 		if ('refused' in found) return { ok: false, reason: found.refused };
 		const { room: r, hooks, target, generic } = found;
 		if (hooks.fieldFixed?.(r) === true) return { ok: false, reason: 'historical' };

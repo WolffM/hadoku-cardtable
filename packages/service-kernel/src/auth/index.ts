@@ -246,6 +246,15 @@ export function utf8HeaderValue(value: string): string {
 	}
 }
 
+/**
+ * An operator: someone the edge names `wife` or above, who has a room leader's reach in every room
+ * (cardtable's operator, 2026-11-27). Read from the raw edge tier (`edgeTierOf`), never `tierOf`, which
+ * promotes a member: friend and member are not operators.
+ */
+export function isOperator(req: Request): boolean {
+	return rankOf(edgeTierOf(req)) >= rankOf('wife');
+}
+
 /** The one admin check: `rankOf(tierOf(req)) >= rankOf('admin')`. */
 export function isAdmin(req: Request): boolean {
 	return rankOf(tierOf(req)) >= rankOf('admin');

@@ -5,7 +5,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import express from 'express';
+import express, { type Request } from 'express';
+import { httpCaller } from '@hadoku/game-server/http/request';
 import { afterEach, describe, expect, it } from 'vitest';
 import { snapshotWriter } from '@hadoku/game-server/persist/snapshot-writer';
 import type { ParticipantId } from '@wolffm/rooms-protocol';
@@ -412,8 +413,11 @@ describe('GET /api/rooms/:roomId/admin/live', () => {
 	});
 });
 
-describe('POST /api/rooms/:roomId/admin/unseat and /bot (before the lock)', () => {
-	it('an operator stands a no-show up, or puts the AI in their seat; a member may not', async () => {
+describe('the room’s seat routes take an operator as the leader (before the lock)', () => {
+	it('an operator stands a no-show up, puts the AI in their seat, closes a seat; a member or friend may not', async () => {
+		// The room routes derive each caller from the edge's headers, as in production.
+		const idOf = (user: string) => httpCaller({ headers: { 'x-user-id': user } } as unknown as Request);
+		const [ALICE, BOB, CAROL, OUTSIDER] = ['user-alice', 'user-bob', 'user-carol', 'user-outsider'].map(idOf) as [ParticipantId, ParticipantId, ParticipantId, ParticipantId];
 		const dir = await mkdtemp(join(tmpdir(), 'cardtable-admin-seats-'));
 		const lobby = await openLobby({ dir });
 		const made = lobby.create({ id: ALICE, name: 'alice', userId: null }, { name: 'sunday', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} } });
@@ -426,7 +430,7 @@ describe('POST /api/rooms/:roomId/admin/unseat and /bot (before the lock)', () =
 		const app = express();
 		const api = express.Router();
 		api.use(express.json());
-		attachTableActions(api, { lobby, log: () => undefined, report: () => undefined, seriesEnded: () => undefined, restore: () => null, awardGame: () => false, match: () => undefined, callerOf: (req) => String(req.headers['x-test-user']) as ParticipantId });
+		attachRooms(api, { lobby, log: () => undefined, checkPlan: async () => ({ ok: true, cards: 0 }) });
 		app.use('/api', api);
 		const server = createServer(app);
 		await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
@@ -436,13 +440,18 @@ describe('POST /api/rooms/:roomId/admin/unseat and /bot (before the lock)', () =
 		});
 		const h = { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, roomId } as Harness;
 		const seats = () => lobby.get(roomId)!.game!.pod!.seats.map((s) => (s === null ? null : isPodAi(s.memberId) ? 'ai' : s.memberId));
-		expect((await leader(h, BOB, 'admin/unseat', { memberId: CAROL }, 'member')).status).toBe(403);
-		expect((await leader(h, OUTSIDER, 'admin/bot', { seat: 1 }, 'friend')).status).toBe(404);
+		const userOf: Record<string, string> = { [BOB]: 'user-bob', [OUTSIDER]: 'user-outsider' };
+		const as = (who: string, tier: string) => ({ 'x-user-id': userOf[who]!, 'x-hadoku-tier': tier });
+		const post = (path: string, body: unknown, headers: Record<string, string>) =>
+			fetch(`${h.base}/api/rooms/${roomId}/${path}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+		expect((await post('seats/remove', { memberId: CAROL }, as(BOB, 'member'))).status).toBe(403);
+		expect((await post('seats/bot', { seat: 1 }, as(BOB, 'friend'))).status).toBe(403);
 		expect(seats().slice(0, 2)).toEqual([BOB, CAROL]);
-		expect((await leader(h, OUTSIDER, 'admin/unseat', { memberId: CAROL }, 'wife')).status).toBe(200);
+		expect((await post('seats/remove', { memberId: CAROL }, as(OUTSIDER, 'wife'))).status).toBe(200);
 		expect(seats().slice(0, 2)).toEqual([BOB, null]);
-		expect((await leader(h, OUTSIDER, 'admin/bot', { seat: 0 }, 'admin')).status).toBe(200);
+		expect((await post('seats/bot', { seat: 0 }, as(OUTSIDER, 'admin'))).status).toBe(200);
 		expect(seats()[0]).toBe('ai');
+		expect((await post('pod/close', { seat: 1, closed: true }, as(OUTSIDER, 'wife'))).status).toBe(200);
 		expect(lobby.get(roomId)!.members.map((m) => m.id), 'evicted to the spectator row, still in the room').toContain(BOB);
 	});
 });

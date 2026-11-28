@@ -60,6 +60,8 @@ export interface PodSeatsProps {
   /** The viewer's own member id, or `null` before identity resolves. */
   myMemberId: string | null;
   leaderId: string;
+  /** An operator (the edge's wife or admin) is drawn the leader's seat tools too. */
+  operator?: boolean | undefined;
   /** Looks up a seated member's readiness — the room's own `ready` flag, unaffected by seating. */
   readyOf: (memberId: string) => boolean;
   /** Looks up a seated member's own watchparty avatar id (`undefined` for none) — the same id `Avatar` draws everywhere else. */
@@ -81,8 +83,9 @@ export interface PodSeatsProps {
   onMakeLeader?: (memberId: string) => void;
 }
 
-export function PodSeats({ seats, myMemberId, leaderId, readyOf, faceOf, fieldFixed = false, shut = false, onSit, onAi, onClose, onRemoveMember, onBotReplace, onMakeLeader }: PodSeatsProps) {
-  const iLead = myMemberId !== null && myMemberId === leaderId;
+export function PodSeats({ seats, myMemberId, leaderId, operator = false, readyOf, faceOf, fieldFixed = false, shut = false, onSit, onAi, onClose, onRemoveMember, onBotReplace, onMakeLeader }: PodSeatsProps) {
+  // An operator has the leader's seat tools in every room (`room-core.ts`'s `operator`).
+  const iLead = operator || (myMemberId !== null && myMemberId === leaderId);
   const mySeat = myMemberId === null ? null : seats.findIndex((s) => s?.memberId === myMemberId);
   const iAmSeated = mySeat !== null && mySeat >= 0;
   // A full room: one seat more, for someone who has not sat yet, and for the owner's AI.

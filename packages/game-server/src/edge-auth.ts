@@ -25,10 +25,11 @@ import {
 	accountIdOf,
 	userNameOf,
 	isAdmin,
+	isOperator,
 } from '@hadoku/service-kernel/auth';
 import { ENV_PREFIX, edgeAuth, gate } from './kernel.js';
 
-export { TIER_ORDER, rankOf, tierOf, edgeTierOf, callerIdOf, userIdOf, userKeyOf, accountIdOf, userNameOf, isAdmin };
+export { TIER_ORDER, rankOf, tierOf, edgeTierOf, callerIdOf, userIdOf, userKeyOf, accountIdOf, userNameOf, isAdmin, isOperator };
 export type { Tier };
 
 /**

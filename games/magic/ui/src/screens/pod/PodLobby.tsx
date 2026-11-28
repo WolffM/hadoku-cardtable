@@ -29,6 +29,7 @@ import { podPlayers, type PodView } from './wire.ts';
 import { faceOf } from '@hadoku/game-ui/components/Avatar.tsx';
 import { SeatsOpenNote, useSeatsShutUntil } from '@hadoku/game-ui/room/seatsOpen.tsx';
 import { useLeaderAsk } from '../leader/LeaderAsk.tsx';
+import { isOperatorViewer, useWhoami } from '@hadoku/game-ui/room/whoami.ts';
 import '@hadoku/game-ui/components/Button.css';
 
 export interface PodLobbyProps {
@@ -77,6 +78,7 @@ export function PodLobby({ testId, roomId, pod, members, here, leaderId, myMembe
   };
 
   const iLead = myMemberId !== null && myMemberId === leaderId;
+  const operator = isOperatorViewer(useWhoami());
   const leaderAsk = useLeaderAsk(
     (id) => members.find((m) => m.id === id)?.name,
     (id) => act(() => passRoomLeader(roomId, id)),
@@ -123,6 +125,7 @@ export function PodLobby({ testId, roomId, pod, members, here, leaderId, myMembe
                   seats={pod.seats}
                   myMemberId={myMemberId}
                   leaderId={leaderId}
+                  operator={operator}
                   readyOf={(id) => members.find((m) => m.id === id)?.ready === true}
                   faceOf={(id) => faceOf(members.find((m) => m.id === id))}
                   fieldFixed={fieldFixed}

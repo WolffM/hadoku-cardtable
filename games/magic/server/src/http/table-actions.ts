@@ -12,15 +12,14 @@
  *   POST /api/rooms/:roomId/tables/:tableId/award { seat, match? }  a game (or the whole match) is that seat's
  *   POST /api/rooms/:roomId/tables/:tableId/restore   the game in play goes back to the start of its turn
  *   POST /api/rooms/:roomId/tables/:tableId/replay    the match is played again from 0–0, no result
- *   POST /api/rooms/:roomId/admin/unseat { memberId } a seated member goes to the spectator row, before the lock
- *   POST /api/rooms/:roomId/admin/bot { seat }        the AI takes a seat, its human evicted, before the lock
  *   GET  /api/rooms/:roomId/admin/live                every live match of the room, as it stands
  *
  * Everything after concede, abandon and drop is the room leader's, seated or watching (the operator,
  * 2026-10-30: *"the room leader is the admin"*), and an operator's: anyone the edge names `wife` or
  * `admin` (the operator, 2026-11-27, for the first big tournament: the raw edge tier, never the
  * member-promoting `tierOf`; friend and member are not included), in any room, member or not
- * (`operatorAuthority`). A reset's games are stopped, with no result; a DQ'd entrant's game, or an
+ * (`isOperator`). Seating before the lock — a no-show stood up or replaced by the AI — is the room's own
+ * seat routes (`room-core.ts`'s `/seats/remove`, `/seats/bot`), which take an operator the same way. A reset's games are stopped, with no result; a DQ'd entrant's game, or an
  * awarded one, is conceded for its loser (`endForfeitedGame`), so the other screen ends on its win.
  * Every one of them, done or refused, is reported as an `admin-act` server event naming who did it.
  *
@@ -38,7 +37,7 @@ import type { Lobby } from '../room/lobby.js';
 import { magicView } from '../room/magic-view.js';
 import type { Match } from '../play/match.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
-import { edgeTierOf, rankOf } from '@hadoku/service-kernel/auth';
+import { edgeTierOf, isOperator } from '@hadoku/service-kernel/auth';
 import { httpCaller } from '@hadoku/game-server/http/request';
 import { report } from '@hadoku/game-server/telemetry';
 import type { MatchInspection } from '../play/match.js';
@@ -49,7 +48,7 @@ type TableMatch = Pick<Match, 'seatOf' | 'fromClient' | 'stop' | 'concedeFor' | 
 export interface TableActionsDeps {
 	lobby: Pick<
 		Lobby,
-		'get' | 'isMember' | 'abandonTable' | 'dropTableMatch' | 'resetGame' | 'resetRoom' | 'dqPlayer' | 'awardMatch' | 'replayMatch' | 'removeFromSeat' | 'botReplacesHuman'
+		'get' | 'isMember' | 'abandonTable' | 'dropTableMatch' | 'resetGame' | 'resetRoom' | 'dqPlayer' | 'awardMatch' | 'replayMatch'
 	>;
 	/** A live match by id, or undefined. */
 	match(matchId: string): TableMatch | undefined;
@@ -65,14 +64,6 @@ export interface TableActionsDeps {
 	log?: (entry: Record<string, unknown>) => void;
 	/** The server event every leader or operator act posts (`report`, service cardtable). */
 	report?: (event: string, context: Record<string, string | number | boolean | null>) => void;
-}
-
-/** The lowest raw edge tier with an operator's reach in every room (the operator, 2026-11-27). */
-const OPERATOR_TIER = 'wife';
-
-/** Whether the edge names this caller `wife` or above: read from the raw tier, never `tierOf`, which promotes a member. */
-export function isOperator(req: Request): boolean {
-	return rankOf(edgeTierOf(req)) >= rankOf(OPERATOR_TIER);
 }
 
 const NO_ROOM = { error: 'no such room' };
@@ -98,13 +89,6 @@ const LEADER_REFUSED: Record<string, [number, string]> = {
 	'no-pod': [409, 'there are no rounds under way'],
 	'not-pod-table': [409, 'only a tournament or draft match has a result to award'],
 	'round-over': [409, 'that round is over: correct it with the tournaments command'],
-	'not-member': [404, 'no such room'],
-	'target-not-member': [404, 'that player is not in this room'],
-	'not-draft': [409, 'this room has no seats to change'],
-	'not-lobby': [409, 'seats are fixed once the rounds have started'],
-	'no-bot-seat': [409, 'this room has no AI seat'],
-	'bad-seat': [409, 'that seat is past the last one'],
-	'historical': [409, 'this room is finished'],
 	'not-entrant': [404, 'that player is not in this tournament'],
 	'already-dropped': [409, 'that player is already out'],
 	'pod-under-way': [409, 'a draft or tournament under way can only be closed'],
@@ -316,32 +300,6 @@ export function attachTableActions(api: Router, deps: TableActionsDeps): void {
 		if (!done.ok) return refuse(res, done.reason);
 		if (done.matchId !== null) deps.match(done.matchId)?.stop();
 		deps.seriesEnded(roomId, tableId);
-		res.json({ ok: true });
-	});
-
-	/** A seated member stands, to the spectator row, before the seats lock (`removeFromSeat`): a no-show's seat freed. */
-	router.post('/:roomId/admin/unseat', (req: Request, res: Response) => {
-		const roomId = String(req.params.roomId);
-		const who = authority(req, res, roomId);
-		if (who === null) return;
-		const memberId = onlyField(req.body, 'memberId');
-		if (typeof memberId !== 'string' || memberId === '') return res.status(400).json({ error: 'body: { memberId } and nothing else' });
-		const done = deps.lobby.removeFromSeat(roomId, who.me, memberId, who.override);
-		acted(req, 'seat-unseated', roomId, { memberId, ok: done.ok, ...(done.ok ? {} : { reason: done.reason }) });
-		if (!done.ok) return refuse(res, done.reason);
-		res.json({ ok: true });
-	});
-
-	/** The AI takes `seat` before the seats lock, its human evicted (`botReplacesHuman`): a no-show replaced. */
-	router.post('/:roomId/admin/bot', (req: Request, res: Response) => {
-		const roomId = String(req.params.roomId);
-		const who = authority(req, res, roomId);
-		if (who === null) return;
-		const seat = onlyField(req.body, 'seat');
-		if (typeof seat !== 'number' || !Number.isInteger(seat) || seat < 0) return res.status(400).json({ error: 'body: { seat } and nothing else' });
-		const done = deps.lobby.botReplacesHuman(roomId, who.me, seat, who.override);
-		acted(req, 'seat-bot', roomId, { seat, ok: done.ok, ...(done.ok ? { evicted: done.evicted } : { reason: done.reason }) });
-		if (!done.ok) return refuse(res, done.reason);
 		res.json({ ok: true });
 	});
 

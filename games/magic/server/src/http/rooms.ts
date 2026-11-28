@@ -46,6 +46,7 @@
  * a friend key, so this is a dev/direct-hit case, not a production one.
  */
 
+import { isOperator } from '@hadoku/game-server/edge-auth';
 import { Router, type Request, type Response } from 'express';
 import { isDurableParticipantId } from '@wolffm/rooms-protocol';
 import { callerOf, parseBody } from '@hadoku/game-server/http/request';
@@ -232,7 +233,8 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 	// This is the SAME router `room-core.ts` built (and already ran its own
 	// `.param('id', …)` guard on), not a second one at the same prefix.
 	// `{ settings }` is room-core's generic arm, answered with Magic's own words for its locks.
-	const core = attachRoomCore(api, { ...deps, wire, settings: { refusal: (reason) => refusal('settings', reason) } }, {
+	// An operator (the edge's wife or admin, the operator's 2026-11-27 ruling) has the leader's seat ops in every room.
+	const core = attachRoomCore(api, { ...deps, wire, operator: isOperator, settings: { refusal: (reason) => refusal('settings', reason) } }, {
 		beforeWildcard: (router) => {
 			// Challenge rooms (`room/challenge.ts`): the catalogued real events, and a room
 			// replaying one with the caller in the seat of the player they chose.
@@ -419,7 +421,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.aiSeat(id, caller.id, body.seat, body.on);
+		const result = lobby.aiSeat(id, caller.id, body.seat, body.on, isOperator(req));
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
 			if (result.reason === 'not-leader') return res.status(403).json({ error: 'only the room leader can do that' });
@@ -444,7 +446,7 @@ export function attachRooms(api: Router, deps: RoomsDeps): void {
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'take part in');
 		const id = String(req.params.id);
 		if (!ROOM_ID_RE.test(id)) return noMatch(res);
-		const result = lobby.closeSeat(id, caller.id, body.seat, body.closed);
+		const result = lobby.closeSeat(id, caller.id, body.seat, body.closed, isOperator(req));
 		if (!result.ok) {
 			if (result.reason === 'no-room' || result.reason === 'not-member') return noMatch(res);
 			if (result.reason === 'not-leader') return res.status(403).json({ error: 'only the room owner closes seats' });
