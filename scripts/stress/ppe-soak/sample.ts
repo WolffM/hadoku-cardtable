@@ -12,7 +12,7 @@
  * Prod guard: prod shares hokon. When prod has a live match in a tournament room the run is ended
  * (`STOP`); the driver's matches and watchers wind down on it.
  */
-import { appendFileSync, closeSync, existsSync, fstatSync, openSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, fstatSync, openSync, readdirSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
 import { loadavg } from 'node:os';
 import { join } from 'node:path';
 
@@ -76,7 +76,7 @@ function ppeLogWindow(): { counts: Record<string, number>; hosts: Record<string,
     if (WATCHED.includes(evt)) counts[evt] = (counts[evt] ?? 0) + 1;
     if (evt === 'snapshot-write-slow') slowWrites.push(Number(/"ms":(\d+)/.exec(line)?.[1] ?? 0));
     if (evt === 'match-placed') {
-      const host = /"host":"([^"]+)"/.exec(line)?.[1] ?? '?';
+      const host = /"hostId":"([^"]+)"/.exec(line)?.[1] ?? '?';
       hosts[host] = (hosts[host] ?? 0) + 1;
     }
   }
@@ -109,12 +109,39 @@ async function prodLive(): Promise<{ matches: number; tournament: number } | nul
   }
 }
 
+/**
+ * Which PPE server answered this sample: its commit (loopback `/health`) and its node pid. A pid that
+ * changes between samples is a restart or a redeploy, which the summary tags apart from the edge's.
+ * During a handover two run at once, the old one draining, so every one is listed, newest last.
+ */
+async function ppeServer(): Promise<{ commit: string | null; procs: { pid: number; startedAt: string }[] }> {
+  const commit = await fetch('http://127.0.0.1:9011/health')
+    .then(async (r) => ((await r.json()) as { commit?: string }).commit?.slice(0, 9) ?? null)
+    .catch((err: unknown) => `unreachable: ${(err as Error).message}`);
+  const ticks = 100;
+  const bootS = Number(/^btime (\d+)$/m.exec(readFileSync('/proc/stat', 'utf8'))?.[1] ?? 0);
+  const procs: { pid: number; startedAt: string }[] = [];
+  for (const d of readdirSync('/proc').filter((n) => /^\d+$/.test(n))) {
+    let cmd: string;
+    try {
+      cmd = readFileSync(`/proc/${d}/cmdline`, 'utf8');
+    } catch {
+      continue; // the process exited between the listing and the read
+    }
+    if (!cmd.startsWith('node\0') || !cmd.includes('hadoku-cardtable-ppe/apps/server/dist/index.js')) continue;
+    const startTicks = Number(readFileSync(`/proc/${d}/stat`, 'utf8').split(') ')[1]?.split(' ')[19] ?? 0);
+    procs.push({ pid: Number(d), startedAt: new Date((bootS + startTicks / ticks) * 1000).toISOString() });
+  }
+  return { commit, procs: procs.sort((a, b) => a.startedAt.localeCompare(b.startedAt)) };
+}
+
 async function row(): Promise<void> {
   const since = new Date(Date.now() - EVERY_MS).toISOString();
-  const [ppe, prod, e5, prodRooms] = await Promise.all([capacity('ppe'), capacity('prod'), edge5xx(since), prodLive()]);
+  const [ppe, prod, e5, prodRooms, server] = await Promise.all([capacity('ppe'), capacity('prod'), edge5xx(since), prodLive(), ppeServer()]);
   const r = {
     at: new Date().toISOString(),
     ppe,
+    server,
     prod: prod === null ? null : { now: prod.now, peak: prod.peak, loopMaxMs: prod.loopMaxMs },
     prodRooms,
     edge5xx: e5,
