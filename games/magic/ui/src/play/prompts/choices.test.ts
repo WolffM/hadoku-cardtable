@@ -23,7 +23,7 @@ import { parseServerFrame } from '@hadoku/forge-wire';
 
 import { askFor } from './fixtures.ts';
 import { PromptFor, type AskOf } from './index.ts';
-import { EMPTY_LOOKUP, type PromptLookup } from './lookup.ts';
+import { EMPTY_LOOKUP, withAbilityLabels, type PromptLookup } from './lookup.ts';
 import { nameFromForgeLabel } from './PromptShell.tsx';
 import { expectWireReply, forgeCardLabel, mountPrompt, POOL, POOL_ID_BASE, poolLookup } from './testing.ts';
 import type { FacePart, TileCard } from '../../components/faceCrop.ts';
@@ -377,6 +377,39 @@ describe('chooseEntitiesForEffect', () => {
     expect(getByTestId('prompt-problems').textContent).toBe('choose at most 2');
     fireEvent.click(submit());
     expect(answers).toEqual([]);
+  });
+});
+
+describe('getAbilityToPlay: a planeswalker’s withheld abilities', () => {
+  // The operator, 2026-11-27: "for karn, and all planeswalkers … show all abilities every time but only
+  // make the ones that are payable clickable" — Karn Liberated at 1 loyalty offers +4 alone.
+  const ask = {
+    kind: 'ask' as const,
+    callId: 'c1',
+    method: 'getAbilityToPlay' as const,
+    hostCard: { kind: 'card' as const, id: 163 },
+    abilities: [{ kind: 'spellAbility' as const, id: 401, label: '+4: Target player exiles a card from their hand.' }],
+    withheld: [
+      { kind: 'spellAbility' as const, id: 402, label: '-3: Exile target permanent.', at: 1 },
+      { kind: 'spellAbility' as const, id: 403, label: '-14: Restart the game.', at: 2 },
+    ],
+    triggerEvent: null,
+  };
+
+  it('lists every loyalty ability in card order, the withheld ones greyed and unanswerable', () => {
+    expect(parseServerFrame(ask).kind, 'withheld is on the wire’s own shape').toBe('ask');
+    const labels = Object.fromEntries([...ask.abilities, ...ask.withheld].map((a) => [a.id, a.label]));
+    const { getAllByTestId, answers } = mountPrompt('getAbilityToPlay', ask, withAbilityLabels(EMPTY_LOOKUP, labels));
+    const rows = getAllByTestId('prompt-choice') as HTMLButtonElement[];
+    expect(rows.map((r) => [r.textContent?.slice(0, 3), r.disabled])).toEqual([
+      ['+4:', false],
+      ['-3:', true],
+      ['-14', true],
+    ]);
+    fireEvent.click(rows[1]!);
+    expect(answers, 'a greyed ability answers nothing').toEqual([]);
+    fireEvent.click(rows[0]!);
+    expect(answers).toEqual([ask.abilities[0]]);
   });
 });
 
