@@ -64,12 +64,16 @@ export function seatStatus(seat: DraftSeatView): SeatStatus {
 }
 
 /** Every seat the table is holding for an absent player, in seat order. */
-/** Who is at the table, as the room's bar counts it: people, bots, and free chairs. */
+/**
+ * Who is at the table, as the room's bar counts it: people, bots, and free chairs. A held seat is a
+ * person's (they stepped away: to the builder once their draft is done, or a reload), never an open chair.
+ */
 export function tallySeats(seats: readonly DraftSeatView[]): { humans: number; bots: number; open: number } {
+  const status = seats.map(seatStatus);
   return {
-    humans: seats.filter((s) => s.occupant?.kind === 'human').length,
-    bots: seats.filter((s) => s.occupant?.kind === 'bot').length,
-    open: seats.filter((s) => s.occupant === null).length,
+    humans: status.filter((s) => s === 'human' || s === 'held').length,
+    bots: status.filter((s) => s === 'bot').length,
+    open: status.filter((s) => s === 'empty').length,
   };
 }
 
