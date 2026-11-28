@@ -1183,6 +1183,29 @@ describe('a drafter who leaves the room mid-draft', () => {
 		expect(v.viewer.pool).toHaveLength(0);
 		expect(v.viewer.timer).toBeUndefined();
 	});
+
+	it('keeps picking for them once their page has gone too, and the seat is only held for them', async () => {
+		const { id, bob, seatOfBob } = twoDrafters();
+		const alice = await connect(live().port, edgeHeaders('leave-alice'));
+		const gone = await connect(live().port, edgeHeaders('leave-bob'));
+		await joinAndSettle(alice, id);
+		await joinAndSettle(gone, id);
+		const seat = seatOfBob();
+		const room = (): DraftRoom => live().rooms.find(id)!;
+		// Leave, then the page closes: the seat is vacated and held, nobody sits in it.
+		expect(live().lobby.leave(id, bob).ok).toBe(true);
+		gone.socket.disconnect();
+		await waitUntil(() => roomsMod.stateOf(room()).table.seats[seat]?.occupant === null, 'the seat bob left to be vacated');
+		// Alice drafts on; every pack that reaches bob's seat is picked for him.
+		const poolOf = (s: number): number => roomsMod.stateOf(room()).pools[s]?.length ?? 0;
+		const aliceSeat = seatOf(room().seats, room().clients.get(alice.id)!.participantId)!;
+		for (let pick = 1; pick <= 6; pick++) {
+			await waitUntil(() => packOf(roomsMod.stateOf(room()), aliceSeat).length > 0 && poolOf(aliceSeat) === pick - 1, `alice's pack ${pick}`);
+			alice.send(pickCard(id, packOf(roomsMod.stateOf(room()), aliceSeat)[0]!.cardId));
+			await waitUntil(() => poolOf(aliceSeat) === pick, `alice's pick ${pick} to land`);
+		}
+		await waitUntil(() => poolOf(seat) >= 6, "the bot's picks for the seat bob left");
+	});
 });
 
 describe('a disconnect and a reconnect inside the reservation TTL', () => {

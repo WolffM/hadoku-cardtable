@@ -498,14 +498,20 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	/**
 	 * The human seats whose drafter has left the room (`Lobby.leave`): out of the event (`#dealPodRounds`
 	 * drops them), so nobody waits on their picks. Each is on a deadline of nothing, timer or no timer.
+	 * Their page closing too vacates the seat (held, then not even that once the hold runs out), so the seat
+	 * is the one they sit in or else the one the table remembers them by, never only an occupied one.
 	 */
 	const goneSeats = (room: DraftRoom): Set<number> => {
 		const { roomId } = podOfDraftId(room.roomId);
-		const drafters = new Set(magicView(deps.lobby.get(roomId))?.game?.pod?.drafters ?? []);
 		const gone = new Set<number>();
-		for (const s of stateOf(room).table.seats) {
-			const id = s.occupant?.kind === 'human' ? s.occupant.participantId : null;
-			if (id !== null && drafters.has(id) && !deps.lobby.isMember(roomId, id)) gone.add(s.id);
+		const { seats } = stateOf(room).table;
+		for (const id of magicView(deps.lobby.get(roomId))?.game?.pod?.drafters ?? []) {
+			if (deps.lobby.isMember(roomId, id)) continue;
+			const sitting = seats.find((s) => s.occupant?.kind === 'human' && s.occupant.participantId === id);
+			const seat = sitting?.id ?? room.seats.remembered[id];
+			if (seat === undefined) continue;
+			const occupant = seats[seat]?.occupant ?? null;
+			if (occupant === null || (occupant.kind === 'human' && occupant.participantId === id)) gone.add(seat);
 		}
 		return gone;
 	};
