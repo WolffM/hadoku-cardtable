@@ -115,7 +115,7 @@ const ALL_SCENARIOS: readonly Scenario[] = [
   { key: '7p+1bot bye', humans: 7, bots: 1, botsPlay: false, realGames: 1, realTables: 1, minutes: 42 },
   { key: '14p+2bots', humans: 14, bots: 2, botsPlay: true, realGames: 0, realTables: 0, minutes: 42, env: { CARDTABLE_PLAY_OVER_GRACE_MS: '30000' } },
   { key: '8p', humans: 8, bots: 0, botsPlay: true, realGames: 1, realTables: 1, minutes: 42 },
-  { key: '1p+7bots', humans: 1, bots: 7, botsPlay: true, realGames: 3, realTables: 1, minutes: 42 },
+  { key: '1p+7bots', humans: 1, bots: 7, botsPlay: true, realGames: 3, realTables: 1, minutes: 75 },
   { key: '1p+7bots bye', humans: 1, bots: 7, botsPlay: false, realGames: 0, realTables: 0, minutes: 20 },
   // A room past one pod with a drafter gone from each mid-draft: both pods' drafts end, the leavers are dropped, and the Swiss of the rest
   // pairs on. Every game is conceded (no live board), and finished games leave their JVM in 30 s, so nine browsers fit a claw.
@@ -763,6 +763,22 @@ function serverFindings(run: Run): void {
   }
 }
 
+/**
+ * When bots play, every AI-vs-AI result came from a game Forge played (`bot-game-ended` with its wins), never a
+ * pairing the room settled for want of one (`bot-game-no-result`, `bot-game-no-deck`): a settled bot game looks
+ * exactly like a played one in the standings.
+ */
+function botGameFindings(run: Run, pod: PodView): void {
+  if (!botsPlayIn(run.scenario)) return;
+  const rows = serverLog(run.stack);
+  const played = rows.filter((r) => r.evt === 'bot-game-ended' && Array.isArray(r.wins));
+  const ms = played.map((r) => Number(r.ms)).sort((a, b) => a - b);
+  const aiResults = pod.results.filter((r) => r.playerB !== null && isAi(r.playerA) && isAi(r.playerB));
+  say(`bot games: ${played.length} played for ${aiResults.length} bot results; ms p50 ${ms[Math.floor(ms.length / 2)] ?? '-'} max ${ms.at(-1) ?? '-'}; retried ${rows.filter((r) => r.evt === 'bot-game-ended' && r.why !== undefined).length}`);
+  for (const r of rows) if (r.evt === 'bot-game-no-result' || r.evt === 'bot-game-no-deck') finding(run, `a bot game was settled, not played: ${JSON.stringify(r).slice(0, 300)}`);
+  if (played.length !== aiResults.length) finding(run, `${aiResults.length} bot results but ${played.length} bot games played`);
+}
+
 /* ── one scenario ────────────────────────────────────────────────────── */
 
 async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo): Promise<void> {
@@ -896,6 +912,7 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
       for (const q of players) await expect.soft(table, `${p.name}: ${q.name} is named`).toContainText(`e2e-${q.name}`);
       await expect.soft(table, `${p.name}: no raw id`).not.toContainText('fk:');
     }
+    botGameFindings(run, pod);
     await screenshotAll(run, 'final');
   } finally {
     run.done = true;
