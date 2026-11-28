@@ -1,13 +1,18 @@
 /*
  * The podium (`PodPodium.tsx`). Colour from `@wolffm/themes` and our own tokens only: the medals
- * (`--medal-*`), the confetti in the colour pie (`--c-*`). Reduced motion: still.
+ * (`--medal-*`), the confetti in the colour pie (`--c-*`). Reduced motion: still. The stands sit at the
+ * podium's foot and it grows to hold them: a name wraps whole on its stand, never an ellipsis (it is the
+ * one name the room most wants to read), so a long one makes its stand and the podium taller.
  */
 
 .podium {
   --podium-scale: 1;
 
   position: relative;
-  height: 460px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 460px;
   overflow: hidden;
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius);
@@ -15,10 +20,7 @@
 }
 
 .podium__stands {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  position: relative;
   display: flex;
   gap: 14px;
   align-items: flex-end;
@@ -115,11 +117,11 @@
 .podium__name {
   max-width: 100%;
   margin-top: 10px;
-  overflow: hidden;
   font-size: 1.15rem;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .podium__stand[data-place='1'] .podium__name {
@@ -238,7 +240,7 @@
    ~340px, and the window's 560px rule left the stands their desktop sizes and cut the winner's name. */
 @container pod-column (max-width: 560px) {
   .podium {
-    height: 360px;
+    min-height: 360px;
   }
 
   .podium__stand {
@@ -285,7 +287,7 @@
 .podium--compact {
   --podium-scale: 0.7;
 
-  height: 340px;
+  min-height: 340px;
 }
 
 .podium--compact .podium__stands {
