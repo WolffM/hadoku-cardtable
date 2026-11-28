@@ -13,6 +13,8 @@
   flex-direction: column;
   justify-content: flex-end;
   min-height: 460px;
+  /* Room above the tallest stand for the winner's bob (6px) once a long name has grown the podium to fit. */
+  padding-top: 16px;
   overflow: hidden;
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius);
