@@ -57,12 +57,12 @@ export const latestTurn = (log: readonly Row[], matchId: string): number =>
 export const turnShown = async (page: Page): Promise<string> => (await page.getByTestId('live-turn-n').textContent({ timeout: 5_000 }).catch(() => '')) ?? '';
 export const promptMethod = async (page: Page): Promise<string | null> => page.getByTestId('live-prompt').getAttribute('data-method', { timeout: 500 }).catch(() => null);
 
-/** Every match a failover or a fence could not place anywhere (the coordinator's `lost`), and every second fatal. */
+/** Every match a failover or a fence could not place anywhere (the coordinator's `lost`, and each `match-lost`), and every second fatal. */
 export function lostMatches(log: readonly Row[]): Row[] {
   const out: Row[] = [];
   for (const r of log) {
     if ((r.evt === 'claw-failed-over' || r.evt === 'fenced-over') && Array.isArray(r.lost)) for (const l of r.lost as Row[]) out.push({ ...l, evt: r.evt, cause: r.cause });
-    if (r.evt === 'match-fatal-again') out.push(r);
+    if (r.evt === 'match-fatal-again' || r.evt === 'match-lost') out.push(r);
   }
   return out;
 }

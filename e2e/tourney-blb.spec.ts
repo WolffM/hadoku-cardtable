@@ -711,6 +711,20 @@ async function watchRoom(run: Run, humans: ReadonlySet<string>, deadline: number
 }
 
 /** The server's own complaints about any match of this run. */
+/**
+ * On the claws field, a row the fault or the scratch claws themselves make, not the product: the fault's
+ * own failover (`failoverRound` checks what it moved, and a lost match there is its finding), and the
+ * draft bot, which the coordinator clones from a private repo a claw has no credentials for (prod's
+ * coordinator is on hokon, which has them). Nobody here drafts with the bot: every seat is a person.
+ */
+function scratchClawRow(row: Record<string, unknown>): boolean {
+  const evt = String(row.evt ?? '');
+  if ((evt === 'claw-failed-over' || evt === 'fenced-over') && Array.isArray(row.lost) && row.lost.length === 0) return true;
+  if (evt === 'jvm-lost' && /heartbeat lost|fenced|silent/.test(String(row.reason))) return true;
+  if (evt === 'agent-draftbot-failed' && /could not read Username/.test(String(row.error))) return true;
+  return evt === 'draftbot-failing' && row.detail === 'no claw runs the draft bot now';
+}
+
 function serverFindings(run: Run): void {
   const rows = serverLog(run.stack);
   const counts = new Map<string, number>();
@@ -721,6 +735,7 @@ function serverFindings(run: Run): void {
     const evt = String(row.evt ?? row.event ?? '');
     // The harness's own state dir has no presets file: the stack's, not the product's.
     if (evt === 'presets-load-failed' && /ENOENT/.test(String(row.detail))) continue;
+    if (FAILOVER !== undefined && scratchClawRow(row)) continue;
     if (bad.has(evt) || row.level === 'error' || /error|crash|fail/i.test(evt)) finding(run, `server ${evt}: ${JSON.stringify(row).slice(0, 400)}`);
   }
   // A pick the page offered and the server refused: the passed pack still drawn, pickable, while the next one comes.
