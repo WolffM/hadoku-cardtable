@@ -22,13 +22,15 @@
  * instead (`edgeGate`): with no session, 401 for a request or a socket under the
  * prefix, and for a page load the sign-in wall, which signs a visitor up as a
  * new guest and sends them on. `POST /__e2e/drop-gated-sockets` ends every
- * socket such a browser has open, as a deploy's restart does.
+ * socket such a browser has open, as a deploy's restart does. Such a guest can
+ * delete their account (`POST /session/account/delete`, the fleet header's
+ * Delete account), and `/` is hadoku.me's home, where the header then goes.
  */
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { standInVendor } from '@wolffm/shared-vendor/harness';
-import { createServer, request, type IncomingHttpHeaders, type Server } from 'node:http';
+import { createServer, request, type IncomingHttpHeaders, type Server, type ServerResponse } from 'node:http';
 import { connect } from 'node:net';
 import type { Duplex } from 'node:stream';
 
@@ -107,6 +109,39 @@ export function edgeGate(headers: IncomingHttpHeaders, path: string): GateAnswer
 const gatedSockets = new Set<Duplex>();
 const DROP_GATED_SOCKETS = '/__e2e/drop-gated-sockets';
 
+/** The fleet's account delete, as the header posts it (`@wolffm/task-ui-components`' `deleteOwnAccount`). */
+const ACCOUNT_DELETE = '/session/account/delete';
+/**
+ * How long the delete takes to answer. The real one ends the session first and answers well after:
+ * 1.3 s and more on 2026-11-27 (hadoku_site's `deletion.spec.ts`), long enough for the page's sockets
+ * and requests to meet the edge's 401 while it is still in flight.
+ */
+export const ACCOUNT_DELETE_ANSWER_MS = 2_500;
+
+/**
+ * A wall-made guest deletes their account: the session ends at once (every request and socket under
+ * the prefix is refused from then on, and the browser's sockets drop, as the server lets go of a
+ * deleted account), and the answer comes {@link ACCOUNT_DELETE_ANSWER_MS} later, clearing the cookie.
+ * A named identity is shared by every spec, so only a guest can be deleted.
+ */
+function deleteAccount(headers: IncomingHttpHeaders, res: ServerResponse): void {
+  const session = sessionOf(headers);
+  if (cookieOf(headers, EDGE_GATE_COOKIE) === null || session === null || !guests.delete(session)) {
+    res.writeHead(401, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'unauthorized' }));
+    return;
+  }
+  for (const s of gatedSockets) s.destroy();
+  gatedSockets.clear();
+  setTimeout(() => {
+    res
+      .writeHead(200, { 'content-type': 'application/json', 'set-cookie': `${SESSION_COOKIE}=; Path=/; Max-Age=0`, 'cache-control': 'no-store' })
+      .end(JSON.stringify({ deleted: true }));
+  }, ACCOUNT_DELETE_ANSWER_MS);
+}
+
+/** hadoku.me's home, as far as a test needs it: a page that is not cardtable's. */
+const HOME_PAGE = '<!doctype html><meta charset="utf-8"><title>hadoku</title><main data-testid="hadoku-home">hadoku</main>';
+
 /** The headers the app server will see. */
 export function edgeHeaders(
   inbound: IncomingHttpHeaders,
@@ -176,6 +211,15 @@ export async function startEdge(opts: EdgeOptions): Promise<Server> {
         const out = prefs.handle(req.method ?? 'GET', prefsPath, { key }, body) ?? { status: 404, json: { error: 'Not Found' } };
         res.writeHead(out.status, { 'content-type': 'application/json' }).end(JSON.stringify(out.json));
       });
+      return;
+    }
+    if (req.method === 'POST' && req.url === ACCOUNT_DELETE) {
+      req.resume();
+      deleteAccount(req.headers, res);
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }).end(HOME_PAGE);
       return;
     }
     if (req.method === 'POST' && req.url === DROP_GATED_SOCKETS) {

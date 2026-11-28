@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { PROBE_GAP_MS, RELOAD_GUARD_MS, RELOADED_KEY, SessionLostError, startSessionWatch, watchSocket, type SessionHost, type SessionWatch, type WatchedSocket } from './index.ts';
+import { PROBE_GAP_MS, RELOAD_GUARD_MS, RELOADED_KEY, SESSION_WRITE_HOLD_MS, SessionLostError, startSessionWatch, watchSocket, type SessionHost, type SessionWatch, type WatchedSocket } from './index.ts';
 
 const ORIGIN = 'https://hadoku.me';
 const PROBE = '/cardtable/api/whoami';
 
 /** A page whose edge answers every gated request with `status()`, and counts what left. */
-function page(status: () => number) {
+function page(status: () => number, session: (url: string) => Promise<Response> = async () => new Response('{}', { status: 401 })) {
   const sent: string[] = [];
   let reloads = 0;
   const stored = new Map<string, string>();
@@ -15,6 +15,8 @@ function page(status: () => number) {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
       sent.push(url);
       if (url.startsWith('/cardtable/') || url.startsWith(`${ORIGIN}/cardtable/`)) return new Response('{}', { status: status() });
+      const path = url.startsWith(ORIGIN) ? url.slice(ORIGIN.length) : url;
+      if (path.startsWith('/session/') || path.startsWith('/auth/')) return session(url);
       return new Response('{}', { status: 401 });
     }) as typeof fetch,
     location: { origin: ORIGIN, reload: () => (reloads += 1) },
@@ -131,5 +133,100 @@ describe('startSessionWatch', () => {
     watch.stop();
     watch = null;
     expect(p.host.fetch).toBe(own);
+  });
+
+  describe('a session the page changes itself', () => {
+    /** The fleet's session service, answering when the test says. */
+    function slowSession() {
+      let answer: (res: Response) => void = () => undefined;
+      return {
+        respond: () => new Promise<Response>((r) => (answer = r)),
+        answer: (status: number, body = '{"deleted":true}') => answer(new Response(body, { status })),
+      };
+    }
+
+    it('Delete account in flight: the edge’s 401s are the page’s own doing, and the page is not reloaded out from under the header', async () => {
+      const session = slowSession();
+      let status = 200;
+      const p = page(() => status, session.respond);
+      let t = 0;
+      watch = startSessionWatch({ scope: '/cardtable/', probeUrl: PROBE, host: p.host, now: () => t });
+      const a = socket();
+      watchSocket(a.s);
+
+      const deleting = p.host.fetch('/session/account/delete', { method: 'POST', body: '{}' });
+      status = 401;
+      await p.host.fetch('/cardtable/api/client-events', { method: 'POST' });
+      a.fire('connect_error');
+      t += PROBE_GAP_MS;
+      watch.suspect();
+      await settle();
+      expect(p.sent.filter((u) => u === PROBE), 'no probe while the page ends its own session').toHaveLength(0);
+
+      session.answer(200);
+      expect((await deleting).status).toBe(200);
+      t += SESSION_WRITE_HOLD_MS - 1;
+      a.fire('connect_error');
+      await p.host.fetch('/cardtable/api/rooms');
+      await settle();
+      expect(watch.lost()).toBe(false);
+      expect(p.reloads(), 'the header’s own navigation stands').toBe(0);
+      expect(a.disconnects()).toBe(0);
+    });
+
+    it('a probe already asking when the delete starts does not reload on its 401', async () => {
+      const session = slowSession();
+      let answerProbe: (res: Response) => void = () => undefined;
+      const p = page(() => 401, session.respond);
+      const raw = p.host.fetch;
+      p.host.fetch = ((input: RequestInfo | URL, init?: RequestInit) =>
+        input === PROBE ? new Promise<Response>((r) => (answerProbe = r)) : raw(input, init)) as typeof fetch;
+      watch = startSessionWatch({ scope: '/cardtable/', probeUrl: PROBE, host: p.host, now: () => 0 });
+      watch.suspect();
+      void p.host.fetch('/session/account/delete', { method: 'POST', body: '{}' });
+      answerProbe(new Response('{}', { status: 401 }));
+      await settle();
+      expect(watch.lost()).toBe(false);
+      expect(p.reloads()).toBe(0);
+    });
+
+    it('a delete that fails leaves the watch armed: the next lost session still stops the page', async () => {
+      const session = slowSession();
+      const p = page(() => 401, session.respond);
+      watch = startSessionWatch({ scope: '/cardtable/', probeUrl: PROBE, host: p.host, now: () => 0 });
+      const deleting = p.host.fetch('/session/account/delete', { method: 'POST', body: '{}' });
+      session.answer(500, '{}');
+      await deleting;
+      watch.suspect();
+      await settle();
+      expect(watch.lost()).toBe(true);
+      expect(p.reloads()).toBe(1);
+    });
+
+    it('a sign-in with a key (another account’s session) holds the watch until the hold is over, then it is armed again', async () => {
+      const session = slowSession();
+      const p = page(() => 401, session.respond);
+      let t = 0;
+      watch = startSessionWatch({ scope: '/cardtable/', probeUrl: PROBE, host: p.host, now: () => t });
+      const signing = p.host.fetch(new Request(`${ORIGIN}/auth/sign-in`, { method: 'POST', body: '{}' }));
+      session.answer(200, '{}');
+      await signing;
+      watch.suspect();
+      await settle();
+      expect(watch.lost()).toBe(false);
+      t += SESSION_WRITE_HOLD_MS;
+      watch.suspect();
+      await settle();
+      expect(watch.lost()).toBe(true);
+    });
+
+    it('reading the session is not changing it: a GET under /session/ holds nothing', async () => {
+      const p = page(() => 401, async () => new Response('{}', { status: 200 }));
+      watch = startSessionWatch({ scope: '/cardtable/', probeUrl: PROBE, host: p.host, now: () => 0 });
+      await p.host.fetch('/session/whoami');
+      watch.suspect();
+      await settle();
+      expect(watch.lost()).toBe(true);
+    });
   });
 });
