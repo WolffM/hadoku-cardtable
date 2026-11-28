@@ -58,6 +58,12 @@ on:
         description: 'A set code (BLB) to run the card sweep on INSTEAD of the monkey. Empty = the monkey.'
         required: false
         default: ''
+      sweep_args:
+        description: >-
+          More sweep flags, e.g. `--seed 7 --per-match 4` or `--variant accept`. A seed or several cards a
+          match plays the set a way the nightly does not; every play still has to match the recorded one.
+        required: false
+        default: ''
 
 # Every run is its own group: a dispatch is somebody's proof run and never waits
 # on the nightly, nor the nightly on it.
@@ -206,6 +212,7 @@ jobs:
         env:
           CARDTABLE_PLAY_JVM_OPTS: -Xmx1g
           SWEEP_SET: ${{ inputs.sweep_set }}
+          SWEEP_ARGS: ${{ inputs.sweep_args }}
         run: |
           echo "host at start: $(uptime)"; free -m | sed -n 2p
           mkdir -p "${{ runner.temp }}/sweep"
@@ -213,7 +220,7 @@ jobs:
           status=0
           for set in $sets; do
             apps/server/node_modules/.bin/tsx games/magic/server/src/play/monkey/sweep/cli.ts \
-              --set "$set" --concurrency 2 --out "${{ runner.temp }}/sweep/$set.json" || status=$?
+              --set "$set" --concurrency 2 --out "${{ runner.temp }}/sweep/$set.json" $SWEEP_ARGS || status=$?
           done
           exit "$status"
 
