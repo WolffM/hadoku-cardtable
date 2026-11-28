@@ -291,18 +291,49 @@ test('pod: a BLB set-cube pod from the lobby to the podium, as two players and a
     if (pod?.phase !== 'done') throw new Error(`the tournament did not finish: ${JSON.stringify(pod).slice(0, 400)}`);
     say(`done: ${pod.standings.map((r) => `${r.rank}. ${who(r.id)} ${r.matchPoints}`).join(', ')}; bob watched alice in round ${watched}`);
 
-    /* the end */
+    /* the end: every state of the finished room, as each of the three */
+    if (b.isClosed()) b = await bob.context.newPage();
     for (const [p, name] of [
-      [a, 'the person'],
-      [c, 'the watcher'],
+      [a, 'alice'],
+      [b, 'bob'],
+      [c, 'carol, a watcher'],
     ] as const) {
+      const key = name.split(',')[0]!;
       await go(p, roomUrl, 3_000);
-      await shotBoth([p], `finished-${p === a ? 'player' : 'watcher'}`, S('finished', '#/room/<id>', `the finished tournament, as ${name}`), { full: true });
+      await shotBoth([p], `finished-${key}`, S('finished', '#/room/<id>', `the finished tournament, as ${name}`), { full: true });
+      await attempt(`finished podium, as ${key}`, async () => {
+        const podium = p.getByTestId('pod-podium');
+        await podium.scrollIntoViewIfNeeded({ timeout: UI });
+        await expect(podium).toHaveAttribute('data-phase', /shown|idle/, { timeout: UI });
+        // The stands rise and the confetti falls on first sight: shoot it once it has.
+        await p.waitForTimeout(4_000);
+        await shotBoth([p], `finished-podium-${key}`, S('finished', '#/room/<id>', `the podium in view, as ${name}`));
+      }, p);
+      await attempt(`finished standings, as ${key}`, async () => {
+        const row = p.getByTestId('pod-final-row').first();
+        await row.scrollIntoViewIfNeeded({ timeout: UI });
+        await shotBoth([p], `finished-standings-${key}`, S('finished', '#/room/<id>', `the final standings in view, as ${name}`));
+      }, p);
     }
+    await attempt('a finished table page', async () => {
+      const table = pod!.pairings.find((x) => x.players.includes(aliceId)) ?? pod!.pairings[0];
+      if (table === undefined) throw new Error('no last-round pairing to open');
+      await go(a, `${roomUrl}/table/${table.tableId}`, 2_500);
+      await a.getByTestId('table-page').waitFor({ timeout: UI });
+      await shotBoth([a], 'finished-table', S('finished', '#/room/<id>/table/<t>', 'alice’s last table page, the pod over'), { full: true });
+    }, a);
     await go(a, `${stack.origin}${PREFIX}/`, 3_000);
     await shotBoth([a], 'front-after', S('finished', '#/', 'the front page after the tournament'), { full: true });
-    await go(a, `${stack.origin}${PREFIX}/#/tournaments`, 2_500);
-    await shotBoth([a], 'tournaments', S('finished', '#/tournaments', 'past tournaments: the final standings'), { full: true });
+    for (const [p, key] of [
+      [a, 'alice'],
+      [c, 'carol'],
+    ] as const) {
+      await go(p, `${stack.origin}${PREFIX}/#/tournaments`, 2_500);
+      await attempt(`Stats › Tournaments lists the pod, as ${key}`, async () => {
+        await p.getByTestId('tournament').first().waitFor({ timeout: UI });
+      }, p);
+      await shotBoth([p], `tournaments-${key}`, S('finished', '#/tournaments', `Stats › Tournaments: the pod’s podium and standings, as ${key}`), { full: true });
+    }
   } finally {
     await stack.stop();
   }
