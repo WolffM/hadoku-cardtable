@@ -694,6 +694,45 @@ describe('card states, generically', () => {
   });
 });
 
+describe('a face-down card exiled with a permanent is drawn under it', () => {
+  /*
+   * The operator, 2026-11-27 (CoffeeTraveler's Mosswort Bridge): Hideaway's card sits face down under
+   * the permanent that exiled it, and is gone from there once it is played. Card 2 (Ral's Staticaster,
+   * seat 0's graveyard) put in exile face down, exiled with Fire Urchin (21) on the battlefield.
+   */
+  const hide = (state: Map<string, WireObject>, faceDown: boolean) => {
+    setZone(state, 0, 'Graveyard', [20, 11]);
+    setZone(state, 0, 'Exile', [2]);
+    setCard(state, 2, 'Zone', { t: 'enum', v: 'Exile' });
+    setCard(state, 2, 'ExiledWith', { t: 'int', v: 21 });
+    if (faceDown) setCard(state, 2, 'Facedown', { t: 'bool', v: true });
+  };
+  const seat0 = (view: ReturnType<typeof toBoardView>) => view.players.find((p) => p.id === 0)!;
+
+  it('stays in exile, where Forge put it, and names the permanent it is tucked under', () => {
+    const state = baseState();
+    hide(state, true);
+    const me = seat0(adapt(state));
+    expect(me.exile.find((c) => c.id === 2)?.tuckedUnder, 'tucked under Fire Urchin').toBe(21);
+    expect(me.battlefield.map((c) => c.id), 'no reader of the battlefield sees it there').not.toContain(2);
+  });
+
+  it('a face-up card exiled with a permanent stays in exile, as public as it was', () => {
+    const state = baseState();
+    hide(state, false);
+    const me = seat0(adapt(state));
+    expect(me.exile.find((c) => c.id === 2)?.tuckedUnder).toBeUndefined();
+  });
+
+  it('not tucked once its keeper is gone: a stale ExiledWith names no permanent', () => {
+    const state = baseState();
+    hide(state, true);
+    setCard(state, 2, 'ExiledWith', { t: 'int', v: 9999 });
+    const me = seat0(adapt(state));
+    expect(me.exile.find((c) => c.id === 2)?.tuckedUnder).toBeUndefined();
+  });
+});
+
 describe('relations, generically', () => {
   /*
    * The committed capture has no haunt, encode, imprint or must-block

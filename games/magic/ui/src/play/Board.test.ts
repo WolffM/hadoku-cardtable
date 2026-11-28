@@ -2630,6 +2630,27 @@ describe('drag to stack (#1, #19)', () => {
    * equipped creature and its gear are one stack whatever the player does with
    * the arrangement — including dragging the gear away.
    */
+  describe('a face-down card exiled with a permanent is drawn under it', () => {
+    // The operator, 2026-11-27: Hideaway's card sits face down under its land, and is gone from there
+    // once played. Card 901, in the viewer's exile, tucked under Fire Urchin (21).
+    function hiding(): BoardView {
+      const base = boardFromFixture(fixture);
+      const seed = base.players.find((p) => p.isViewer)!.battlefield[0]!;
+      const hidden: BoardCard = { ...seed, id: 901, card: { ...seed.card, cardId: 'w901', name: 'Crystal Shard' }, attachedCardIds: [], tuckedUnder: 21 };
+      return { ...base, players: base.players.map((p) => (p.isViewer ? { ...p, exile: [...p.exile, hidden] } : p)) };
+    }
+
+    it('in its keeper’s pile, under it, with no battlefield marks, and out of the exile pile', () => {
+      const { container, zone } = renderBoard(hiding());
+      expect(columns(container, 'creatures'), 'in Fire Urchin’s pile').toEqual([[21, 901]]);
+      const tucked = container.querySelector<HTMLElement>('[data-card-id="901"]')!;
+      expect(tucked.dataset.tucked, 'says it is tucked').toBe('21');
+      expect(tucked.dataset.pileDepth, 'behind the card it is under').toBe('1');
+      expect(tucked.querySelector('.board-card__pt'), 'no P/T: it is not a permanent').toBeNull();
+      expect(zone(0, 'exile').querySelector('[data-card-id="901"]'), 'not drawn twice').toBeNull();
+    });
+  });
+
   describe('an equipped creature and its gear are one stack (#11)', () => {
     /** The fixture, with an Equipment attached to the viewer's Fire Urchin (21). */
     function equipped(): BoardView {
