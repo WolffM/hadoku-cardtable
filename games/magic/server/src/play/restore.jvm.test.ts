@@ -893,6 +893,49 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 	);
 
 	it(
+		'stolen creatures their controller has held since its last turn come through a restart able to attack, not summoning sick',
+		async () => {
+			if (!available.ok) return;
+			// pre-blb-cards' monkey run: a stolen Downwind Ambusher came back from Restart turn summoning
+			// sick (Owner:P1|BaseController:P1 on p0battlefield: control from a static), because a restore
+			// moves a stolen card between battlefields after setting its sickness, and arriving on one makes
+			// a card sick. Seat 0 has held seat 1's Grizzly Bears (Control Magic's) and Hill Giant (an
+			// effect's) since turn 3, so on turn 5, seat 0's own, both may attack.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Forest;Control Magic|AttachedTo:601;Grizzly Bears|Id:601|Owner:P1|BaseController:P1;Hill Giant|Owner:P1|BaseController:P1|GainedControl:P0',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 5) && inOwnMain(s, 0, 5)), 'turn 5, its first main', 180_000);
+				const from = snapshots(s).find((l) => l.turn === 5)!;
+				expect(from.lossy).toBeUndefined();
+				const stolen = (state: string) => (normalized(state).p0battlefield ?? []).filter((e) => /^(Grizzly Bears|Hill Giant)\|/.test(e));
+				expect(stolen(from.state), 'both held by seat 0 on turn 5').toHaveLength(2);
+				for (const e of stolen(from.state)) expect(e, 'held since turn 3: not sick on turn 5').not.toMatch(/SummonSick/);
+
+				const lines = s.lines.length;
+				expect(s.match.restartAct(0, 'ask')).toEqual({ ok: true });
+				expect(s.match.restartAct(1, 'allow')).toEqual({ ok: true });
+				await waitUntil(() => s.lines.slice(lines).some((l) => l.t === 'snapshot'), "the restarted turn's own snapshot", 120_000, s);
+				const again = s.lines.slice(lines).find((l): l is Snapshot & { hostT: number } => l.t === 'snapshot')!;
+				for (const e of stolen(again.state)) expect(e, 'not sick after the restart either').not.toMatch(/SummonSick/);
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
 		'the monarch, the initiative, night, speed and radiation come through a restart as they were, with nothing left unwritten',
 		async () => {
 			if (!available.ok) return;
