@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
 	BRIDGE_JVM_FLAGS,
@@ -1030,17 +1030,29 @@ describe('going down: what must die before we do', () => {
 	}, SLOW_TIMEOUT);
 });
 
-/** A launcher with no JVM behind it: the coordinator's half alone, line by line. */
-function scriptedLauncher(): { launcher: JvmLauncher; jvms: Map<string, { sent: string[]; say(line: object): void; die(reason: string): void }> } {
-	const jvms = new Map<string, { sent: string[]; say(line: object): void; die(reason: string): void }>();
+interface ScriptedJvm {
+	sent: string[];
+	say(line: object): void;
+	die(reason: string): void;
+	/** With `deferredBoot`: the boot begins now (a remote launch, once its runtime has reached the claw). */
+	boot(): void;
+}
+
+/**
+ * A launcher with no JVM behind it: the coordinator's half alone, line by line. `deferredBoot`: a
+ * launch does not boot until `boot()`, as a claw's does while the runtime is still being installed.
+ */
+function scriptedLauncher(opts: { deferredBoot?: boolean } = {}): { launcher: JvmLauncher; jvms: Map<string, ScriptedJvm> } {
+	const jvms = new Map<string, ScriptedJvm>();
 	return {
 		jvms,
 		launcher: {
 			launch(hostId) {
 				let onLine: (line: string) => void = () => undefined;
 				let onExit: (reason: string) => void = () => undefined;
+				let onBoot: () => void = () => undefined;
 				const sent: string[] = [];
-				jvms.set(hostId, { sent, say: (line) => onLine(JSON.stringify(line)), die: (reason) => onExit(reason) });
+				jvms.set(hostId, { sent, say: (line) => onLine(JSON.stringify(line)), die: (reason) => onExit(reason), boot: () => onBoot() });
 				const transport: JvmTransport = {
 					hostId,
 					send: (line) => sent.push(line),
@@ -1048,6 +1060,7 @@ function scriptedLauncher(): { launcher: JvmLauncher; jvms: Map<string, { sent: 
 					onExit: (l) => (onExit = l),
 					kill: () => onExit('killed'),
 					release: () => undefined,
+					...(opts.deferredBoot === true ? { onBooting: (l: () => void) => (onBoot = l) } : {}),
 				};
 				return transport;
 			},
@@ -1060,6 +1073,30 @@ function scriptedLauncher(): { launcher: JvmLauncher; jvms: Map<string, { sent: 
 }
 
 describe('routing, against a scripted launcher', () => {
+	// The fire drill, 2026-11-28: on a cold scratch claw the coordinator packed and pushed the JDK, jar and res for
+	// 37 s before the agent launched the JVM, and the silence watch, counting from the launch request, killed it
+	// 3 s into its boot (`jvm-unresponsive` silentMs 40530). A new pin on prod's claws is the same first boot.
+	it("a JVM is timed for silence from when its boot begins, not from the launch request: a claw's install is not the JVM going quiet", async () => {
+		vi.useFakeTimers();
+		try {
+			const { launcher, jvms } = scriptedLauncher({ deferredBoot: true });
+			const logs: Record<string, unknown>[] = [];
+			const workDir = mkdtempSync(join(scratch, 'scripted-'));
+			const pool = jvmHostFactory({ ...config, workDir, unresponsiveMs: 40_000 }, { warm: false, launcher, log: (e) => logs.push(e) });
+			pool('m-0000000000e2', SPEC, recorder());
+			const [hostId] = [...jvms.keys()];
+			await vi.advanceTimersByTimeAsync(37_000);
+			jvms.get(hostId!)!.boot();
+			await vi.advanceTimersByTimeAsync(10_000);
+			expect(logs.filter((e) => e.evt === 'jvm-unresponsive'), 'not killed while its runtime was on its way').toEqual([]);
+			// Booted, it is watched as any JVM: silent past the window, it is killed.
+			await vi.advanceTimersByTimeAsync(35_000);
+			expect(logs.filter((e) => e.evt === 'jvm-unresponsive')).toMatchObject([{ id: hostId }]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	// The start-queue jar suite on a claw: 8 starts at 2 per JVM had 4 JVMs booting at once, past the
 	// queue's limit of 2, because every booting JVM that filled made the pool launch a warm one behind it.
 	it('a burst through the start queue never has more JVMs booting than the queue allows', () => {

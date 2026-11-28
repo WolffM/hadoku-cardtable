@@ -12,6 +12,12 @@ export interface JvmTransport {
 	kill(): void;
 	/** Let go without killing (coordinator restart); a later `attach` takes it back. */
 	release(): void;
+	/**
+	 * A launch that does not boot at once (a claw's, which waits for this server's runtime to be packed
+	 * and installed there) says here when the boot begins: the JVM's silence is counted from then. Absent,
+	 * the boot begins with the launch.
+	 */
+	onBooting?(listener: () => void): void;
 }
 
 export interface JvmLauncher {

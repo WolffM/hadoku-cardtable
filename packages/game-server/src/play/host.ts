@@ -532,7 +532,7 @@ interface Jvm<L extends { t: string }, C extends { t: string }> {
 	readonly matches: Map<string, Hosted<L, C>>;
 	lastHeard: number;
 	lastCheck: number;
-	/** Watched for silence from launch; an attached JVM from its first line. */
+	/** Watched for silence from its boot (`JvmTransport.onBooting`, else its launch); an attached JVM from its first line. */
 	livenessArmed: boolean;
 	unresponsive: string | null;
 	liveness: NodeJS.Timeout | null;
@@ -747,6 +747,14 @@ export function jvmHostFactory<L extends { t: string }, C extends { t: string }>
 			idle: null,
 		};
 		jvms.add(jvm);
+		// A launch still waiting on its runtime (a claw's install) is not silent yet: its clock starts with the boot.
+		if (jvm.livenessArmed && transport.onBooting !== undefined) {
+			jvm.livenessArmed = false;
+			transport.onBooting(() => {
+				jvm.lastHeard = Date.now();
+				jvm.livenessArmed = true;
+			});
+		}
 		transport.onLine((text) => onText(jvm, text));
 		transport.onExit((reason) => onJvmExit(jvm, reason));
 		watchLiveness(jvm);

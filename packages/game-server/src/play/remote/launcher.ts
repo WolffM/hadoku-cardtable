@@ -25,6 +25,7 @@ class RemoteTransport implements JvmTransport, FrameSink {
 	 */
 	private early: string[] | null = [];
 	private lineListener: (line: string) => void = () => {};
+	private bootListener: () => void = () => {};
 	private exitListener: (reason: string) => void = () => {};
 
 	constructor(
@@ -42,9 +43,13 @@ class RemoteTransport implements JvmTransport, FrameSink {
 		const early = this.early ?? [];
 		this.early = null;
 		for (const line of early) this.send(line);
+		this.bootListener();
 	}
 	onLine(listener: (line: string) => void): void {
 		this.lineListener = listener;
+	}
+	onBooting(listener: () => void): void {
+		this.bootListener = listener;
 	}
 	onExit(listener: (reason: string) => void): void {
 		this.exitListener = listener;
