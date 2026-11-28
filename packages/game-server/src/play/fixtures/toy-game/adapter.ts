@@ -58,6 +58,8 @@ export const toyAdapter: GameAdapter<MatchSpec, ToyLine, ToyCmd, ToyFrame, ToyCh
 		openAsks: () => 0,
 		// No ask to close on a replay: implemented anyway, to prove the hook fits a game with none.
 		replayed: () => {},
+		// Nothing kept undecided through a replay, so nothing goes live after one.
+		resumed: () => {},
 		// Nothing per-seat to sweep at the end: implemented anyway, for the same reason.
 		ended: () => {},
 		// Nothing of its own to say either; implemented anyway, to prove the hook fits.

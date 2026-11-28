@@ -204,6 +204,11 @@ export class RelaySession implements GameSession<RelayLine, RelayCommand> {
 		// Deliberately empty.
 	}
 
+	/** Nothing is kept undecided through a replay, so nothing goes live after one. */
+	resumed(): void {
+		// Deliberately empty.
+	}
+
 	/**
 	 * The session's sweep at stop, fail or exit — `null` for a stop, same as
 	 * the interface's own doc. `finish(null)` already covers "every seat

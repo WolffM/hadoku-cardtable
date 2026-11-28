@@ -569,6 +569,13 @@ export interface SeatState extends ShellSeat {
 	unparsed: Map<string, Fallback>;
 	/** Every ask callId Forge has sent this seat, so a re-sent ask ({@link Match.armActWatch}) is handled once. */
 	seenAsks: Set<string>;
+	/**
+	 * Asks met in a replay, kept as they came and decided by nobody until {@link ForgeSession.resumed}:
+	 * a replayed `reply`/`abort` takes out the ones the earlier server answered, and what is left is
+	 * what Forge still waits on. Deciding one during the replay decides it without the seat's live state
+	 * (its click, its policy), and its answer goes nowhere (`command` sends nothing while replaying).
+	 */
+	replayAsks: Map<string, unknown>;
 	/** Armed by an input act or an ask answered under a disabled bar, disarmed by any frame for this seat; see {@link Match.armActWatch}. */
 	actWatch: NodeJS.Timeout | null;
 	/** The card of a `selectCard` the act watch is still out on, and when it went to Forge; logged as `click` when the watch ends ({@link Match.endClick}). */
@@ -760,6 +767,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			stuckWindow: null,
 			unparsed: new Map(),
 			seenAsks: new Set(),
+			replayAsks: new Map(),
 			actWatch: null,
 			click: null,
 			offeredLogged: null,
@@ -1873,6 +1881,10 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			return;
 		}
 		if (askId !== null) {
+			if (this.shell.replaying) {
+				s.replayAsks.set(askId, raw);
+				return;
+			}
 			if (s.seenAsks.has(askId)) {
 				this.deps.log({ evt: 'ask-duplicate', matchId: this.id, seat, callId: askId, method: head?.method });
 				return;
@@ -3686,7 +3698,21 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 		if (command.t !== 'reply' && command.t !== 'abort') return;
 		const s = this.seats[command.seat];
 		if (s === undefined) return;
+		s.replayAsks.delete(command.callId);
 		this.closeAsk(s, command.callId);
+	}
+
+	/**
+	 * {@link GameSession.resumed}: the replay is over and the host is ours. Every ask the earlier server
+	 * left unanswered is one Forge is parked on, so each goes through `onFrame` now, live, in the order
+	 * Forge asked them: put to the seat, or answered for real.
+	 */
+	resumed(): void {
+		for (const s of this.seats) {
+			const kept = [...s.replayAsks.values()];
+			s.replayAsks.clear();
+			for (const raw of kept) this.onFrame(s.seat, raw);
+		}
 	}
 
 	/**

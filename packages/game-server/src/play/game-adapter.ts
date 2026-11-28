@@ -114,6 +114,12 @@ export interface GameSession<Line, Cmd> {
 	 */
 	replayed(command: Cmd): void;
 	/**
+	 * The replay is over and the host is attached: whatever the session kept undecided while replaying
+	 * (`ForgeSession`'s asks the earlier server never answered) goes live now. A session that decides
+	 * nothing during a replay implements it as nothing.
+	 */
+	resumed(): void;
+	/**
 	 * The match is ending for good — stopped on purpose, failed, or its host exited — and this is
 	 * the session's one chance to sweep: `ForgeSession.ended` is `logFrames`/`closeAllAsks`/
 	 * `tellSeatsItEnded`/`probes`. `reason` is the failure's or exit's message; null for a stop,

@@ -99,6 +99,7 @@ export abstract class HostedMatch<Line extends { t: string }, Cmd extends { t: s
 		} finally {
 			this.replaying = false;
 		}
+		this.game.resumed();
 		this.syncClock();
 		this.remember();
 		this.deps.log({

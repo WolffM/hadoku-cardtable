@@ -51,6 +51,7 @@ const toyAdapter: GameAdapter<ToySpec, ToyLine, ToyCmd, ToyFrame, ToyCheckpoint>
 		// Trivial here (this toy has no asks and nothing of its own to sweep) but still implemented,
 		// to prove the hooks fit a non-Forge session.
 		replayed: () => {},
+		resumed: () => {},
 		ended: () => {},
 		notice: () => {},
 	}),
