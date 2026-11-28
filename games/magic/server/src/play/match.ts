@@ -124,6 +124,7 @@ import { type ClientOutcome } from '@hadoku/game-server/play/match/shell';
 import { HostedMatch, type HostedMatchDeps } from '@hadoku/game-server/play/match/hosted';
 import { ENDED_KEPT, EndedMatch, restoredSpec, type RegistryDeps, type Restored, type ResumeFrom } from './match/registry.js';
 import { newMatchId, type ProbeResult } from './match/forge-frames.js';
+import { MAGIC_CONFIG } from '../config.js';
 
 /**
  * `forge-spec.ts`'s `ForgeSeatSpec`, widened with the name the caller gave the seat. The
@@ -154,6 +155,8 @@ export type MatchSpecWithIdentity = Omit<ForgeMatchSpec, 'seats'> & {
 
 import { type ObjTable } from './visibility.js';
 
+/** The snapshot text in the `turn-snapshot` log line: probe stacks only, a turn's text is tens of kB. */
+const TRACE_SNAPSHOTS = MAGIC_CONFIG.playProbe;
 
 /** Why the server called a game a draw ({@link Match.forceDraw}): it ran `GAME_DRAWN_AFTER_MS`. */
 export type DrawReason = EndedBy;
@@ -537,7 +540,9 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 				// typed field (`restartState`/`restorable` read it directly); both now hold the same value.
 				const snapshot: TurnSnapshot = { turn: line.turn, state: line.state, ...(line.rng === undefined ? {} : { rng: line.rng }), ...(line.lossy === undefined || line.lossy.length === 0 ? {} : { lossy: line.lossy }) };
 				this.latestSnapshot = snapshot;
-				this.deps.log({ evt: 'turn-snapshot', matchId: this.id, turn: line.turn, bytes: Buffer.byteLength(line.state), ms: line.ms });
+				// Behind the probe flag (the e2e and monkey stacks, never production) the log carries the text too:
+				// the monkey's two-seat run checks each Restart turn against it (`monkey/pvp/restarts.ts`).
+				this.deps.log({ evt: 'turn-snapshot', matchId: this.id, turn: line.turn, bytes: Buffer.byteLength(line.state), ms: line.ms, ...(TRACE_SNAPSHOTS ? { state: line.state, epoch: this.epoch } : {}) });
 				if (line.lossy !== undefined && line.lossy.length > 0) this.deps.log({ evt: 'snapshot-lossy', matchId: this.id, turn: line.turn, kinds: line.lossy });
 				if (this.takeBackAsk?.kind === 'restart' && this.takeBackAsk.turn !== line.turn) this.closeTakeBack();
 				this.tellRestart();

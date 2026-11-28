@@ -58,6 +58,12 @@ on:
         description: 'A set code (BLB) to run the card sweep on INSTEAD of the monkey. Empty = the monkey.'
         required: false
         default: ''
+      pvp_args:
+        description: >-
+          Two monkey seats a match, watched, on set-cube pod decks, with Restart turn pressed, INSTEAD of
+          the monkey: its flags, e.g. `--set BLB --pods 2 --seed 7 --restart-every 3`. Empty = the monkey.
+        required: false
+        default: ''
       sweep_args:
         description: >-
           More sweep flags, e.g. `--seed 7 --per-match 4` or `--variant accept`. On another seed a play's
@@ -78,8 +84,8 @@ permissions:
 jobs:
   forge-monkey:
     name: forge-monkey
-    # A dispatch that names a set is a card sweep's proof run, not a monkey's.
-    if: ${{ inputs.sweep_set == '' }}
+    # A dispatch that names a set is a card sweep's proof run, not a monkey's; one with pvp_args is a two-seat run.
+    if: ${{ inputs.sweep_set == '' && inputs.pvp_args == '' }}
     runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21","lane-forge"]') }}
     # A sampled dispatch run is a handful of matches. The nightly takes the
     # whole library (1,523 decks at this writing, hours of play at two at a
@@ -230,5 +236,59 @@ jobs:
         with:
           name: sweep-report-${{ github.run_attempt }}
           path: ${{ runner.temp }}/sweep
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Two monkey seats a match (`docs/MONKEY.md`, "Two seats"): a dispatch with pvp_args only. Gates nothing.
+  forge-pvp:
+    name: forge-pvp
+    if: ${{ inputs.pvp_args != '' }}
+    runs-on: ${{ inputs.runs_on != '' && fromJSON(inputs.runs_on) || fromJSON('["self-hosted","hadoku-builder","jdk21","lane-forge"]') }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
+        with:
+          node-version: '24'
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_CARDTABLE }}
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+
+      - name: Build the bundle
+        run: pnpm --filter @hadoku/ui build
+
+      - name: Build the server
+        run: pnpm --filter @hadoku/server build
+
+      - name: Resolve the Forge bundle for this commit's pin
+        run: bash scripts/forge-bundle.sh >> "$GITHUB_ENV"
+
+      - name: Forge is present, or the sweep can never start a match
+        run: |
+          test -f "$CARDTABLE_FORGE_JAR" || { echo "::error::CARDTABLE_FORGE_JAR missing: $CARDTABLE_FORGE_JAR"; exit 1; }
+          test -d "$CARDTABLE_FORGE_RES/cardsfolder" || { echo "::error::CARDTABLE_FORGE_RES has no cardsfolder: $CARDTABLE_FORGE_RES"; exit 1; }
+
+      # The monkey's heap cap, for the monkey's reason (above).
+      - name: Two seats — set-cube pod decks, watched, Restart turn pressed
+        env:
+          CARDTABLE_PLAY_JVM_OPTS: -Xmx1g
+          PVP_ARGS: ${{ inputs.pvp_args }}
+        run: |
+          echo "host at start: $(uptime)"; free -m | sed -n 2p
+          apps/server/node_modules/.bin/tsx games/magic/server/src/play/monkey/pvp/cli.ts \
+            --concurrency 2 --budget-ms $(( 50 * 60 * 1000 )) --out "${{ runner.temp }}/pvp-report.json" $PVP_ARGS
+
+      - uses: ./.github/actions/upload-artifact-retry
+        if: always()
+        timeout-minutes: 5
+        with:
+          name: pvp-report-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pvp-report.json
           if-no-files-found: warn
           retention-days: 30

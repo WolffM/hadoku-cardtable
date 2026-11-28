@@ -186,10 +186,46 @@ it is spent (the ones playing get 8 minutes more, then are conceded as
 with a 75-minute budget, so each night covers a different slice of it. Each run's seat 0 is the named deck; seat 1
 (Forge's AI) is a second deck drawn by the same per-match RNG — so across many
 runs every deck is played BOTH by the monkey directly and by the AI, though
-within one run the monkey only ever holds seat 0. (Scope decision: a
-two-human-monkey match, one per seat, would need the room/ready flow rather
-than the deck-builder's direct `POST /api/play/matches` and was out of
-budget for this lane — `run-match.ts`'s header is where that would start.)
+within one run the monkey only ever holds seat 0. Two monkeys a match, one per
+seat, is the next section's run.
+
+## Two seats
+
+`monkey/pvp/` plays the match a tournament table plays: two people, each driven by its own
+`driveSeat` on its own socket and account, and a third account that joins the full match as its
+watcher. Both seats' asks, holds and passes, the opponent's mirror and the watchers' channel are
+the shared match's own.
+
+```sh
+# the same env and builds as the monkey, above
+apps/server/node_modules/.bin/tsx games/magic/server/src/play/monkey/pvp/cli.ts \
+  --set BLB --pods 2 --seed 1 --restart-every 3 --concurrency 2 --out /tmp/pvp-report.json
+```
+
+- **Decks.** Each pod is the server's set cube (`pod.ts`): the set's cards through `createSetsStore`
+  and the e2e fixture catalog, dealt as 8 seats of 3 × 15, drafted by 8 bots, built by
+  `botDeckText`. Its eight decks play four matches.
+- **The start.** A match between two people starts from a room, and a room has no client outside a
+  browser. So the probe stack's `{ opponent: 'human', scenario }` starts it: both decks shuffled by
+  the run's random, seven drawn, turn 1's first main phase. No mulligan; everything after is the
+  shared match.
+- **Restart turn.** At each turn's start, one turn in `--restart-every`, the seat whose turn it is
+  asks at a random point of the turn and the other seat allows. Behind the probe flag the server
+  logs each turn-start snapshot's text (`play/match.ts`, `turn-snapshot`'s `state`). Each restart is
+  checked against it (`restarts.ts`): the restored game's own first snapshot of the turn must equal
+  the one it came from, card ids read through the names they are (`play/snapshot-text.ts`, which
+  `restore.jvm.test.ts` checks with too).
+- **Restart turn unavailable.** A turn whose snapshot cannot hold the game (`snapshot-lossy`) greys
+  the button. The kinds name what the text cannot write, not the card, so each kind is charged,
+  the turn it first appears, to the cards that arrived in a public zone since the snapshot before.
+  The report's `tally` sums both across the run.
+
+A finding (`findings.ts`, exit 1) is a driver flag, a restored turn that differs, an allowed restart
+that never restored, a take-back the server refused (`restart-refused`, not `rate-limited`), or a
+watcher that is not one or shows another turn or other lives than the seats. A lossy turn is not a
+finding. CI: `forge-monkey.yml` with `pvp_args` (`gh workflow run forge-monkey.yml -f pvp_args="--set
+BLB --pods 2 --seed 7"`) runs the `forge-pvp` job instead of the monkey; its report is the
+`pvp-report` artifact.
 
 ## Proof
 
@@ -264,7 +300,7 @@ behind the new slot.
 
 ## What it does not do yet
 
-- **Human-vs-human (two monkeys, one per seat)** — see "Decks covered" above.
+- Two seats start from a scenario, not a room's ready flow ("Two seats", above): the room start and the mulligan are not played.
 - A flag carries the lines of the match's `bridge.stderr.txt` that name it or
   say concede, exception, error or timed out (`jvmStderrLines`; a highlight scan
   out of budget is `AvailableActions: heuristic timed out`), not the whole file.

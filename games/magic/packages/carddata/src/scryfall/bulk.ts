@@ -20,6 +20,7 @@ import { dirname, join } from 'node:path';
 import { createGunzip } from 'node:zlib';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { createInterface } from 'node:readline';
 import { getJson, userAgent } from './client.ts';
 import { projectCard, type RawCard } from './project.ts';
@@ -209,7 +210,7 @@ export async function sync(options: SyncOptions): Promise<SyncResult> {
   // promise immediately — attaching the handler later loses that race and Node
   // kills the process with an unhandled rejection before the loop finishes.
   let downloadError: unknown = null;
-  const decompressing = pipeline(Readable.fromWeb(response.body), gunzip).catch(
+  const decompressing = pipeline(Readable.fromWeb(response.body as NodeReadableStream), gunzip).catch(
     (error: unknown) => {
       downloadError = error;
     },
