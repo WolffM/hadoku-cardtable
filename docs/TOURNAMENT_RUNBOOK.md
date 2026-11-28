@@ -101,7 +101,9 @@ graveyards, exile, library order).
 comes back as a plain 1/1 body without the copied creature's abilities (the turn's snapshot names it
 `token`); fixed by fork 83886be5 once that pin is deployed. Until then, if a failover hits a table
 with an Offspring token on the board, the players may agree to treat the token as having its
-abilities, or use **Reset game**.
+abilities, or use **Reset game**. ⚠ Also until a release carries fork pin c2f7baaf: a **stolen
+creature or token** restored by Restart turn or a failover may come back summoning sick for the turn:
+award the game or reset it if that mattered. Both ⚠ lines go once the operator's release has the pins.
 
 **Some turns cannot be restarted.** When the game holds something the turn's save cannot keep (on
 PPE's Bloomburrow soak, about 1 match in 7: a token copy on the board), a player's **Restart turn** is
