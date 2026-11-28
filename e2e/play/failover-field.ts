@@ -108,7 +108,11 @@ export async function failoverRound(opts: {
           });
           say('field-restored', { id, from: restored.from, turn: restored.turn, was: turn, host: now, ms: Date.parse(String(restored.t)) - at });
           if (restored.from !== 'snapshot') findings.push(`failover ${fault}: ${id} restarted from its spec (a new game), not its turn-${turn} snapshot`);
-          else if (restored.turn !== turn) findings.push(`failover ${fault}: ${id} restored to turn ${String(restored.turn)}, its latest snapshot was turn ${turn}`);
+          else {
+            // The latest snapshot the coordinator held when it restored: a dying JVM's last frames can land after the fault.
+            const held = latestTurn(rows(stack).filter((r) => String(r.t) < String(restored.t)), id);
+            if (restored.turn !== held || held < turn) findings.push(`failover ${fault}: ${id} restored to turn ${String(restored.turn)}, its latest snapshot was turn ${held} (turn ${turn} at the fault)`);
+          }
           if (fault !== 'coord-stall' && now === target) findings.push(`failover ${fault}: ${id} went back to ${target}, the claw that dropped it`);
         } else if (fault === 'coord-restart' || fault === 'coord-kill') {
           await sleep(5_000);

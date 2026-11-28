@@ -721,6 +721,7 @@ function scratchClawRow(row: Record<string, unknown>): boolean {
   const evt = String(row.evt ?? '');
   if ((evt === 'claw-failed-over' || evt === 'fenced-over') && Array.isArray(row.lost) && row.lost.length === 0) return true;
   if (evt === 'jvm-lost' && /heartbeat lost|fenced|silent/.test(String(row.reason))) return true;
+  if (evt === 'jvm-lost' && FAILOVER === 'jvm-kill' && /signal SIGKILL/.test(String(row.reason))) return true;
   if (evt === 'agent-draftbot-failed' && /could not read Username/.test(String(row.error))) return true;
   return evt === 'draftbot-failing' && row.detail === 'no claw runs the draft bot now';
 }
