@@ -21,6 +21,9 @@ import { driveSeat } from '../seat-driver.ts';
 import { closeSocketTransport, socketTransport } from '../wire-transport.ts';
 import { restartReport, type RestartReport, type Row } from './restarts.ts';
 
+/** The rows `restarts.ts` reads. */
+const REPORT_EVENTS = new Set(['turn-snapshot', 'snapshot-lossy', 'restart-turn', 'restart-refused', 'undo-refused']);
+
 export interface RunPvpOptions {
   origin: string;
   prefix: string;
@@ -163,8 +166,16 @@ export async function runPvp(opts: RunPvpOptions): Promise<PvpResult> {
     return stopped !== null;
   };
 
-  // One log reader feeds the drivers' server flags (seat 0's), another the restart report at the end.
-  const drain = makeLogTail(opts.serverLogFile, logStart);
+  // One log reader, drained by seat 0's driver every tick, feeds both its server flags and the restart
+  // report's rows: read once as they come, never all again at the end (a 20 s read of a match's snapshots
+  // stalls the seats of every other match this process drives).
+  const tail = makeLogTail(opts.serverLogFile, logStart);
+  const kept: Row[] = [];
+  const drain = (): Row[] => {
+    const rows = tail();
+    for (const r of rows) if (r.matchId === matchId && REPORT_EVENTS.has(String(r.evt))) kept.push(r);
+    return rows;
+  };
   const drive = (s: Seat, seat: number) =>
     driveSeat(
       s.match,
@@ -226,6 +237,7 @@ export async function runPvp(opts: RunPvpOptions): Promise<PvpResult> {
   const outcome: PvpResult['outcome'] = lost !== null ? 'crashed' : a.match.over ? 'over' : timedOut ? 'timed-out' : reason === 'turn-cap' ? 'turn-capped' : reason === 'budget' ? 'cut-short' : 'crashed';
   if (!a.match.over && a.match.ended === null) await giveUp(a.match);
   for (const s of [a, b, w]) s.close();
-  const report = restartReport(makeLogTail(opts.serverLogFile, logStart)() as Row[], matchId);
+  drain();
+  const report = restartReport(kept, matchId);
   return { matchId, deck: opts.decks, seed: opts.seed, turns, outcome, decisions: [r0.decisions, r1.decisions], flags, restarts, report, watcher, ms: Date.now() - startedAt };
 }

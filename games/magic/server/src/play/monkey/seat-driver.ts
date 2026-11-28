@@ -67,6 +67,18 @@ export function signatureOf(match: LiveMatch): string {
   return `bar:${game}:${match.prompt ?? ''}:${match.buttons?.label1 ?? ''}:${match.buttons?.enable1 ?? ''}:${match.selectables?.cards.size ?? -1}:${picked}`;
 }
 
+/** A gap between ticks this long means the driver was not watching: its own process was busy or descheduled. */
+export const OBSERVER_GAP_MS = 2_000;
+
+/**
+ * When the seat's current block began, as `stuck` counts it: now, on any change, and also when the driver's
+ * last tick was over {@link OBSERVER_GAP_MS} ago. A driver that did not watch cannot say nothing moved, and a
+ * seat still blocked once it watches again is flagged `stuckMs` later all the same.
+ */
+export function blockedSince(clock: { since: number; lastTick: number }, now: number, changed: boolean): number {
+  return changed || now - clock.lastTick > OBSERVER_GAP_MS ? now : clock.since;
+}
+
 /**
  * Whether this seat is the one the game waits on: an ask is open, or its input is live and either
  * Forge says it holds priority or it has something to press. A seat blocked with no progress for
@@ -200,7 +212,7 @@ export async function driveSeat(
 
   let decisions = 0;
   let lastSignature = '';
-  let blockedSince = Date.now();
+  const clock = { since: Date.now(), lastTick: Date.now() };
   const flaggedStuckSignatures = new Set<string>();
   const declined: DeclinedStreaks = new Map();
   let seenRefusals = opts.refusals();
@@ -222,10 +234,11 @@ export async function driveSeat(
 
     const signature = signatureOf(match);
     const blocked = isBlocked(match);
-    if (signature !== lastSignature) {
-      blockedSince = Date.now();
-      lastSignature = signature;
-    } else if (blocked && Date.now() - blockedSince > opts.stuckMs && !flaggedStuckSignatures.has(signature)) {
+    const tickAt = Date.now();
+    clock.since = blockedSince(clock, tickAt, signature !== lastSignature);
+    clock.lastTick = tickAt;
+    lastSignature = signature;
+    if (blocked && tickAt - clock.since > opts.stuckMs && !flaggedStuckSignatures.has(signature)) {
       flaggedStuckSignatures.add(signature);
       const ask = currentAsk(match);
       flag(

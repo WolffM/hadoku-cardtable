@@ -28,16 +28,16 @@ describe('findingsOf', () => {
     expect(findingsOf(result({ restarts: { asked: [], allowed: [], unavailable: [4] }, report: { restores: [], lossy: [{ turn: 4, kinds: ['effect'], fresh: ['effect'], arrived: ['Hop to It'] }], refused: [] } }))).toEqual([]);
   });
 
-  it('finds a restored turn that differs, a restart that never restored, and a refused take-back', () => {
+  it('finds a restored turn that differs, an allowed restart that never restored, and a refused take-back — not an ask the turn outran, nor a press a frame behind', () => {
     const found = findingsOf(
       result({
-        restarts: { asked: [4, 7], allowed: [4, 7], unavailable: [] },
-        report: { restores: [{ turn: 4, same: false, diff: [{ key: 'p0battlefield', before: ['Fish|Id:Fish'], after: [] }], missing: false }], lossy: [], refused: [{ turn: 7, act: 'ask', error: 'not-restorable' }] },
+        restarts: { asked: [4, 7, 9], allowed: [4, 7], unavailable: [] },
+        report: { restores: [{ turn: 4, same: false, diff: [{ key: 'p0battlefield', before: ['Fish|Id:Fish'], after: [] }], missing: false }], lossy: [], refused: [{ turn: 7, act: 'ask', error: 'not-restorable' }, { turn: 9, act: 'ask', error: 'not-your-turn' }] },
       }),
     );
     expect(found).toEqual([
       'restart of turn 4: the restored turn differs — p0battlefield lost [Fish|Id:Fish] gained []',
-      'restart of turn 7 was asked and allowed but never restored',
+      'restart of turn 7 was allowed but never restored',
       'take-back refused at turn 7: ask → not-restorable',
     ]);
   });
