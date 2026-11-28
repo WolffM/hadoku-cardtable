@@ -103,7 +103,13 @@ test('pod: a BLB set-cube pod from the lobby to the podium, as two players and a
     // bob walks in and is seated by the room.
     await go(b, roomUrl, 2_000);
     await expect(b.locator('[data-testid^="pod-seat-"][data-mine]')).toHaveCount(1, { timeout: UI });
-    const seatOf = async (p: Page): Promise<number> => Number(await p.locator('[data-testid^="pod-seat-"][data-mine]').first().getAttribute('data-seat'));
+    // A seat's number is in its test id (`pod-seat-3`); the seat itself carries no data-seat.
+    const seatOf = async (p: Page): Promise<number> => {
+      const id = (await p.locator('[data-testid^="pod-seat-"][data-mine]').first().getAttribute('data-testid')) ?? '';
+      const n = Number(/^pod-seat-(\d+)$/.exec(id)?.[1]);
+      if (!Number.isInteger(n)) throw new Error(`tour: no seat number in ${id}`);
+      return n;
+    };
     const seated = (await roomOf(alice, stack, roomId)).game.pod?.seats ?? [];
     const memberAt = (i: number): string => {
       const seat = seated[i];
