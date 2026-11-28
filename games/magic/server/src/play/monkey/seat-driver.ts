@@ -67,11 +67,19 @@ export function signatureOf(match: LiveMatch): string {
 }
 
 /**
- * Whether this seat is the one the game waits on: an ask is open, or its input is live. A seat
- * blocked with no progress for `stuckMs` is flagged `stuck`.
+ * Whether this seat is the one the game waits on: an ask is open, or its input is live and either
+ * Forge says it holds priority or it has something to press. A seat blocked with no progress for
+ * `stuckMs` is flagged `stuck`. Through the other player's turn the seat's input stays live under a
+ * dead "Waiting for …" bar while Forge's priority is theirs: a slow opponent is not this seat stuck,
+ * and a game that stopped there is `no-finish`'s turn stall. A seat Forge gave priority to with
+ * nothing to press is the softlock this flag is for.
  */
 export function isBlocked(match: LiveMatch): boolean {
-  return match.asks.length > 0 || match.inputLive;
+  if (match.asks.length > 0) return true;
+  if (!match.inputLive) return false;
+  const holdsPriority = match.view?.players.find((p) => p.isViewer)?.hasPriority === true;
+  const pressable = match.buttons?.enable1 === true || match.buttons?.enable2 === true || (match.selectables?.cards.size ?? 0) > 0;
+  return holdsPriority || pressable;
 }
 
 /**
