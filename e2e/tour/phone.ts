@@ -298,24 +298,47 @@ export async function shotSizes(page: Page, id: string, meta: ShotMeta, sizes: {
 }
 
 /**
- * One state, shot at both sizes in both colour schemes: each page at 1440×900 and at 390×844, dark then light
- * (the fleet theme follows `prefers-color-scheme` live), and back to the desktop size in dark after. The
- * phone shots are the same mouse page resized, so `pointer: coarse` rules are not in them.
+ * One state, shot at both sizes in both themes: each page at 1440×900 and at 390×844, dark then light, and
+ * back to the desktop size after. The phone shots are the same mouse page resized, so `pointer: coarse`
+ * rules are not in them.
  */
 export async function shotBoth(pages: readonly Page[], id: string, meta: ShotMeta, opts: { full?: boolean } = {}): Promise<void> {
   for (const page of pages) {
     for (const size of [DESK, PORTRAIT]) {
       await setSize(page, size);
-      for (const colorScheme of ['dark', 'light'] as const) {
-        await page.emulateMedia({ colorScheme });
-        await page.waitForTimeout(250);
-        const theme = await page.evaluate(() => document.querySelector('[data-theme]')?.getAttribute('data-theme') ?? '');
-        await shot(page, `${id}-${colorScheme}`, { ...meta, state: `${meta.state} — ${colorScheme}`, note: theme === '' ? 'no data-theme' : `data-theme ${theme}` }, opts);
+      for (const scheme of ['dark', 'light'] as const) {
+        const theme = await wearTheme(page, scheme);
+        await shot(page, `${id}-${scheme}`, { ...meta, state: `${meta.state} — ${scheme}`, note: `data-theme ${theme}` }, opts);
+        await wearTheme(page, null);
       }
     }
     await setSize(page, DESK);
-    await page.emulateMedia({ colorScheme: 'dark' });
   }
+}
+
+/**
+ * Every themed root wears `scheme` (the stored theme, not the system's, decides the app's; the person's own
+ * pick would be a prefs write), or, given null, goes back to what it wore. Returns what the first root wears.
+ */
+async function wearTheme(page: Page, scheme: 'dark' | 'light' | null): Promise<string> {
+  const worn = await page.evaluate((s) => {
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('[data-theme]'))) {
+      if (s === null) {
+        if (el.dataset.tourTheme !== undefined) el.setAttribute('data-theme', el.dataset.tourTheme);
+        if (el.dataset.tourMode !== undefined) el.setAttribute('data-theme-mode', el.dataset.tourMode);
+        delete el.dataset.tourTheme;
+        delete el.dataset.tourMode;
+        continue;
+      }
+      el.dataset.tourTheme ??= el.getAttribute('data-theme') ?? '';
+      if (el.hasAttribute('data-theme-mode')) el.dataset.tourMode ??= el.getAttribute('data-theme-mode') ?? '';
+      el.setAttribute('data-theme', s);
+      if (el.hasAttribute('data-theme-mode')) el.setAttribute('data-theme-mode', s);
+    }
+    return document.querySelector('[data-theme]')?.getAttribute('data-theme') ?? 'none';
+  }, scheme);
+  await page.waitForTimeout(250);
+  return worn;
 }
 
 /** Keep going when one state cannot be reached; the miss is recorded for the artifact. */
