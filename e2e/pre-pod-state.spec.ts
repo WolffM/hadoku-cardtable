@@ -206,7 +206,10 @@ async function podCell(browser: Browser, jar: { jar: string; res: string }, name
     expect(dq.status, 'the leader DQs a player').toBe(200);
     pod = (await roomOf(leader, origin, roomId)).game.pod;
     expect(pod.dropped, 'the DQ is out').toContain(target);
-    expect(pod.pairings.some((x) => x.players.includes(target)), 'no table waits for the DQ').toBe(false);
+    // Their forfeited table stays in the round's pairings until the round ends, settled; a pairing of theirs with no result would wait.
+    const after = pod;
+    const waiting = after.pairings.filter((x) => x.players.includes(target) && !after.results.some((r) => r.round === after.round && (r.playerA === target || r.playerB === target)));
+    expect(waiting, 'no table waits for the DQ').toEqual([]);
     const theirs = pod.results.find((r) => r.round === 2 && (r.playerA === target || r.playerB === target));
     expect(theirs, 'the DQ concedes their round-2 match').toBeDefined();
     const own = theirs!.playerA === target ? theirs!.gamesA : theirs!.gamesB;
