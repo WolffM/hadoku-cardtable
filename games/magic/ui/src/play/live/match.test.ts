@@ -4756,3 +4756,20 @@ describe('defenderChoices', () => {
     expect(defenderChoices(view(seat(1, []), seat(2, [[10, 'Creature — Bear']]), seat(3, [], true)), 2)).toBe(1);
   });
 });
+
+// PPE soak 2026-11-28: 120 of 127 watcher "snapshot-failed" reports came from a board already closed,
+// its join still waiting on a socket that never connected; the timeout reported a board nobody had.
+describe('a board closed while its join is waiting', () => {
+  it('reports nothing and keeps no error when the join times out after the close', () => {
+    const acks: ((err: Error | null, response: unknown) => void)[] = [];
+    const transport: MatchTransport = { on: () => {}, emit: () => {}, request: (_event, _payload, onAck) => acks.push(onAck), disconnect: () => {} };
+    const reports: string[] = [];
+    const m = startMatch({ matchId: 'm', transport, tabId: 'tab-1', report: (what) => reports.push(what) });
+    expect(acks).toHaveLength(1);
+    closeMatch(m);
+    acks.shift()!(new Error('operation has timed out'), undefined);
+    expect(acks).toEqual([]);
+    expect(reports).toEqual([]);
+    expect(m.lastError).toBeNull();
+  });
+});

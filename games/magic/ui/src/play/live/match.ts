@@ -1196,6 +1196,8 @@ const CONNECT_ERRORS_REPORTED = 3;
 
 /** Each board's watchdog, so `closeMatch` can stop it. */
 const watchdogs = new WeakMap<LiveMatch, ReturnType<typeof setTimeout>>();
+/** Boards {@link closeMatch} has closed: a join still on its way to one is not sent, and its answer, or its timeout, changes nothing. */
+const closedMatches = new WeakSet<LiveMatch>();
 /** Each board's reporter: `snapshotFailed` reports through it. */
 const reporters = new WeakMap<LiveMatch, NonNullable<LiveMatchOptions['report']>>();
 /** Each standalone board's way to reload for a newer server. */
@@ -3483,6 +3485,7 @@ export function abortAsk(match: LiveMatch, callId: string, reason: ClientAbort['
  * pool is not left waiting on a tab that has gone.
  */
 export function closeMatch(match: LiveMatch): void {
+  closedMatches.add(match);
   clearTimeout(watchdogs.get(match));
   hiddenWatches.get(match)?.stop();
   for (const ask of match.asks) sendAbort(match, ask.callId, 'cancelled', 'the player closed the board');
@@ -3519,7 +3522,7 @@ export const MAX_RESYNCS_WITHOUT_PROGRESS = 3;
  * answers all of them.
  */
 function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
-  if (match.awaitingSnapshot || match.reloading) return;
+  if (match.awaitingSnapshot || match.reloading || closedMatches.has(match)) return;
   if (kind === 'join' && match.tabId === null) {
     withSettledTabId((tabId) => {
       match.tabId = tabId;
@@ -3549,6 +3552,7 @@ function fetchSnapshot(match: LiveMatch, kind: 'join' | 'resync'): void {
   const request: MatchRequest = kind === 'join' && match.tabId !== null ? { matchId: match.matchId, tabId: match.tabId } : { matchId: match.matchId };
   match.transport.request(event, request, (err, response) => {
     match.awaitingSnapshot = false;
+    if (closedMatches.has(match)) return;
     const rejoin = kind === 'join' ? match.rejoin : null;
     if (kind === 'join') match.rejoin = null;
     if (err !== null) {
