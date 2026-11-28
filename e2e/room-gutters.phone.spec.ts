@@ -22,7 +22,8 @@ for (const gameType of ['constructed-1v1', 'draft'] as const) {
       await page.goto(`${PREFIX}/`);
       await submitCreateRoom(page, { name: `gutters ${Date.now() % 1000}`, gameType });
       await page.waitForURL(/\/room\/[a-z0-9-]+$/, { timeout: 20_000 });
-      await expect(page.getByTestId('room-name')).toBeVisible({ timeout: 20_000 });
+      // The room's own name, in its head: the front page's list names rooms too, and can still be on screen.
+      await expect(page.locator('.shell__head').getByTestId('room-name')).toBeVisible({ timeout: 20_000 });
       await noSideways(page);
       await evenGutters(page, '.shell--fit > .shell__head, .shell--fit > main');
     } finally {
