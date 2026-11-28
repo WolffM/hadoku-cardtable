@@ -798,7 +798,9 @@ test(titled('fire drill: the tournament runbook, symptom by symptom, in an 8-sea
         'r-xxxxxxxxxxxx': roomId,
       })) as [number, unknown];
       expect(answer, "the runbook's answer: [200, { ok: true }]").toEqual([200, { ok: true }]);
-      const carolSeat = ((await room()).game.pod?.seats ?? []).findIndex((x) => x?.memberId === carol!.id);
+      // Her seat in the draft, which is not her seat in the lobby: read off her own picks.
+      const carolSeat = serverLog(stack).find((r) => r.evt === 'pick' && r.participantId === carol!.id)?.seat;
+      expect(carolSeat, "carol's draft seat, from her picks").toBeDefined();
       const since = serverLog(stack).length;
       await expect(carol!.f.page.getByTestId('pick-rope'), "the timer is on the stalled seat's screen").toBeVisible({ timeout: 5_000 });
       const seen = await Promise.all(people.map(async (p) => `${p.name} ${(await p.f.page.getByTestId('pick-rope').count()) > 0 ? 'rope' : 'no rope'}`));
@@ -883,7 +885,8 @@ test(titled('fire drill: the tournament runbook, symptom by symptom, in an 8-sea
             message: 'the result is corrected in place',
           },
         )
-        .toEqual([2, 0]);
+        // The match is theirs as a forfeit is (`Lobby.awardMatch`): two games, the other keeping a game they won, as the confirm showed.
+        .toEqual([2, Math.min(wrong.playerA === loser.id ? wrong.gamesB : wrong.gamesA, 1)]);
       const standing = (await room()).game.pod!.standings.find((s) => s.id === loser.id)!;
       expect(standing.matchPoints, 'the standings follow').toBe(3);
     });
