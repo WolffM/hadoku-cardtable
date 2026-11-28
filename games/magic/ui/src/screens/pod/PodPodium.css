@@ -234,7 +234,9 @@
   50% { opacity: 1; transform: scale(1); }
 }
 
-@media (max-width: 560px) {
+/* The room's narrow sizes follow its column (`.pod__rounds`), not the window: at 768 the chat leaves the column
+   ~340px, and the window's 560px rule left the stands their desktop sizes and cut the winner's name. */
+@container pod-column (max-width: 560px) {
   .podium {
     height: 360px;
   }

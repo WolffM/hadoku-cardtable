@@ -139,7 +139,10 @@
   margin-left: auto;
 }
 
+/* The hub's column is a size container: what sits in it (the podium) fits the column, which a tablet's chat
+   beside it makes narrower than a phone's whole window. */
 .pod__rounds {
+  container: pod-column / inline-size;
   display: flex;
   flex: 1;
   flex-direction: column;
