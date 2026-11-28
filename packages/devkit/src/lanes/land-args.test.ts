@@ -50,3 +50,30 @@ describe('land.sh arguments', () => {
 		expect(run('land.sh', args).stderr).not.toMatch(/^usage:/);
 	});
 });
+
+describe('prove-and-land.sh arguments', () => {
+	// Everything after the worktree is handed to `gh workflow run`, after the rebase and the verify
+	// push: a stray flag there (2026-11-28, `<worktree> --plan -f full=true`) rebased and pushed the
+	// branch before gh refused it. It is refused first, with no repo behind it.
+	it.each([
+		['--plan after the worktree', ['some-wave', '--plan', '-f', 'full=true']],
+		['--dry-run after the worktree', ['some-wave', '-f', 'full=true', '--dry-run']],
+		['an unknown flag', ['--dryrun', 'some-wave', '-f', 'full=true']],
+		['a field with no value', ['some-wave', '-f']],
+		['a field that is not key=value', ['some-wave', '-f', 'full']],
+		['a bare word', ['some-wave', 'full=true']],
+		['no worktree', ['--dry-run']],
+	])('refuses %s with the usage line', (_what, args) => {
+		const r = run('prove-and-land.sh', args);
+		expect(r.status).toBe(3);
+		expect(r.stderr).toMatch(/^scripts\/lanes\/prove-and-land\.sh \[--dry-run\] </);
+		expect(r.stdout).toBe('');
+	});
+
+	it.each([[['some-wave', '-f', 'full=true']], [['--plan', 'some-wave']], [['--dry-run', '/abs/path', '-f', 'only=e2e', '-F', 'specs=a b']]])(
+		'reads %j past its arguments',
+		(args) => {
+			expect(run('prove-and-land.sh', args).stderr).not.toMatch(/^scripts\/lanes\/prove-and-land\.sh \[--dry-run\] </);
+		},
+	);
+});
