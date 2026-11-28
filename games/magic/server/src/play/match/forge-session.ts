@@ -576,6 +576,11 @@ export interface SeatState extends ShellSeat {
 	 * (its click, its policy), and its answer goes nowhere (`command` sends nothing while replaying).
 	 */
 	replayAsks: Map<string, unknown>;
+	/**
+	 * An operator's unstick is waiting on the bridge's `resent` (`resendPending`): an ask Forge re-sends that
+	 * was seen here but is no longer open (answered here, never taken in Forge) is shown again, not dropped.
+	 */
+	unsticking: number;
 	/** Armed by an input act or an ask answered under a disabled bar, disarmed by any frame for this seat; see {@link Match.armActWatch}. */
 	actWatch: NodeJS.Timeout | null;
 	/** The card of a `selectCard` the act watch is still out on, and when it went to Forge; logged as `click` when the watch ends ({@link Match.endClick}). */
@@ -768,6 +773,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			unparsed: new Map(),
 			seenAsks: new Set(),
 			replayAsks: new Map(),
+			unsticking: 0,
 			actWatch: null,
 			click: null,
 			offeredLogged: null,
@@ -1549,8 +1555,13 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	resendPending(seat: number, timeoutMs: number): Promise<{ seat: number; forge: string[] | null; shown: string[] }> {
 		const s = this.seats[seat];
 		const shown = s === undefined ? [] : [...s.asks.values()].map((a) => a.method);
+		if (s !== undefined) s.unsticking += 1;
+		const settled = (): void => {
+			if (s !== undefined) s.unsticking = Math.max(0, s.unsticking - 1);
+		};
 		return new Promise((done) => {
 			const timer = setTimeout(() => {
+				settled();
 				const left = (this.resentWaiters.get(seat) ?? []).filter((w) => w !== answer);
 				if (left.length === 0) this.resentWaiters.delete(seat);
 				else this.resentWaiters.set(seat, left);
@@ -1559,6 +1570,7 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			timer.unref();
 			const answer = (callIds: string[]): void => {
 				clearTimeout(timer);
+				settled();
 				this.resendAfterSnapshot(seat);
 				const held = this.seats[seat]?.asks;
 				done({ seat, forge: callIds.map((id) => held?.get(id)?.method ?? id), shown });
@@ -1915,6 +1927,11 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 			if (this.shell.replaying) {
 				s.replayAsks.set(askId, raw);
 				return;
+			}
+			// Seen but no longer open here while an unstick asks Forge what it waits on: Forge never took the answer.
+			if (s.unsticking > 0 && s.seenAsks.has(askId) && !s.asks.has(askId)) {
+				this.deps.log({ evt: 'ask-reopened', matchId: this.id, seat, callId: askId, method: head?.method });
+				s.seenAsks.delete(askId);
 			}
 			if (s.seenAsks.has(askId)) {
 				this.deps.log({ evt: 'ask-duplicate', matchId: this.id, seat, callId: askId, method: head?.method });

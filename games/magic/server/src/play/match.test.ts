@@ -1328,6 +1328,28 @@ describe('unstick: an operator re-sends what Forge waits on (a restart left an a
 		expect(askFramesTo(h, PROBE_ASK.seat, from).length, 'shown again').toBeGreaterThanOrEqual(1);
 	});
 
+	it('an ask this server already answered while Forge still waits on it (m-c6fb6927493e: answered by a handover’s replay) reaches the seat again', async () => {
+		const h = harness();
+		h.host.push(...OPENING, PROBE_ASK);
+		// Answered here (the replay's own answer, in the incident), and that answer never took in Forge.
+		h.match.fromClient(PROBE_ASK.seat, reply(ask.callId, true));
+		const from = h.sent.length;
+		const done = h.match.unstick();
+		bridgeResends(h, true);
+		const seats = await done;
+		expect(seats.find((x) => x.seat === PROBE_ASK.seat)).toEqual({ seat: PROBE_ASK.seat, forge: [ask.method], shown: [] });
+		expect(h.logs.some((l) => l.evt === 'ask-duplicate' && l.callId === ask.callId), 'not dropped as a duplicate').toBe(false);
+		expect(askFramesTo(h, PROBE_ASK.seat, from).length, 'the seat is shown it again').toBeGreaterThanOrEqual(1);
+	});
+
+	it('outside an unstick, a seen ask is still a duplicate', () => {
+		const h = harness();
+		h.host.push(...OPENING, PROBE_ASK);
+		h.match.fromClient(PROBE_ASK.seat, reply(ask.callId, true));
+		h.host.push(PROBE_ASK);
+		expect(h.logs.some((l) => l.evt === 'ask-duplicate' && l.callId === ask.callId)).toBe(true);
+	});
+
 	it('a bridge that never answers is reported as unknown, not as nothing pending', async () => {
 		vi.useFakeTimers();
 		const h = harness();
