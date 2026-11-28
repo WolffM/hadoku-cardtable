@@ -6,8 +6,8 @@
  * Its way on (`GoLink`, an anchor in the primary button's paint) drew its label underlined, beside the
  * Concede and Drop buttons that are not.
  *
- * One browser and one AI: a one-round Gauntlet tournament, as `tournament-table-page.spec.ts` builds
- * it. Needs a Forge build; without one the test SKIPS with a title that says why.
+ * One browser and one AI: a one-round Classic tournament, built as `tournament-table-page.spec.ts`
+ * builds its Gauntlet one. Needs a Forge build; without one the test SKIPS with a title that says why.
  */
 import { expect, test } from '@playwright/test';
 
@@ -37,12 +37,14 @@ test(titled('a table page at 390px: the face-off keeps both avatars whole, and t
       expect(res.ok(), `${method} ${path}: ${res.status()}`).toBe(true);
       return (await res.json()) as { id?: string };
     };
-    const { id: roomId } = await api('POST', '/rooms', { name: `e2e face-off fit ${Date.now()}`, gameType: 'constructed-1v1', mode: 'gauntlet', modeOptions: { family: 'modern' } });
+    const { id: roomId } = await api('POST', '/rooms', { name: `e2e face-off fit ${Date.now()}`, gameType: 'constructed-1v1', mode: 'classic' });
     await api('PATCH', `/rooms/${roomId}`, { settings: { tournament: true, tournamentDecks: 'per-round' } });
     await api('POST', `/rooms/${roomId}/pod/sit`, { seat: 0 });
     await api('POST', `/rooms/${roomId}/pod/ai`, { seat: 1, on: true });
     await page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
-    await page.getByTestId('ready-toggle').click();
+    // Classic: a deck chosen in the lobby, so the round's match exists as it pairs and its page offers the way in.
+    await page.getByTestId('deck-mine').getByTestId('deck-option').first().click({ timeout: UI_TIMEOUT });
+    await page.locator('[data-testid="ready-toggle"]:enabled').click({ timeout: UI_TIMEOUT });
     expect(await toMyTable(page, UI_TIMEOUT), 'my lit table opens its page').toBe('table');
     const seats = page.getByTestId('table-seats');
     await expect(seats, 'the reveal comes to rest').not.toHaveAttribute('data-revealing', /.*/, { timeout: UI_TIMEOUT });
@@ -63,7 +65,7 @@ test(titled('a table page at 390px: the face-off keeps both avatars whole, and t
 
     // The way on is a link drawn as the primary button: it reads as one, as the hub's and the table card's do.
     const go = page.getByTestId('table-way').locator('a[data-door]');
-    await expect(go).toBeVisible();
+    await expect(go).toBeVisible({ timeout: UI_TIMEOUT });
     expect(await go.evaluate((el) => getComputedStyle(el).textDecorationLine), 'Enter game is not underlined').toBe('none');
   } finally {
     await alice.context.close();
