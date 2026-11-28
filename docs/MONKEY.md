@@ -47,7 +47,7 @@ here is testing one card's specific behaviour.
 | flag | what it means | detected from |
 | --- | --- | --- |
 | `no-legal-answer` | an ask demanded more answers than it offered (the client-side mirror of the server's own `ask-unanswerable`/`auto.ts`'s `answerability`) | the ask's own `min`/`max`/`optionList` |
-| `stuck` | no progress for `--stuck-ms` (default 20 s) while an ask was open, or this seat's input was live and either Forge gave it priority or its bar or board offered a press. A seat waiting under a dead "Waiting for …" bar while the other player holds priority is not stuck, however slow they are; a game that stopped there is `no-finish` | the ask's `callId`, or Forge's view seq, turn and phase + the button bar + selection size, unchanged (`isBlocked`, `signatureOf`) |
+| `stuck` | no progress for `--stuck-ms` (default 20 s) while an ask was open, or this seat's input was live and either Forge gave it priority or its bar or board offered a press. A seat waiting under a dead "Waiting for …" bar while the other player holds priority is not stuck, however slow they are; a game that stopped there is `no-finish` | the ask's `callId`, or Forge's view seq, turn and phase + the button bar + selection size + the cards picked into it so far, unchanged (`isBlocked`, `signatureOf`) |
 | `click-refused` | the server (Forge's `flashIncorrectAction`) or this client's own guard refused an answer — not the server's `cause: 'unpayable'` flash, which is it cancelling a cost nothing can pay (e2d49c260), a handled case (`isRefusal`) | the wire tap on `forge:s2c`, and `selectCard`/`selectPlayer`/`pressButton`/`answerAsk`'s own return value |
 | `loop` | a DECLINED optional ask came back with the same method and the same offered shape three times running, AT THE SAME turn and phase, with no act of this seat's own in between (a click on the same card again opens a new question, not the old one coming back; a `tempShowZones` that recurs every cleanup step by design is excluded outright) | `declineStreak` in `seat-driver.ts` |
 | `server-unclassified` | the server logged `ask-unclassified` for this match — a question `answerability` has no rule for. Not `ask-unanswerable`: that is the server answering, by its own rule (7f343ec90), a question no seat could (`serverFlagsOf`) | the running stack's own JSON log file, tailed per match |
@@ -157,7 +157,8 @@ A recording is seed 1's boards (`RECORDED_SEED`): the targets a pick names, whet
 cost has a nonland permanent to offer, which mode the seat picks all depend on it. So a run with
 another `--seed` prints its differences and does not fail on them (on Bloomburrow, seed 1129 at
 three a match, 23 of 514 plays differed this way and none was a card that changed). It still fails
-on a flag or a broken keyword promise. `--update` refuses another seed.
+on a flag or a broken keyword promise. `--update` refuses another seed. `--seed` reads digits as
+the number a run printed (`seedArg`), so `--seed 1` is the recorded seed.
 
 A play that differs is first played again alone, three times at most: a question can land a frame either
 side of the click that answers it, and a card that really changed differs every time. The run says

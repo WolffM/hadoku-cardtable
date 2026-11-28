@@ -63,7 +63,8 @@ export function signatureOf(match: LiveMatch): string {
   const ask = currentAsk(match);
   if (ask !== null) return `ask:${ask.callId}`;
   const game = `${match.forgeSeq}:${match.view?.turn ?? ''}:${match.view?.phase ?? ''}`;
-  return `bar:${game}:${match.prompt ?? ''}:${match.buttons?.label1 ?? ''}:${match.buttons?.enable1 ?? ''}:${match.selectables?.cards.size ?? -1}`;
+  const picked = [...(match.highlighted ?? [])].sort((x, y) => x - y).join(',');
+  return `bar:${game}:${match.prompt ?? ''}:${match.buttons?.label1 ?? ''}:${match.buttons?.enable1 ?? ''}:${match.selectables?.cards.size ?? -1}:${picked}`;
 }
 
 /**

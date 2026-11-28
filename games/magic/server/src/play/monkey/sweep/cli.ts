@@ -23,7 +23,7 @@ import { watchExit } from '../exit-watch.ts';
 import { RUN_STACK_ENV, runPool } from '../pool.ts';
 import { makeRng, seedFrom } from '../rng.ts';
 
-import { differences, differenceText, expectedOf, RECORDED_SEED, signatureOf, sweepExit, type Expected } from './expected.ts';
+import { differences, differenceText, expectedOf, RECORDED_SEED, signatureOf, sweepExit, sweepSeed, type Expected } from './expected.ts';
 import { mechanicProblems } from './mechanics.ts';
 import type { Variant } from './policy.ts';
 import { runCards, type CardResult } from './run-cards.ts';
@@ -51,7 +51,7 @@ async function main(): Promise<void> {
   const only = process.argv.flatMap((a, i) => (a === '--card' ? [process.argv[i + 1]!] : []));
   const variants: Variant[] = arg('variant') === undefined ? ['accept', 'decline'] : [arg('variant') as Variant];
   const out = arg('out') ?? resolve(process.cwd(), `sweep-${set.toLowerCase()}.json`);
-  const seed = seedFrom(arg('seed') ?? 1);
+  const seed = sweepSeed(arg('seed'));
   const concurrency = Number(arg('concurrency') ?? '2');
   const update = process.argv.includes('--update');
   if (update && seed !== RECORDED_SEED) {

@@ -15,6 +15,7 @@
  * nonland permanent to offer, which mode the seat picks. So it is only checked on that seed. A run on
  * another seed prints its differences and fails only on a flag or a broken keyword promise.
  */
+import { seedArg, seedFrom } from '../rng.ts';
 import type { CardResult } from './run-cards.ts';
 
 export interface CardSignature {
@@ -82,4 +83,9 @@ export const RECORDED_SEED = 1;
 /** The sweep's exit code: 1 for a flag, a broken keyword promise, or a difference on the recorded seed. */
 export function sweepExit(run: { flagged: number; broken: number; differing: number; seed: number }): 0 | 1 {
   return run.flagged > 0 || run.broken > 0 || (run.seed === RECORDED_SEED && run.differing > 0) ? 1 : 0;
+}
+
+/** The seed `--seed` names: its digits as that number, as the run printed it, and none as the recorded seed. */
+export function sweepSeed(raw: string | undefined): number {
+  return seedFrom(seedArg(raw) ?? RECORDED_SEED);
 }
