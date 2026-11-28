@@ -423,3 +423,55 @@ test(titled('a main phase with nothing to decide: no decision-dock is visible, a
     await stack.stop();
   }
 });
+
+/**
+ * With a decision docked, ⋯ opens its sheet ABOVE the decision: every row of it (Chat, Menu and what Menu holds)
+ * is on top where a finger lands. Seen first in WebKit on "Choose play or draw"; the dock sits at the popover
+ * layer and the bar is a stacking context of its own, so its sheet counted only inside the bar.
+ */
+test(titled('a docked decision: every row of the ⋯ sheet, and Concede in its Menu, is on top of it'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice, bob } = await startScenarioMatch(browser, stack, 'promo-valakut');
+    const page = alice.page;
+    await forcePortrait(page);
+    await castByTap(page, 'Scapeshift');
+    await until('a decision docks (Scapeshift asks to sacrifice)', async () => {
+      await pumpOpponent(bob.page);
+      return (await dock(page).filter({ visible: true }).count()) > 0;
+    });
+    await expect(dock(page), 'the question is docked, not minimised').toHaveAttribute('data-mode', 'dock');
+    const more = page.getByTestId('action-more');
+    await more.tap();
+    const sheet = page.getByTestId('action-more-sheet');
+    await expect(sheet).toBeVisible();
+    /** Each visible row of `root`'s children whose centre hit-tests to something else, named with what covers it. */
+    const covered = (root: Locator): Promise<string[]> =>
+      root.evaluate((el) =>
+        [...el.children]
+          .filter((row): row is HTMLElement => row instanceof HTMLElement && row.getClientRects().length > 0)
+          .flatMap((row) => {
+            const r = row.getBoundingClientRect();
+            const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            if (top !== null && (row === top || row.contains(top))) return [];
+            const by = top?.closest('[data-testid]')?.getAttribute('data-testid') ?? top?.tagName.toLowerCase() ?? 'nothing';
+            return [`${(row.textContent ?? '').trim().slice(0, 30) || (row.dataset.testid ?? '?')}: under ${by}`];
+          }),
+      );
+    expect.soft(await covered(sheet), 'every row of the ⋯ sheet is on top of the docked decision').toEqual([]);
+    const concede = page.getByTestId('live-concede');
+    await page.getByTestId('action-menu').tap({ force: true });
+    await expect(concede.filter({ visible: true }), 'Concede shows in the Menu').toHaveCount(1);
+    const onTop = await concede.filter({ visible: true }).evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return top !== null && (el === top || el.contains(top)) ? 'on top' : `under ${top?.closest('[data-testid]')?.getAttribute('data-testid') ?? top?.tagName ?? 'nothing'}`;
+    });
+    expect(onTop, 'Concede in the Menu is on top of the docked decision').toBe('on top');
+  } finally {
+    await stack.stop();
+  }
+});
