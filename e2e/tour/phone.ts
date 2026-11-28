@@ -297,6 +297,9 @@ export async function shotSizes(page: Page, id: string, meta: ShotMeta, sizes: {
   if (sizes.small === true || sizes.landscape === true) await setSize(page, PORTRAIT);
 }
 
+/** `TOUR_CONTEXT=phone` opens every person as an iPhone (touch, a mobile viewport); a desktop mouse browser otherwise. */
+export const CONTEXT: 'desktop' | 'phone' = process.env.TOUR_CONTEXT === 'phone' ? 'phone' : 'desktop';
+
 /** The sizes `shotBoth` shoots: 1440×900 and 390×844, or `TOUR_SIZES` (`768x1024,1920x1080`). */
 const SHOT_SIZES = (process.env.TOUR_SIZES ?? '').trim() === ''
   ? [DESK, PORTRAIT]
@@ -308,8 +311,8 @@ const SHOT_SIZES = (process.env.TOUR_SIZES ?? '').trim() === ''
 
 /**
  * One state, shot at every size in both themes: each page at 1440×900 and at 390×844 (or `TOUR_SIZES`'s),
- * dark then light, and back to the desktop size after. The phone shots are the same mouse page resized, so
- * `pointer: coarse` rules are not in them.
+ * dark then light, and back to the first size after. In a desktop context the phone shots are the same mouse
+ * page resized, so `pointer: coarse` rules are not in them; `TOUR_CONTEXT=phone` shoots a touch page.
  */
 export async function shotBoth(pages: readonly Page[], id: string, meta: ShotMeta, opts: { full?: boolean } = {}): Promise<void> {
   for (const page of pages) {
@@ -321,7 +324,7 @@ export async function shotBoth(pages: readonly Page[], id: string, meta: ShotMet
         await wearTheme(page, null);
       }
     }
-    await setSize(page, DESK);
+    await setSize(page, SHOT_SIZES[0]!);
   }
 }
 

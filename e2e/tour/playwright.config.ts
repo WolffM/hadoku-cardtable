@@ -6,6 +6,13 @@
  */
 import { defineConfig } from '@playwright/test';
 
+/**
+ * `TOUR_ENGINE` (chromium, webkit, firefox) picks the browser; chromium by default. A host without WebKit's
+ * libraries runs it from Playwright's own image and connects (`PW_TEST_CONNECT_WS_ENDPOINT`).
+ */
+const ENGINE = process.env.TOUR_ENGINE ?? 'chromium';
+if (ENGINE !== 'chromium' && ENGINE !== 'webkit' && ENGINE !== 'firefox') throw new Error(`tour: TOUR_ENGINE ${ENGINE} is not chromium, webkit or firefox`);
+
 export default defineConfig({
   testDir: '.',
   testMatch: '*.tour.ts',
@@ -16,5 +23,5 @@ export default defineConfig({
   timeout: 15 * 60_000,
   expect: { timeout: 15_000 },
   reporter: [['list']],
-  use: { browserName: 'chromium', headless: true, actionTimeout: 15_000, navigationTimeout: 30_000 },
+  use: { browserName: ENGINE, headless: true, actionTimeout: 15_000, navigationTimeout: 30_000 },
 });
