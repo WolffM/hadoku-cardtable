@@ -154,6 +154,12 @@ describe('a fit column settles on a scale that fits, even where its text rewraps
     expect(draftAside(fit), `settled at ${fit}`).toBeLessThanOrEqual(328.2);
   });
 
+  it('settles on the same scale whichever size it came from: 1440×900 (0.95), 1366×768 (0.75), a phone (0.6) or fresh (1)', () => {
+    const settled = [0.95, 0.75, 0.6, 1].map((start) => settleFit(draftAside, start, 328.2));
+    expect(new Set(settled).size, `settled at ${settled.join(', ')}`).toBe(1);
+    expect(draftAside(settled[0])).toBeLessThanOrEqual(328.2);
+  });
+
   it('still rises when the box grows and nothing it tried was too tall', () => {
     expect(settleFit((f) => f * 300, 0.6, 400)).toBe(1);
   });
