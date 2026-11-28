@@ -67,15 +67,27 @@ async function geometry(page: Page): Promise<Geometry> {
   });
 }
 
-test('the finished room: podium, a Swiss bracket that never squishes, the path on a press, plain standings, at 1440 and phone width', async ({ browser }) => {
-  test.setTimeout(3 * 60_000);
+test('the finished room: podium, a Swiss bracket that never squishes, the path on a press, plain standings, at 1440, tablet and phone width', async ({ browser }) => {
+  test.setTimeout(4 * 60_000);
   const admin = await openFriend(browser, 'admin');
   try {
-    for (const width of [1440, 390]) {
+    // 768 is a tablet: the room's column beside the chat is narrower than a phone's whole screen.
+    for (const width of [1440, 768, 390]) {
       await resizeWindow(admin.page, { width, height: 900 });
       await openSeeded(admin.page, DONE);
       await expect(admin.page.getByTestId('pod-podium'), `${width}: the podium`).toBeVisible({ timeout: UI_TIMEOUT });
       await expect(admin.page.getByTestId('pod-podium-1')).toContainText('3–0');
+      // Each stand holds its own face and name: a face wider than its stand leaves a name, any longer than
+      // the seed's, cut at once (the 11-28 tour: "Phantom" cut by 19 px at 768).
+      const overStand = await admin.page.locator('.podium__stand').evaluateAll((stands) =>
+        stands.flatMap((stand) => {
+          const room = stand.getBoundingClientRect().width;
+          return [...stand.querySelectorAll<HTMLElement>('.podium__face, .podium__name')]
+            .filter((el) => el.offsetWidth > room + 0.5 || el.scrollWidth > el.clientWidth + 0.5)
+            .map((el) => `${stand.getAttribute('data-place')}: ${el.className} ${Math.max(el.offsetWidth, el.scrollWidth)}px in ${Math.round(room)}px`);
+        }),
+      );
+      expect(overStand, `${width}: every face and name on the podium fits its stand`).toEqual([]);
       await expect(admin.page.getByTestId('pod-bracket-round')).toHaveCount(3);
       await expect(admin.page.getByTestId('pod-bracket-final')).toHaveCount(1);
       await expect(admin.page.getByTestId('pod-final-row')).toHaveCount(8);
