@@ -283,6 +283,12 @@ export function attachTableActions(api: Router, deps: TableActionsDeps): void {
 		}
 		const table = tableOf(roomId, tableId);
 		if (table === undefined) return refuse(res, 'no-such-table');
+		// A turn its snapshot cannot hold is never restored, as a player's Restart turn refuses it (`restorable`).
+		const lossy = table.matchId === null ? [] : (deps.match(table.matchId)?.inspect().restoreLossy ?? []);
+		if (lossy.length > 0) {
+			acted(req, 'game-restored', roomId, { table: tableId, matchId: table.matchId, ok: false, reason: 'lossy', lossy });
+			return res.status(409).json({ error: `this turn cannot be restored exactly (${lossy.join(', ')}): reset the game or award it` });
+		}
 		const restored = table.matchId === null ? null : deps.restore(table.matchId);
 		acted(req, 'game-restored', roomId, { table: tableId, matchId: table.matchId, ok: restored !== null, ...(restored === null ? { reason: 'no-game' } : { from: restored.from, turn: 'turn' in restored ? restored.turn : null }) });
 		if (restored === null) return refuse(res, 'no-game');

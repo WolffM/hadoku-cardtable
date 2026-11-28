@@ -413,6 +413,7 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 			active: live?.active ?? null,
 			life: live?.life ?? null,
 			restoreTurn: this.latestSnapshot?.turn ?? null,
+			restoreLossy: [...(this.latestSnapshot?.lossy ?? [])],
 			lastActivityAt: this.activity(now).lastAt,
 			seats: this.seats.map((s) => {
 				const id = told[s.seat];
@@ -653,6 +654,8 @@ export interface MatchInspection {
 	life: [number | null, number | null] | null;
 	/** The turn {@link MatchRegistry.restore} starts the game again at; null: from its first. */
 	restoreTurn: number | null;
+	/** What that turn's snapshot cannot hold (`TurnSnapshot.lossy`): a restore from it would not be the game. Empty: exact. */
+	restoreLossy: string[];
 	lastActivityAt: number | null;
 	seats: {
 		seat: number;

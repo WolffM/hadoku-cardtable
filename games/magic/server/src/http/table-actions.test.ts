@@ -43,7 +43,7 @@ interface Harness {
 }
 
 /** A room alice leads and bob is in, its table playing `MATCH` with alice at seat 0 and bob at seat 1 — mounted after the rooms router, as `index.ts` mounts it. */
-async function open(opts: { refuse?: string; pod?: boolean; starting?: boolean } = {}): Promise<Harness> {
+async function open(opts: { refuse?: string; pod?: boolean; starting?: boolean; lossy?: string[] } = {}): Promise<Harness> {
 	const dir = await mkdtemp(join(tmpdir(), 'cardtable-table-actions-'));
 	const lobby = await openLobby({ dir });
 	const made = lobby.create({ id: ALICE, name: 'alice', userId: null }, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin', ...(opts.pod === true ? { mode: { mode: 'classic', modeOptions: {} } } : {}) });
@@ -108,7 +108,7 @@ async function open(opts: { refuse?: string; pod?: boolean; starting?: boolean }
 				fromClient,
 				concedeFor: (seat) => (opts.starting === true ? false : fromClient(seat, { kind: 'act', method: 'concede' }).ok),
 				concedeAi: () => false,
-				inspect: () => ({ status: 'running', startedAt: 0, turn: 7, active: 1, life: [20, 3], restoreTurn: 7, lastActivityAt: 0, seats: [] }),
+				inspect: () => ({ status: 'running', startedAt: 0, turn: 7, active: 1, life: [20, 3], restoreTurn: 7, restoreLossy: opts.lossy ?? [], lastActivityAt: 0, seats: [] }),
 				stop: () => void stopped.push(MATCH),
 			};
 		},
@@ -372,6 +372,14 @@ describe('POST /api/rooms/:roomId/tables/:tableId/restore and /replay', () => {
 		expect((await leader(h, ALICE, `tables/${h.tableId}/restore`)).status).toBe(409);
 	});
 
+	it('a turn its snapshot cannot hold exactly is refused, as a player’s Restart turn is', async () => {
+		const h = await open({ pod: true, lossy: ['token'] });
+		const res = await leader(h, ALICE, `tables/${h.tableId}/restore`);
+		expect(res.status).toBe(409);
+		expect(await res.json()).toEqual({ error: 'this turn cannot be restored exactly (token): reset the game or award it' });
+		expect(h.restored).toEqual([]);
+	});
+
 	it('replay plays the match again from 0–0 with the same seats and no result, its game stopped', async () => {
 		const h = await open({ pod: true });
 		expect(h.lobby.recordGameResult(h.roomId, h.tableId, { matchId: MATCH, winner: 0 }).ok).toBe(true);
@@ -406,7 +414,7 @@ describe('GET /api/rooms/:roomId/admin/live', () => {
 				players: [{ memberId: BOB, name: 'bob' }, { memberId: CAROL, name: 'carol' }],
 				series: { phase: 'playing', wins: [0, 0], games: 0, length: 3 },
 				matchId: MATCH,
-				match: { status: 'running', startedAt: 0, turn: 7, active: 1, life: [20, 3], restoreTurn: 7, lastActivityAt: 0, seats: [] },
+				match: { status: 'running', startedAt: 0, turn: 7, active: 1, life: [20, 3], restoreTurn: 7, restoreLossy: [], lastActivityAt: 0, seats: [] },
 				epochs: [`${MATCH}-e1`],
 			},
 		]);
