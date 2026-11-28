@@ -19,14 +19,26 @@ the time is all in the edge's own `edge.session` step (request_logs `server_timi
 | `/cardtable-ppe/api/client-events` | 3 640 | 19 | 3 621 |
 
 Worker-backed paths in the same seconds (`/jobplatform/api/ingest`) do not resolve a session and
-were not held. Over the 12 h before it (6 927 tunnel rows, 19:00Z–07:10Z) this was the only minute
-with an `edge.session` over 3 s: rare, but 34 s when it happens. The soak was making guest accounts
-through the door at the time (one every ~31 s, under the 5-a-minute throttle); whether a sign-up
-contends with the session read is not known from here.
+were not held. It then came back every 5 minutes, about 33 s each time, holding every signed-in
+tunnel request in flight, whoever's and whichever app's (tunnel request_logs, `edge.session` over 3 s;
+start = finish − `edge.session`):
+
+| Start (Z) | Release (Z) | Rows | Users | Apps |
+| --- | --- | --- | --- | --- |
+| 07:00:44 | 07:01:18 | 13 | 3 | cardtable-ppe, dataplatform |
+| 07:05:46 | 07:06:19 | 5 | 3 | cardtable, cardtable-ppe, dataplatform |
+| 07:15:46 | 07:16:18 | 4 | 2 | cardtable-ppe |
+| 07:20:43 | 07:21:19 | 59 | 10 | cardtable-ppe |
+| 07:25:44 | 07:26:19 | 49 | 12 | cardtable-ppe |
+
+(07:10 had nothing in flight.) None from 06:00 to 07:00Z. It is not an idle session's first read:
+accounts posting every minute were held as long as idle ones. WebSocket upgrades are held too, and a
+socket.io connect started at 07:20:42 never reached the server; its retry connected at 07:21:21.
+Nothing in hokon's crontab or timers runs every 5 minutes at those marks.
 
 ## The ask
 
 1. Bound the session read: a `SESSIONS_KV` read that has not answered in a few seconds should fail
    the way a missing session does for a read-only request, or be retried, rather than hold it.
-2. Say whether account creation writes can hold `session:{id}` reads.
+2. Find what runs every 5 minutes since 07:00Z and holds the session read.
 3. Log a slow `edge.session` (over 2 s) as its own event, so a stall shows without request_logs.

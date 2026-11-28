@@ -73,8 +73,31 @@ function slopePerHour(points: { at: string; v: number }[]): number {
   return den === 0 ? 0 : num / den;
 }
 
-async function edgeRows(): Promise<{ n: number; p95: number; slowSession: { at: string; ms: number; path: string }[]; fivexx: number }> {
-  const rows: { timestamp: string; duration: number; status: number; path: string; server_timing: string | null }[] = [];
+interface EdgeRow {
+  timestamp: string;
+  duration: number;
+  status: number;
+  path: string;
+  user_id: string | null;
+  server_timing: string | null;
+}
+
+/**
+ * Each slow session read with how long its account had been quiet at the edge before it (every path,
+ * not only cardtable's): whether a stall follows an idle gap is the question the site was asked.
+ */
+async function idleBefore(userId: string | null, at: string): Promise<number | null> {
+  if (userId === null) return null;
+  const since = new Date(Date.parse(at) - 60 * 60_000).toISOString();
+  const url = `https://hadoku.me/health/api/logs/query?userId=${userId}&since=${since}&until=${at}&limit=1000`;
+  const body = (await (await fetch(url, { headers: { 'X-User-Key': KEY, 'User-Agent': 'Mozilla/5.0 hadoku-agent' } })).json()) as { logs?: EdgeRow[] };
+  // `at` is when the slow request began; a row's timestamp is when it finished, so `until=at` is every earlier one.
+  const before = (body.logs ?? []).map((r) => Date.parse(r.timestamp));
+  return before.length === 0 ? null : Math.round((Date.parse(at) - Math.max(...before)) / 1000);
+}
+
+async function edgeRows(): Promise<{ n: number; p95: number; slowSession: { at: string; ms: number; path: string; user: string | null; idleS: number | null }[]; fivexx: number }> {
+  const rows: EdgeRow[] = [];
   for (let offset = 0; offset < 200_000; offset += 1000) {
     const url = `https://hadoku.me/health/api/logs/query?path=/cardtable-ppe&since=${start}&until=${end}&limit=1000&offset=${String(offset)}`;
     const body = (await (await fetch(url, { headers: { 'X-User-Key': KEY, 'User-Agent': 'Mozilla/5.0 hadoku-agent' } })).json()) as { logs?: typeof rows };
@@ -82,9 +105,11 @@ async function edgeRows(): Promise<{ n: number; p95: number; slowSession: { at: 
     if ((body.logs ?? []).length < 1000) break;
   }
   const durations = rows.map((r) => r.duration).sort((a, b) => a - b);
-  const slowSession = rows
-    .map((r) => ({ at: r.timestamp, ms: Number(/edge\.session;dur=(\d+)/.exec(r.server_timing ?? '')?.[1] ?? 0), path: r.path }))
+  const slow = rows
+    .map((r) => ({ at: r.timestamp, ms: Number(/edge\.session;dur=(\d+)/.exec(r.server_timing ?? '')?.[1] ?? 0), path: r.path, user: r.user_id }))
     .filter((r) => r.ms > 2000);
+  const slowSession = [];
+  for (const r of slow) slowSession.push({ ...r, idleS: await idleBefore(r.user, new Date(Date.parse(r.at) - r.ms).toISOString()) });
   return { n: rows.length, p95: durations[Math.floor(durations.length * 0.95)] ?? 0, slowSession, fivexx: rows.filter((r) => r.status >= 500).length };
 }
 
