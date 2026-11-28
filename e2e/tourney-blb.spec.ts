@@ -150,6 +150,8 @@ interface Player {
   last: string;
   lastAt: number;
   errors: string[];
+  /** When the page logged its socket's connect attempt timing out: a finding unless the spec's own fault froze the server then. */
+  socketTimeouts: number[];
   /** Every place the page went, with the time and what this agent did just before. */
   trail: string[];
   hands: Hands | null;
@@ -265,7 +267,7 @@ async function openPlayer(browser: Browser, name: string): Promise<Player> {
   // Up to fifteen pages on one host: a load past a hundred can hold a page's first load past the config's twenty seconds.
   f.page.setDefaultNavigationTimeout(90_000);
   const wire: string[] = [];
-  const p: Player = { f, name, id: '', wire, pack: capturePack(f.page, wire), picks: [], results: new Map(), last: '', lastAt: Date.now(), errors: [], trail: [], hands: null, handsFor: '', gone: false };
+  const p: Player = { f, name, id: '', wire, pack: capturePack(f.page, wire), picks: [], results: new Map(), last: '', lastAt: Date.now(), errors: [], socketTimeouts: [], trail: [], hands: null, handsFor: '', gone: false };
   f.page.on('framenavigated', (frame) => {
     if (frame !== f.page.mainFrame()) return;
     const hash = new URL(frame.url()).hash;
@@ -278,6 +280,10 @@ async function openPlayer(browser: Browser, name: string): Promise<Player> {
     const text = m.text();
     // Art leaves 127.0.0.1 and is refused by this harness on purpose (`play/browser.ts`).
     if (/ERR_BLOCKED_BY_CLIENT|Failed to load resource/.test(text)) return;
+    if (/\[socket\].*Connection error \{"message":"timeout"\}/.test(text)) {
+      p.socketTimeouts.push(Date.now());
+      return;
+    }
     p.errors.push(`console.error ${text.slice(0, 300)}`);
   });
   return p;
@@ -895,6 +901,13 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
     run.done = true;
     serverFindings(run);
     for (const p of run.players) for (const e of new Set(p.errors)) finding(run, `${p.name} ${e}`);
+    for (const p of run.players) {
+      for (const t of p.socketTimeouts) {
+        const why = stack.excusedAt(t);
+        if (why === null) finding(run, `${p.name} console.error [socket] Connection error timeout at ${new Date(t).toISOString()}`);
+        else say(`${p.name}: socket connect timeout at ${new Date(t).toISOString()} excused: ${why}`);
+      }
+    }
     say(`${scenario.key}: ${run.findings.length} finding(s)`);
     // `stack.stop()` throws on a red stack invariant; the scratch claws' agents stop either way, or they keep
     // 127.0.0.2/.3 bound and the next claws run on this host finds no warm JVM.

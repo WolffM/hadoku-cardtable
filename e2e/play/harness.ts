@@ -477,6 +477,8 @@ export interface PlayStack {
    * say the play was still being decided. Every other check is unchanged.
    */
   excuse(from: number, to: number, why: string): void;
+  /** The fault window `excuse` named that holds `t` (up to 10 s after it ended, while sockets come back), if any. */
+  excusedAt(t: number): string | null;
 }
 
 /** A stretch the spec's own fault stopped the server or its claws. */
@@ -914,6 +916,7 @@ export async function startPlayStack(forge: { jar: string; res: string }, given:
     stop,
     reap,
     excuse: (from, to, why) => void excused.push({ from, to, why }),
+    excusedAt: (t) => excused.find((w) => t >= w.from && t <= w.to + 10_000)?.why ?? null,
     restart: async () => {
       // The edge stays up, so every browser keeps its origin and its socket
       // reconnects to the next server exactly as it does across a deploy.
