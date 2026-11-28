@@ -17,7 +17,7 @@ import { SERVER_FRAME_EXAMPLES } from '../../../../packages/forge-wire/src/examp
 
 import type { LiveMatch } from '../../../../ui/src/play/live/match.ts';
 
-import { clearDeclineStreak, declineStreak, hasNoLegalAnswer, isBlocked, signatureOf, type DeclinedStreaks } from './seat-driver.ts';
+import { blockedSince, clearDeclineStreak, declineStreak, hasNoLegalAnswer, isBlocked, OBSERVER_GAP_MS, signatureOf, type DeclinedStreaks } from './seat-driver.ts';
 import type { LiveAsk } from './random-answer.ts';
 import { isRefusal, logEnd, makeLogTail, serverFlagsOf } from './run-match.ts';
 import { seedArg, seedFrom } from './rng.ts';
@@ -91,6 +91,19 @@ describe('signatureOf — what flag (b), stuck, counts as progress', () => {
   it('moves with each card picked into a selection that is not yet complete', () => {
     expect(signatureOf(discarding([116]))).not.toBe(signatureOf(discarding([116, 107])));
     expect(signatureOf(discarding([116, 107]))).toBe(signatureOf(discarding([107, 116])));
+  });
+});
+
+describe('blockedSince — flag (b), stuck, counts only time the driver watched', () => {
+  // The two-seat run's first `stuck` (match m-e08109de0a59, turn 13): the process that drives both seats
+  // spent 21 s reading another match's log, and the next tick saw 27 s with nothing changed.
+  it('starts over when the driver itself was away longer than a tick can be', () => {
+    expect(blockedSince({ since: 1_000, lastTick: 2_000 }, 2_000 + OBSERVER_GAP_MS + 1, false)).toBe(2_000 + OBSERVER_GAP_MS + 1);
+  });
+
+  it('keeps counting across ordinary ticks, and starts over on any change', () => {
+    expect(blockedSince({ since: 1_000, lastTick: 24_940 }, 25_000, false)).toBe(1_000);
+    expect(blockedSince({ since: 1_000, lastTick: 24_940 }, 25_000, true)).toBe(25_000);
   });
 });
 
