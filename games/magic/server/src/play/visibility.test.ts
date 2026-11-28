@@ -195,7 +195,7 @@ describe.each(PLAYERS)('seat with Forge player %i', (viewer) => {
 					continue;
 				}
 				const extra = Object.keys(obj).filter(
-					(p) => !['_type', '_id', 'Owner', 'Controller', 'Zone', 'HiddenId'].includes(p),
+					(p) => !['_type', '_id', 'Owner', 'Controller', 'Zone', 'HiddenId', 'Facedown', 'ExiledWith'].includes(p),
 				);
 				if (extra.length > 0) offences.push(`hidden card ${cardId}: ${extra.join(',')}`);
 			}

@@ -74,12 +74,13 @@ export function selfAnswer(frame: ServerFrame): SelfAnswer | null {
 
 /**
  * The ability a `getAbilityToPlay` leaves no choice about, or null when it is a question: two are a
- * real choice, none is Forge asking about nothing, and one from a land card off the battlefield that
- * does not play it is the seat's to pick.
+ * real choice, none is Forge asking about nothing, one from a land card off the battlefield that
+ * does not play it is the seat's to pick, and one beside a planeswalker's `withheld` abilities is the
+ * seat's to see the rest greyed and back out of (the operator, 2026-11-27).
  */
 export function oneAbility(frame: Extract<ServerFrame, { method: 'getAbilityToPlay' }>): OfferedAbility | null {
   const only = frame.abilities.length === 1 ? frame.abilities[0] : undefined;
-  if (only === undefined) return null;
+  if (only === undefined || (frame.withheld?.length ?? 0) > 0) return null;
   const offField = frame.hostLand !== undefined && frame.hostLand.zone !== 'Battlefield';
   return offField && only.playsLand !== true ? null : only;
 }

@@ -304,9 +304,12 @@ const PEEKABLE_FACE_DOWN_ZONES = new Set(['Battlefield', 'Stack', 'Sideboard']);
 
 /**
  * What a `hidden` card keeps: that it exists, whose it is, where it is, and
- * Forge's own anti-tracking handle. Nothing that says WHICH card.
+ * Forge's own anti-tracking handle. Nothing that says WHICH card. "Where it is"
+ * includes what a face-down exile sits under on the table: that it is face down
+ * and the permanent it is exiled with (Hideaway's card under its land), which
+ * every player watched go there.
  */
-const HIDDEN_KEEP = new Set(['Owner', 'Controller', 'Zone', 'HiddenId']);
+const HIDDEN_KEEP = new Set(['Owner', 'Controller', 'Zone', 'HiddenId', 'Facedown', 'ExiledWith']);
 
 /**
  * What a `faceOnly` card keeps: everything a face-down permanent shows on a
@@ -318,7 +321,6 @@ const HIDDEN_KEEP = new Set(['Owner', 'Controller', 'Zone', 'HiddenId']);
 const FACE_ONLY_KEEP = new Set([
 	...HIDDEN_KEEP,
 	'GamePieceType',
-	'Facedown',
 	'FacedownImageKey',
 	'CurrentState',
 	'Tapped',

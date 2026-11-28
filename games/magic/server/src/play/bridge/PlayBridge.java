@@ -4716,6 +4716,10 @@ public final class PlayBridge {
                         continue;
                     }
                     if (!c.isInPlay() || c.getController() != mine) { continue; }
+                    if (playsOnlyWhatIsGone(c, mine)) {
+                        manaOnly.add(ref("card", cv.getId()));
+                        continue;
+                    }
                     boolean restricted = false;
                     boolean taps = false;
                     for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
@@ -4801,6 +4805,28 @@ public final class PlayBridge {
         }
 
         /** A non-mana ability that puts a land onto the battlefield from its controller's library: a fetchland's. */
+        /**
+         * A permanent whose every non-mana ability plays cards it names, and that names none now: a
+         * Mosswort Bridge whose hidden card was already played ({@code AB$ Play | Defined$ ExiledWith}).
+         * The rules let it be activated to do nothing, so Forge still offers it and the click stays; but
+         * it is no reason to hold priority, and no more a play than a Forest (the operator, 2026-11-27).
+         */
+        private static boolean playsOnlyWhatIsGone(final forge.game.card.Card c, final forge.game.player.Player mine) {
+            boolean any = false;
+            for (final SpellAbility sa : c.getAllPossibleAbilities(mine, true)) {
+                if (sa.isManaAbility()) { continue; }
+                if (!playsNothing(sa)) { return false; }
+                any = true;
+            }
+            return any;
+        }
+
+        /** An ability that only plays the cards its {@code Defined$} names (no target, nothing after), and names none. */
+        private static boolean playsNothing(final SpellAbility sa) {
+            if (sa.getApi() != ApiType.Play || sa.getSubAbility() != null || sa.usesTargeting() || !sa.hasParam("Defined")) { return false; }
+            return AbilityUtils.getDefinedCards(sa.getHostCard(), sa.getParam("Defined"), sa).isEmpty();
+        }
+
         private static boolean fetchesLand(final SpellAbility sa) {
             for (SpellAbility a = sa; a != null; a = a.getSubAbility()) {
                 if (a.getApi() != forge.game.ability.ApiType.ChangeZone || !"Battlefield".equals(a.getParam("Destination"))
@@ -5915,12 +5941,47 @@ public final class PlayBridge {
             manaFacts(abilities, offered);
             spellCosts(abilities, offered);
             f.add("abilities", offered);
+            withheld(hostCard, abilities, f);
             f.add("triggerEvent", JsonNull.INSTANCE);
             pickedManaMarks = null;
             final JsonElement r = await(ask, f);
             if (r == ABORTED) { return null; }
             pickedManaMarks = marksOfPick(offered, r);
             return (SpellAbilityView) lookup(ask, r);
+        }
+
+        /**
+         * A planeswalker's loyalty abilities Forge left off this offer — the ones it cannot pay or may
+         * not activate now (Karn Liberated's −3 at 1 loyalty) — as {@code withheld}, each with its label
+         * and {@code at}, its place among the card's loyalty abilities. The seat draws them greyed in the
+         * picker, which then always opens (the operator, 2026-11-27: "for karn, and all planeswalkers …
+         * show all abilities every time but only make the ones that are payable clickable"). Never an
+         * answer: the reply is read off {@code abilities} alone. Left out when nothing is withheld.
+         */
+        private void withheld(final CardView hostCard, final List<SpellAbilityView> abilities, final JsonObject f) {
+            final Game game = liveGame();
+            if (game == null) { return; }
+            try {
+                final forge.game.card.Card host = game.findById(hostCard.getId());
+                if (host == null || !host.isPlaneswalker() || !host.isInPlay()) { return; }
+                final java.util.Set<Integer> offered = new java.util.HashSet<>();
+                for (final SpellAbilityView v : abilities) { offered.add(v.getId()); }
+                final JsonArray out = new JsonArray();
+                int at = 0;
+                for (final SpellAbility sa : host.getSpellAbilities()) {
+                    if (!sa.isPwAbility()) { continue; }
+                    if (!offered.contains(sa.getId())) {
+                        final JsonObject r = ref("spellAbility", sa.getId());
+                        r.addProperty("label", str(sa.getView().toString()));
+                        r.addProperty("at", at);
+                        out.add(r);
+                    }
+                    at += 1;
+                }
+                if (!out.isEmpty()) { f.add("withheld", out); }
+            } catch (final RuntimeException ex) {
+                System.err.println("[bridge] withheld: could not read the walker's abilities (" + ex + ")");
+            }
         }
 
         /**

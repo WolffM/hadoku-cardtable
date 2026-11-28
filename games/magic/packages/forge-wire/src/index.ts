@@ -145,6 +145,8 @@ export {
   GetAbilityToPlayReplySchema,
   OfferedAbilitySchema,
   type OfferedAbility,
+  WithheldAbilitySchema,
+  type WithheldAbility,
   ManaFactsSchema,
   type ManaFacts,
   AssignCombatDamageSchema,

@@ -657,6 +657,19 @@ export const OfferedAbilitySchema = z.strictObject({
 export type OfferedAbility = z.infer<typeof OfferedAbilitySchema>;
 
 /**
+ * Ours, never Forge's: a planeswalker loyalty ability Forge left off an offer, because it cannot be paid
+ * or activated now (`PlayBridge.java`'s `withheld`), with `at`, its place among the card's loyalty
+ * abilities. Drawn greyed beside the offered ones; never a reply.
+ */
+export const WithheldAbilitySchema = z.strictObject({
+  ...SpellAbilityRefSchema.shape,
+  label: z.string(),
+  at: z.number().int().nonnegative(),
+});
+
+export type WithheldAbility = z.infer<typeof WithheldAbilitySchema>;
+
+/**
  * `SpellAbilityView getAbilityToPlay(CardView hostCard,
  * List<SpellAbilityView> abilities, ITriggerEvent triggerEvent)` —
  * IGuiGame.java:147. Reply nullable: no ability chosen.
@@ -674,6 +687,7 @@ export const GetAbilityToPlaySchema = z.strictObject({
    * Forge zone it is in (`Hand`, `Battlefield`, …) — `PlayBridge.java`'s `landFacts`.
    */
   hostLand: z.strictObject({ zone: z.string().min(1) }).optional(),
+  withheld: z.array(WithheldAbilitySchema).optional(),
 });
 
 export const GetAbilityToPlayReplySchema = OfferedAbilitySchema.nullable();
