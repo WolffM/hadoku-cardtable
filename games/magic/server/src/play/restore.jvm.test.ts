@@ -534,6 +534,55 @@ describe.skipIf(!available.ok)(title, () => {
 		},
 		300_000,
 	);
+
+	it(
+		'a Bloomburrow board comes back from a failover as it was: an Offspring token copy keeps its abilities, counters, an Equipment, a Food and a forage-sized graveyard',
+		async () => {
+			if (!available.ok) return;
+			// Sunday's set. Agate Instigator's Offspring copy is `CopyPermanent | SetPower$ 1 | SetToughness$ 1`
+			// (CardFactoryUtil's Offspring), precast here as the keyword's trigger makes it.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=17',
+				'ailife=13',
+				'humanbattlefield=Mountain;Mountain;Forest;Agate Instigator|Id:501;Heartfire Hero|Id:502|Counters:P1P1=2;Short Bow|AttachedTo:502;T:c_a_food_sac',
+				'humanprecast=501:CustomScript:DB$ CopyPermanent | Defined$ Self | SetPower$ 1 | SetToughness$ 1',
+				'humangraveyard=Mountain;Forest;Shock;Lightning Bolt',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+				'aibattlefield=Mountain;Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 11, decks: [deck('BLB A', ['40 Mountain']), deck('BLB B', ['40 Mountain'])], scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+				const instigators = (): { id: number; token: boolean }[] =>
+					s.zone(0, 'Battlefield').filter((c) => c.name === 'Agate Instigator').map((c) => ({ id: c.id, token: Boolean(([...s.state(0).values()].find((o) => o._type === 0 && o._id === c.id)?.Token as { v?: boolean } | undefined)?.v) }));
+				expect(instigators().map((c) => c.token).sort(), 'the Instigator and its Offspring copy').toEqual([false, true]);
+				const four = snapshots(s).find((l) => l.turn === 4)!;
+				console.log(`[jvm] BLB snapshot lossy: ${JSON.stringify(four.lossy ?? [])}`);
+				// The claim: nothing on a Bloomburrow board is beyond the snapshot. A failover restores a lossy
+				// snapshot anyway (`MatchRegistry.restore`), so a kind named here is lost on Sunday.
+				expect(four.lossy ?? [], 'nothing the snapshot cannot write').toEqual([]);
+
+				const { from, again } = await killAndRestore(s, 4);
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+				await passUntil(s, noAttacks(s, () => inOwnMain(s, 1, 4)), 'the restored turn 4, its first main', 120_000);
+				expect([life(s, 0), life(s, 1)]).toEqual([17, 13]);
+				expect(instigators().map((c) => c.token).sort(), 'both Instigators came back, one a token').toEqual([false, true]);
+				const hero = s.zone(0, 'Battlefield').find((c) => c.name === 'Heartfire Hero');
+				const heroObj = [...s.state(0).values()].find((o) => o._type === 0 && o._id === hero?.id) as Record<string, unknown>;
+				expect((heroObj.Counters as { v?: unknown } | undefined)?.v).toEqual([['+1/+1', 2]]);
+				expect(((heroObj.AttachedCards as { v?: unknown[] } | undefined)?.v ?? []).length, 'Short Bow still on the Hero').toBe(1);
+				expect(s.zone(0, 'Battlefield').some((c) => c.name === 'Food Token'), 'the Food').toBe(true);
+				expect(s.zone(0, 'Graveyard').map((c) => c.name).sort()).toEqual(['Forest', 'Lightning Bolt', 'Mountain', 'Shock']);
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
 });
 
 /*
