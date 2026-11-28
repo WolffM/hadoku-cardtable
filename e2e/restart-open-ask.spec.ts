@@ -9,7 +9,8 @@
  * to his browser is frozen the moment the question arrives, so the server has sent it and the
  * browser has not seen it: exactly the state a handover meets. Then the server restarts, bob's
  * browser reconnects to the new one unrouted, and the cast must finish: Bolt on the stack, alice at
- * 17. Two questions: the ability pick (the frozen one) and the target (a window, not an ask).
+ * 17. Two questions: the ability pick (the one that froze) and the target (a window, not an ask:
+ * the replay never decided windows, so that case is a guard, green before the fix too).
  *
  * `w63-yield.state`: bob's Main 1, two Lightning Bolts and two Mountains; alice holds Counterspell.
  * Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`); without one the test SKIPS and
@@ -109,8 +110,16 @@ for (const question of ['ability', 'target'] as const) {
         'no act of bob’s went unanswered after the restart (each is Forge waiting on a question nobody was shown)',
       ).toEqual([]);
       expect(await stackCount(alice.page), "bob's Bolt reached the stack after the restart").toBe(1);
-      await passOverStack(alice.page);
-      await expect(lifeOf(alice.page, 'me'), 'the Bolt resolved on alice').toHaveText('17', { timeout: 20_000 });
+      // Alice holds Counterspell, so the Bolt waits on her pass: pressed by state, each time her window is up.
+      await expect
+        .poll(
+          async () => {
+            await passOverStack(alice.page);
+            return lifeOf(alice.page, 'me').textContent();
+          },
+          { timeout: 30_000, message: 'the Bolt resolved on alice' },
+        )
+        .toBe('17');
       expect(serverLog(stack).find((l) => l.evt === 'match-failed'), 'the match never failed').toBeUndefined();
     } finally {
       await stack.stop();
