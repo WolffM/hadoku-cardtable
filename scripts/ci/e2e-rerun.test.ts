@@ -223,6 +223,14 @@ describe('the verdict', () => {
     expect(v.red).toEqual([{ target: expect.objectContaining({ file: 'b.spec.ts', line: 6 }), why: 'failed again on the re-run (unexpected): Error: still wrong' }]);
   });
 
+  it('two tests on one line (a loop, or a helper that calls test()) are each judged by their own title', () => {
+    const shared = plan(report(spec('c.spec.ts', 9, 'expected', { title: 'four' }), spec('c.spec.ts', 9, 'unexpected', { title: 'five' })), []);
+    // The location filter re-runs both; the one that failed fails again, and the one that passed must not stand in for it.
+    const v = judge(shared, [report(spec('c.spec.ts', 9, 'expected', { title: 'four' }), spec('c.spec.ts', 9, 'unexpected', { title: 'five', error: 'TimeoutError: 90000ms' }))]);
+    expect(v.flaky).toEqual([]);
+    expect(v.red).toEqual([{ target: expect.objectContaining({ line: 9, title: 'a describe › five' }), why: 'failed again on the re-run (unexpected): TimeoutError: 90000ms' }]);
+  });
+
   it('a test the re-run did not run, or a re-run with no report, is red', () => {
     expect(judge(p, [report(spec('a.spec.ts', 5, 'expected'))]).red).toEqual([{ target: expect.objectContaining({ line: 6 }), why: 'failed, and did not run on the re-run' }]);
     expect(judge(p, []).red).toHaveLength(2);

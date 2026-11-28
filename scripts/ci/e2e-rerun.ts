@@ -263,7 +263,8 @@ export function plan(report: PwReport | null, isolation: string[], serial: strin
 export function judge(p: Plan, reruns: PwReport[]): Verdict {
   const v: Verdict = { flaky: [], red: [...p.red] };
   const found = reruns.flatMap((r) => [...tests(r)]);
-  const againOf = (t: Target) => found.find(({ spec, test }) => spec.file === t.file && spec.line === t.line && test.projectName === t.project);
+  // By title as well as place: two tests can share a line (a loop, a helper calling test()), and the location filter re-runs both.
+  const againOf = (t: Target) => found.find(({ spec, test, path }) => spec.file === t.file && spec.line === t.line && test.projectName === t.project && [...path, spec.title].join(' › ') === t.title);
   const errorOf = (test: PwTest): string => firstLine(test.results.find((r) => r.error)?.error?.message);
   /** Each failed test: flaky when it passed on the re-run, red otherwise. */
   const flakyUnlessRed = (ts: Target[]): void => {
