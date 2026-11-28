@@ -1206,6 +1206,29 @@ describe('a drafter who leaves the room mid-draft', () => {
 		}
 		await waitUntil(() => poolOf(seat) >= 6, "the bot's picks for the seat bob left");
 	});
+
+	it('keeps picking for them after a restart forgot whose seat it was: the pod dealt it, and that record is the lobby\'s', async () => {
+		const { id, bob, seatOfBob } = twoDrafters();
+		const room = (): DraftRoom => live().rooms.find(id)!;
+		const alice = await connect(live().port, edgeHeaders('leave-alice'));
+		await joinAndSettle(alice, id);
+		const seat = seatOfBob();
+		// What a restored draft holds once someone else rejoins and the leaver never does: their seat empty,
+		// nobody remembered for it, in the draft's table and the room's seats alike.
+		const state = roomsMod.stateOf(room());
+		room().app.state = { ...state, table: { ...state.table, seats: state.table.seats.map((s) => (s.id === seat ? { ...s, occupant: null } : s)) } };
+		room().seats.seats[seat] = { ...room().seats.seats[seat]!, occupant: null };
+		room().seats.remembered = {};
+		expect(live().lobby.leave(id, bob).ok).toBe(true);
+		const poolOf = (s: number): number => roomsMod.stateOf(room()).pools[s]?.length ?? 0;
+		const aliceSeat = seatOf(room().seats, room().clients.get(alice.id)!.participantId)!;
+		for (let pick = 1; pick <= 4; pick++) {
+			await waitUntil(() => packOf(roomsMod.stateOf(room()), aliceSeat).length > 0 && poolOf(aliceSeat) === pick - 1, `alice's pack ${pick}`);
+			alice.send(pickCard(id, packOf(roomsMod.stateOf(room()), aliceSeat)[0]!.cardId));
+			await waitUntil(() => poolOf(aliceSeat) === pick, `alice's pick ${pick} to land`);
+		}
+		await waitUntil(() => poolOf(seat) >= 4, "the bot's picks for the seat bob was dealt");
+	});
 });
 
 describe('a disconnect and a reconnect inside the reservation TTL', () => {

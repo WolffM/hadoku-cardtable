@@ -674,6 +674,11 @@ export interface Lobby
 	 */
 	podDraft(roomId: string): PodDeal | null;
 	/**
+	 * Every human entrant's seat at draft `draftId`, whether or not they are still a member: `podDraft` names its
+	 * drafters and so leaves out whoever left, but the seat they were dealt is still theirs to be picked for.
+	 */
+	dealtSeats(draftId: string): ReadonlyMap<string, number>;
+	/**
 	 * The leader's pool choice (`PUT /api/rooms/:id/pod/plan`): leader only,
 	 * `lobby` phase only, and only with an ALREADY-COMPUTED `verdict` — this
 	 * method is synchronous and does no Forge/catalog I/O itself (that is the
@@ -2548,6 +2553,15 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			bots: table.flatMap((place, seat) => (place.kind === 'ai' ? [place.persona === null ? { name: `Bot ${seat}` } : { name: place.persona.name, avatarId: place.persona.avatarId }] : [])),
 			plan: room.game.plan,
 		};
+	}
+
+	dealtSeats(draftId: string): ReadonlyMap<string, number> {
+		const { roomId, pod } = podOfDraftId(draftId);
+		const room = this.#room(roomId);
+		if (room === undefined) return new Map();
+		if (room.game.podDrafts !== null) return new Map((room.game.podDrafts[pod] ?? []).map((id, seat) => [id, seat]));
+		if (pod !== 0) return new Map();
+		return new Map(podTable(room).flatMap((place, seat) => (place.kind === 'human' ? [[place.id, seat] as const] : [])));
 	}
 
 	/**
