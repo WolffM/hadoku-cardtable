@@ -1,7 +1,9 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
-import { AgentClient, WATCH_STALL_MS } from './client.js';
+import { SHARED_HOLD_MS, SHARED_SILENT_MS } from '@hadoku/host-wire';
+
+import { AgentClient, LinkGroup, WATCH_STALL_MS } from './client.js';
 
 function client() {
 	const clock = { t: 1_000_000 };
@@ -63,5 +65,111 @@ describe('AgentClient link clock', () => {
 		k.clock.t += WATCH_STALL_MS;
 		k.c.watch();
 		expect(k.lost).toEqual(['agent heartbeat lost for 11 s (window 10 s)']);
+	});
+});
+
+describe('AgentClient shared silence (hokon network stalls: 11-27 04:09Z, 05:32Z, 06:39Z; 11-28 09:33Z)', () => {
+	/** Three claws on one link group and one clock, as `placement/index.ts` makes them. */
+	function fleet() {
+		const clock = { t: 1_000_000 };
+		const logs: Record<string, unknown>[] = [];
+		const stalls: unknown[] = [];
+		const group = new LinkGroup((s) => stalls.push(s));
+		const lost: Record<string, string> = {};
+		const make = (name: string) => {
+			const c = new AgentClient({ url: `http://${name}:7621`, key: generateKeyPairSync('ed25519').privateKey, fenceMs: 10_000, now: () => clock.t, log: (e) => logs.push(e), group });
+			c.onLost((r) => (lost[name] = r));
+			return c;
+		};
+		const claws = { 'claw-8': make('claw-8'), 'claw-9': make('claw-9'), 'claw-10': make('claw-10') };
+		/** Heartbeats from these claws, as `receive` takes them. */
+		const beat = (...names: (keyof typeof claws)[]) => {
+			for (const n of names) (claws[n] as unknown as { receive(f: unknown): void }).receive({ t: 'hb', at: clock.t, jvms: [], slice: {}, draftbot: null });
+		};
+		const tick = (ms: number, beating: (keyof typeof claws)[] = []) => {
+			for (let i = 0; i < ms / 1000; i++) {
+				clock.t += 1000;
+				if (i % 2 === 1) beat(...beating);
+				for (const c of Object.values(claws)) c.watch();
+			}
+		};
+		return { clock, logs, lost, claws, beat, tick, stalls };
+	}
+
+	it('waits out a silence every claw shares, and takes them all back with nothing failed over', () => {
+		const f = fleet();
+		f.tick(40_000);
+		expect(f.lost).toEqual({});
+		expect(f.logs.filter((e) => e.evt === 'agent-silence-shared').map((e) => e.agent)).toEqual(['claw-8:7621', 'claw-9:7621', 'claw-10:7621']);
+		f.beat('claw-8', 'claw-9', 'claw-10');
+		f.tick(1000);
+		expect(f.logs.filter((e) => e.evt === 'agent-silence-ended').map((e) => [e.agent, e.silentMs])).toEqual([
+			['claw-8:7621', 40_000],
+			['claw-9:7621', 40_000],
+			['claw-10:7621', 40_000],
+		]);
+		// Named once for the whole episode, not once a claw.
+		expect(f.stalls).toEqual([
+			{ kind: 'network', phase: 'began', claws: 3, silentMs: 11_000 },
+			{ kind: 'network', phase: 'ended', claws: 3, silentMs: 40_000 },
+		]);
+		// Healthy again: a real silence after it is judged on the plain window.
+		f.tick(12_000, ['claw-9', 'claw-10']);
+		expect(f.lost).toEqual({ 'claw-8': 'agent heartbeat lost for 11 s (window 10 s)' });
+	});
+
+	it('fails over as usual once a shared silence outlasts SHARED_HOLD_MS', () => {
+		const f = fleet();
+		f.tick(SHARED_HOLD_MS);
+		expect(f.lost).toEqual({});
+		f.tick(1000);
+		expect(Object.keys(f.lost).sort()).toEqual(['claw-10', 'claw-8', 'claw-9']);
+		expect(f.lost['claw-8']).toBe(`agent heartbeat lost for ${SHARED_HOLD_MS / 1000 + 1} s (window 10 s, shared by every claw)`);
+	});
+
+	it('a claw silent alone is lost at the plain window: the others are beating', () => {
+		const f = fleet();
+		f.tick(11_000, ['claw-9', 'claw-10']);
+		expect(f.lost).toEqual({ 'claw-8': 'agent heartbeat lost for 11 s (window 10 s)' });
+	});
+
+	it('a claw still silent when the others come back gets one more window from then, not the rest of the hold', () => {
+		const f = fleet();
+		f.tick(30_000);
+		f.beat('claw-9', 'claw-10');
+		f.tick(10_000, ['claw-9', 'claw-10']);
+		expect(f.lost).toEqual({});
+		f.tick(1000, ['claw-9', 'claw-10']);
+		expect(f.lost).toEqual({ 'claw-8': 'agent heartbeat lost for 41 s (window 10 s, shared by every claw)' });
+	});
+
+	it('the claw that crossed the window first counts the others as sharing once they missed two beats (11-28 09:33:47Z: claw-9 and claw-10 at 5 s)', () => {
+		const f = fleet();
+		f.tick(4000, ['claw-9', 'claw-10']);
+		// claw-8 has been silent since the start; claw-9/10 go quiet now.
+		f.tick(SHARED_SILENT_MS);
+		f.tick(10_000 - 4000 - SHARED_SILENT_MS + 1000);
+		expect(f.lost).toEqual({});
+	});
+
+	it('one claw alone has no one to share a silence with', () => {
+		const clock = { t: 0 };
+		const c = new AgentClient({ url: 'http://claw-8:7621', key: generateKeyPairSync('ed25519').privateKey, fenceMs: 10_000, now: () => clock.t, group: new LinkGroup() });
+		const lost: string[] = [];
+		c.onLost((r) => lost.push(r));
+		for (let i = 0; i < 11; i++) {
+			clock.t += 1000;
+			c.watch();
+		}
+		expect(lost).toEqual(['agent heartbeat lost for 11 s (window 10 s)']);
+	});
+
+	it("names this process's own stall once, however many links saw it", () => {
+		const f = fleet();
+		f.tick(2000, ['claw-8', 'claw-9', 'claw-10']);
+		f.clock.t += 17_000;
+		for (const c of Object.values(f.claws)) c.watch();
+		expect(f.stalls).toEqual([{ kind: 'loop', phase: 'began', claws: 3, silentMs: 17_000 }]);
+		expect(f.lost).toEqual({});
 	});
 });

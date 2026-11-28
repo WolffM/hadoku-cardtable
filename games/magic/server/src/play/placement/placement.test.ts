@@ -524,7 +524,7 @@ process.exit(1);`,
 });
 
 describe('the backstop', () => {
-	const calm = { fresh: true, eligible: 2, forced: false };
+	const calm = { fresh: true, eligible: 2, forced: false, shared: false };
 	const out = { ...calm, eligible: 0 };
 	const run = (inputs: (typeof calm)[], from: BackstopState = BACKSTOP_IDLE) => {
 		let s = from;
@@ -541,6 +541,13 @@ describe('the backstop', () => {
 		expect(backstopStep({ promoted: true, why: '' }, { ...calm, eligible: 1 }).state.why).toBe('1 claw can take matches again');
 		// Fewer claws than slices.min is the converger's shortfall to replace, not a trigger.
 		expect(run([{ ...calm, eligible: 1 }, { ...calm, eligible: 1 }])).toEqual(['down', 'down']);
+	});
+
+	it('a silence every claw shares holds: hokon is the host that stalled, and the claws are coming back (2026-11-27 04:09Z)', () => {
+		const stalled = { ...out, shared: true };
+		expect(run([stalled, stalled, out])).toEqual(['down', 'down', 'promote']);
+		// Already promoted, it stays up: its live matches are not moved.
+		expect(run([out, stalled, calm])).toEqual(['promote', 'up', 'demote']);
 	});
 
 	it('an unreadable fleet status holds: it neither promotes nor demotes', () => {

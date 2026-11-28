@@ -17,7 +17,7 @@ import { pushDraftbot, pushRuntime, type PackedRuntime } from '@hadoku/game-serv
 import { AgentClient, WATCH_STALL_MS } from '@hadoku/game-server/play/remote/client';
 import { RemoteJvmLauncher } from '@hadoku/game-server/play/remote/launcher';
 import type { JvmTransport } from '@hadoku/game-server/play/jvm-transport';
-import { DRAFTBOT_MB, DRAFTBOT_PATH, EMPTY_SHA, RELAY_PROTOCOL, sha256Hex, signRequest, type DraftbotHealth } from '@hadoku/host-wire';
+import { AGENT_FENCE_MS, DRAFTBOT_MB, DRAFTBOT_PATH, EMPTY_SHA, FENCE_MS, RELAY_PROTOCOL, SHARED_HOLD_MS, sha256Hex, signRequest, type DraftbotHealth } from '@hadoku/host-wire';
 import { Agent } from './agent.ts';
 import { DraftbotService } from './draftbot.ts';
 import { Cgroups } from './cgroups.ts';
@@ -156,14 +156,14 @@ function systemdCanPlaceMain(unit: string): boolean {
 const clock = { t: Date.now() };
 const now = (): number => clock.t;
 
-async function startAgent(home: string, cg = fakeCgroups(), fenceMs = 10_000, log: Log = () => {}): Promise<{ agent: Agent; port: number; cg: typeof cg }> {
+async function startAgent(home: string, cg = fakeCgroups(), fenceMs: number | 'default' = 10_000, log: Log = () => {}): Promise<{ agent: Agent; port: number; cg: typeof cg }> {
 	const agent = new Agent({
 		home,
 		port: 0,
 		host: '127.0.0.1',
 		publicKey,
 		version: 'test',
-		fenceMs,
+		...(fenceMs === 'default' ? {} : { fenceMs }),
 		heartbeatMs: 100,
 		cgroupRoot: cg.root,
 		ownCgroupFile: cg.ownCgroupFile,
@@ -298,6 +298,26 @@ describe('host agent', () => {
 		await until('killed', () => !pidAlive(pid));
 		await until('exit recorded', () => agent.jvms.get('h1')!.exited);
 		expect(JSON.parse(readFileSync(join(agent.jvms.get('h1')!.dir, 'exit.json'), 'utf8')).reason).toMatch(/^fenced: no word from the coordinator for 11 s \(window 10 s\)$/);
+	});
+
+	it('by default rides out a coordinator that goes quiet for longer than the coordinator waits on a shared silence, and fences after (hokon stalls, 2026-11-27)', async () => {
+		expect(AGENT_FENCE_MS).toBeGreaterThan(SHARED_HOLD_MS + FENCE_MS);
+		const { agent, port } = await startAgent(scratch(), fakeCgroups(), 'default');
+		const { client, launcher } = await coordinator(port, fakeRuntime());
+		const t = collect(launcher.launch('h1', { xmxMb: 1000 }));
+		await until('warm', () => t.lines.length === 1);
+		const pid = agent.jvms.get('h1')!.pid;
+		client.close();
+		await until('relay closed', () => !(agent as unknown as { session: unknown }).session);
+		// hokon's longest stall on 11-27 was 17 s; a whole-network one waits out SHARED_HOLD_MS.
+		clock.t += SHARED_HOLD_MS + FENCE_MS;
+		agent.tick();
+		expect(fenced(agent)).toBe(false);
+		expect(pidAlive(pid)).toBe(true);
+		clock.t += AGENT_FENCE_MS - SHARED_HOLD_MS - FENCE_MS + 1000;
+		agent.tick();
+		await until('killed', () => !pidAlive(pid));
+		expect(JSON.parse(readFileSync(join(agent.jvms.get('h1')!.dir, 'exit.json'), 'utf8')).reason).toBe(`fenced: no word from the coordinator for ${AGENT_FENCE_MS / 1000 + 1} s (window ${AGENT_FENCE_MS / 1000} s)`);
 	});
 
 	it('holds its JVMs past the window for a coordinator that said it is restarting, across its own restart, until the next coordinator', async () => {
