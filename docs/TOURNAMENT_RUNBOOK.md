@@ -67,7 +67,7 @@ Measured on scratch claws, 2026-11-28 (`scripts/stress/hosting/failover.spec.ts`
 | --- | --- | --- | --- |
 | A claw's agent dies or its link goes silent | 🚨 **Failover: claw-N** — moved K: m-… → claw-M (restored at the start of turn T) | ~9 s (the 10 s heartbeat window) | the **start of the current turn**, on another claw |
 | A match's JVM dies | 🚨 **Failover** as above | under 1 s | start of the current turn, another claw |
-| The server froze for >10 s (hokon busy) | 🔁 **Fenced: claw-N** — "this server was silent, not the claw" | as long as the freeze, plus <1 s | start of the current turn, usually the same claw |
+| The server froze for >90 s (hokon busy) | 🔁 **Fenced: claw-N** — "this server was silent, not the claw" | as long as the freeze, plus <1 s | start of the current turn, usually the same claw |
 | The server restarted (deploy, pm2) or crashed | nothing, or the deploy | a few seconds; "Reconnecting…" | **exactly where it was** (nothing is rewound) |
 | A claw's disk filled | nothing | none | the game goes on |
 
@@ -123,10 +123,9 @@ players, and award the game if it mattered.
 
 hokon runs the site and talks to every claw. When hokon stalls (its disk or memory is overloaded),
 **every table freezes at the same moment**, the draft and lobby too. On 2026-11-27/28 it happened
-about a dozen times, for 3 to 40 s each. Once branch `pre-hostguard` has landed and
-the claws' agents are reinstalled, a stall costs nothing but the wait. (Until the agents are
-reinstalled, a freeze over 10 s still rewinds each game to the start of its turn: the **Fenced** row
-in the failover table.)
+about a dozen times, for 3 to 40 s each. Since 2026-11-28 (pre-hostguard, 1a2758d07, on
+claw-8/9/10 with a 90 s fence), a stall under 90 s costs nothing but the wait; only a longer one is
+the **Fenced** row in the failover table.
 
 | How long hokon stalls | What players see | Where the game comes back | Discord |
 | --- | --- | --- | --- |
