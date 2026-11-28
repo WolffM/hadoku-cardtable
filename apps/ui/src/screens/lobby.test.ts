@@ -25,12 +25,13 @@
  * file or `environment` stays `node` and every DOM call throws.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 
 import { App } from '../App.tsx';
 import { currentRoute } from '@hadoku/game-ui/screens/route.ts';
+import { loadRoomChrome } from '@hadoku/game-ui/room/RoomShell.tsx';
 import type { DraftTransport } from '@hadoku/magic-ui/draft/socket.ts';
 
 /*
@@ -153,6 +154,11 @@ describe('the front door', () => {
 /* ── the link somebody was already sent ──────────────────────────────── */
 
 describe('a legacy pod link', () => {
+  // The room holds its screen back until watchparty's room chrome chunk is here (`RoomShell.tsx`), and
+  // the redirect is an effect of that screen. Loaded first, so the test times the redirect, not a cold
+  // transform of the chunk: under a land's full run (load ~150, 2026-11-26) that took past waitFor's 5 s.
+  beforeAll(() => loadRoomChrome().then(() => undefined), 60_000);
+
   it('redirects #/draft/<id> to that room and renders no pod of its own', async () => {
     // Those links are in people's chat windows. A draft id and a room id are
     // one id now, so the redirect is the whole translation — and if the id
