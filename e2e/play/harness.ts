@@ -110,6 +110,7 @@ import { FRIENDS } from '../identities.ts';
 import { PLAY_EDGE_PORT, PLAY_SERVER_PORT } from '../ports.ts';
 import { createPrefsRowsStandIn } from '../../games/magic/server/src/http/prefsRowsStandIn.ts';
 import { PLAY_SEED } from '../playSeed.ts';
+import { startClaws } from './claws.ts';
 import { closeStaleFriends } from './open-friends.ts';
 
 const ROOT = resolve(import.meta.dirname, '..', '..');
@@ -599,8 +600,12 @@ async function waitForHealth(server: ChildProcess): Promise<void> {
  * `env`: server variables a spec needs on top of the stack's own — `CARDTABLE_PLAY_REJOIN_GRACE_MS`,
  * say, for a spec that waits for a game nobody is at to be parked. Kept across `restart`.
  */
-export async function startPlayStack(forge: { jar: string; res: string }, opts: { env?: Record<string, string> } = {}): Promise<PlayStack> {
+export async function startPlayStack(forge: { jar: string; res: string }, given: { env?: Record<string, string> } = {}): Promise<PlayStack> {
   const begun = Date.now();
+  // `CARDTABLE_E2E_CLAWS=1`: this stack's matches on two scratch claws (`claws.ts`) rather than local
+  // JVMs, so any spec can be run on the claw path. Only on a lease-drained claw, never in CI or on hokon.
+  const claws = process.env.CARDTABLE_E2E_CLAWS === '1' && given.env?.CARDTABLE_PLAY_HOSTS === undefined ? await startClaws() : null;
+  const opts = { ...given, env: { ...claws?.env, ...given.env } };
   // The previous test's pages, if it left them open — see `open-friends.ts`.
   const closed = await closeStaleFriends();
   if (closed > 0) console.log(`[play-stack] closed ${closed} browser context(s) left open by an earlier test`);
@@ -841,6 +846,7 @@ export async function startPlayStack(forge: { jar: string; res: string }, opts: 
     // Only now: while the server was up, the JVMs it means to keep are exactly
     // what this would have killed.
     if (options.reap !== false) reap();
+    await claws?.stop();
     assertStackInvariants(serverLogFile);
   };
 
