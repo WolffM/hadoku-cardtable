@@ -16,6 +16,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 
+import { isPodAi } from '../packages/shared/src/pod.ts';
 import { door } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
@@ -106,7 +107,7 @@ test(titled('an operator who neither leads nor plays replaces a no-show, restart
     expect((await call(wife, origin, 'POST', `/rooms/${roomId}/seats/bot`, { seat: 3 })).status, 'an operator, from outside the room').toBe(200);
     r = await room();
     console.log(`[admin] seats after the operator's bot: ${JSON.stringify(r.game.pod.seats.slice(0, 4))}`);
-    expect(r.game.pod.seats[3]?.memberId.startsWith('ai:'), 'the no-show’s seat is the AI’s').toBe(true);
+    expect(isPodAi(r.game.pod.seats[3]?.memberId ?? ''), 'the no-show’s seat is the AI’s').toBe(true);
     for (const e of [bob, carol, third]) expect((await call(e, origin, 'POST', `/rooms/${roomId}/ready`, { ready: true })).status).toBe(200);
     await expect.poll(async () => (await room()).game.pod.phase, { timeout: UI_TIMEOUT, message: 'the field locks with the AI in' }).toBe('rounds');
     r = await room();
@@ -114,7 +115,7 @@ test(titled('an operator who neither leads nor plays replaces a no-show, restart
     const tableOf = (who: string) => r.tables.find((t) => t.id === r.game.pod.pairings.find((p) => p.players.includes(who))!.tableId)!;
     const carols = tableOf(carolId);
     const bobs = tableOf(bobId);
-    expect(r.game.pod.pairings.find((p) => p.tableId === carols.id)!.players.some((x) => x.startsWith('ai:')), 'carol plays the AI').toBe(true);
+    expect(r.game.pod.pairings.find((p) => p.tableId === carols.id)!.players.some(isPodAi), 'carol plays the AI').toBe(true);
     expect(bobs.players.map((p) => p.memberId).sort()).toEqual([bobId, thirdId].sort());
 
     // A member refused every tool, a non-member member-tier caller told there is no such room.
