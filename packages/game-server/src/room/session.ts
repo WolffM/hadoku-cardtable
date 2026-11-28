@@ -123,7 +123,7 @@ export function attachSessions(io: SocketIOServer, deps: SessionDeps): SessionHa
 			}
 			const decision = claims.claim(keyOf(participantId, room), tabId, socket.id, { take: request.take === true });
 			if (decision.type === 'held') {
-				log({ evt: 'session-held', room, participantId, socketId: socket.id, take: request.take === true });
+				log({ evt: 'session-held', room, participantId, socketId: socket.id, take: request.take === true, tabId: tabId.slice(0, 8), holderTabId: decision.holderTabId.slice(0, 8), holderSockets: claims.connections(keyOf(participantId, room)).map((id) => `${id}:${io.sockets.sockets.get(id)?.conn.transport.name ?? 'gone'}`), idleMs: Date.now() - decision.lastSeen });
 				answer({ room, status: 'held' });
 				return;
 			}
@@ -152,7 +152,7 @@ export function attachSessions(io: SocketIOServer, deps: SessionDeps): SessionHa
 			if (!deps.isPlayer(room, participantId)) return true;
 			const decision = claims.claim(keyOf(participantId, room), tabId, socket.id);
 			if (decision.type === 'held') {
-				log({ evt: 'session-elsewhere', room, participantId, socketId: socket.id });
+				log({ evt: 'session-elsewhere', room, participantId, socketId: socket.id, tabId: tabId.slice(0, 8), holderTabId: decision.holderTabId.slice(0, 8), holderSockets: claims.connections(keyOf(participantId, room)).map((id) => `${id}:${io.sockets.sockets.get(id)?.conn.transport.name ?? 'gone'}`), idleMs: Date.now() - decision.lastSeen });
 				return false;
 			}
 			if (decision.type === 'taken') took(room, participantId, socket, decision);
