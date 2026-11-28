@@ -574,8 +574,8 @@ export interface Lobby
 	/**
 	 * The leader disqualifies an entrant of a pod whose rounds are under way, seated or watching (the
 	 * operator, 2026-10-30: *"the room leader is the admin"*). Their current match is forfeited as by
-	 * `dropTableMatch`, every later pairing of theirs is a bye for its opponent (`#pairRound`), and the
-	 * standings keep their record, marked (`PodView.dropped`).
+	 * `dropTableMatch`, they are paired no more (`#pairRound`), and the standings keep their record,
+	 * marked (`PodView.dropped`).
 	 */
 	dqPlayer(roomId: string, leaderId: string, entrantId: string, override?: boolean): DqPlayerResult;
 	/**
@@ -1819,8 +1819,8 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 
 	/**
 	 * `entrantId` is out of the pod's rounds — disqualified (`dqPlayer`) or gone from the room (`leave`):
-	 * marked dropped, and their current match, still under way, forfeited (`#forfeit`). Later pairings
-	 * of theirs are byes (`#pairRound`).
+	 * marked dropped, and their current match, still under way, forfeited (`#forfeit`). Later rounds
+	 * do not pair them (`#pairRound`).
 	 */
 	#dropEntrant(room: RoomRecord, pod: PodRecord, entrantId: string): { tableId: string | null; matchIds: string[] } {
 		// Marked first: a forfeit that finishes the round pairs the next one, which must already know.
@@ -2016,8 +2016,11 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 	 * game… rather than spin up an AI-vs-AI Forge match"*, so the bracket shows
 	 * a real score for every pairing. With no `GameHooks.playBotGame` wired
 	 * (a server without Forge, most tests) or in a seeded testing room such a
-	 * pairing is still settled at once (`settledBotGame`), and so is a
-	 * disqualified entrant's.
+	 * pairing is still settled at once (`settledBotGame`).
+	 *
+	 * A dropped entrant (`PodRecord.dropped`: left, or disqualified) is not paired at all. Their results
+	 * stand in the standings, but a pairing of theirs would be a free win for its opponent: a second bye
+	 * in the round, and the same player could take one round after round.
 	 */
 	#pairRound(
 		room: RoomRecord,
@@ -2025,8 +2028,9 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		results: MatchResult[],
 		round: number,
 	): { pairings: { tableId: string; players: [string, string] }[]; settled: MatchResult[]; bots: [string, string][]; bye: string | null } {
+		const dropped = new Set(room.game.pod?.dropped ?? []);
 		const paired = pairRound({
-			players,
+			players: players.filter((p) => !dropped.has(p.id)),
 			results,
 			round,
 			...(room.game.historicalStructure === undefined ? {} : { structure: room.game.historicalStructure, seed: room.id }),
@@ -2034,13 +2038,8 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		const pairings: { tableId: string; players: [string, string] }[] = [];
 		const settled: MatchResult[] = [];
 		const bots: [string, string][] = [];
-		const dropped = new Set(room.game.pod?.dropped ?? []);
 		for (const [a, b] of paired.tables) {
-			// A disqualified entrant's pairing is its opponent's bye (`dqPlayer`); two of them, nothing.
-			if (dropped.has(a) || dropped.has(b)) {
-				const other = dropped.has(a) ? b : a;
-				if (!dropped.has(other)) settled.push({ round, playerA: other, playerB: null, gamesA: 2, gamesB: 0 });
-			} else if (isAiEntrant(a) && isAiEntrant(b)) {
+			if (isAiEntrant(a) && isAiEntrant(b)) {
 				// A seeded testing room's rounds are a fixture, never played (`#archive` keeps them out of the stats too).
 				if (this.#hooksFor(room.gameType).playBotGame === undefined || room.testing === true) settled.push(settledBotGame(round, a, b));
 				else bots.push([a, b]);
@@ -2048,7 +2047,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 				pairings.push({ tableId: this.#newPodTable(room, a, b), players: [a, b] });
 			}
 		}
-		return { pairings, settled, bots, bye: paired.bye !== null && dropped.has(paired.bye) ? null : paired.bye };
+		return { pairings, settled, bots, bye: paired.bye };
 	}
 
 	/**
@@ -2723,8 +2722,8 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 	 */
 	#dealPodRounds(room: RoomRecord, entrants: string[]): void {
 		const rounds = roundsFor(entrants.length);
-		// An entrant who left the room before the deal (mid-draft) is locked in and out from round 1: their
-		// pairings are their opponents' wins (`#pairRound`), never a table that waits for them.
+		// An entrant who left the room before the deal (mid-draft) is locked in and out from round 1: never
+		// paired (`#pairRound`), so no table waits for them and nobody wins a free match off them.
 		const gone = entrants.filter((id) => !isAiEntrant(id) && !room.members.some((m) => m.id === id));
 		const dropped = gone.length === 0 ? {} : { dropped: gone };
 		room.game.pod = { humans: entrants, round: 1, rounds, results: [], pairings: [], bye: null, ...dropped };

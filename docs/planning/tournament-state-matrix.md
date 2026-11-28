@@ -52,8 +52,8 @@ to act on in that phase (no table, no game), and nothing changes.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | tab closed, back inside 30 s | ✓ seat kept | ✓ draft seat held | ✓ | ✓ same match | ✓ | ✓ | ✓ |
 | tab closed for minutes | ✓ pod seat kept | ✓ seat held; picks wait for them unless the **pick timer** is on (Sunday note 1) | **FIXED** (bug 2) kept their table seat | ✓ (a live match holds the seat) | **FIXED** (bug 2) | **FIXED** (bug 2) | ✓ |
-| leaves for good | ✓ seat freed | **FIXED** (bugs 1, 5): seat picked by the draft bot at once; dropped at the deal, opponent wins round 1 | ✓ dropped, match forfeited 2–0 | ✓ dropped, game let go, match forfeited | ✓ | ✓ pod ends, archived | ✓ named in the standings |
-| DQ by the leader | refused (`no-pod`): remove the seat instead | refused until the draft ends (workaround below) | ✓ dropped, match conceded | ✓ their game conceded | ✓ their done match stands, byes after | ✓ | refused (`no-pod`) |
+| leaves for good | ✓ seat freed | **FIXED** (bugs 1, 5): seat picked by the draft bot at once; dropped at the deal, never paired | ✓ dropped, match forfeited 2–0 | ✓ dropped, game let go, match forfeited | ✓ | ✓ pod ends, archived | ✓ named in the standings |
+| DQ by the leader | refused (`no-pod`): remove the seat instead | refused until the draft ends (workaround below) | ✓ dropped, match conceded | ✓ their game conceded | ✓ their done match stands, never paired again | ✓ | refused (`no-pod`) |
 | a player drops their table (Concede match) | — | — | ✓ a loss, stays in | ✓ | ✓ | ✓ | — |
 | the leader resets a table's game | — | — | refused (`no-game`) | ✓ score and seats stand, the next start replays the game | ✓ (a live table) | ✓ | — |
 | the leader resets the whole room | ✓ | refused (`pod-under-way`) | refused | refused | refused | refused | refused |
@@ -69,8 +69,8 @@ both people and bots until bug 3.
 
 1. **A drafter who left mid-draft was dealt a round-1 table.** The pod's seats keep a drafter once the
    draft is dealt, so `#dealPodRounds` paired them like anyone. Their opponent's table waited forever on
-   nobody, and only a DQ cleared it. Now an entrant gone before the deal is dropped at it: their pairing is
-   the opponent's win, and they are named in the standings.
+   nobody, and only a DQ cleared it. Now an entrant gone before the deal is dropped at it, and they are
+   named in the standings (pairing them is bug 6's).
 2. **A paired player away past the 30 s seat window lost their pod-table seat.** `releaseAbandonedSeats`
    freed a seat at a table with no game yet (a player closing the tab while building). Nothing gave it back,
    and any member could sit in it. Now a pod pairing's table keeps its players' seats, and `sit` refuses
@@ -89,6 +89,11 @@ both people and bots until bug 3.
    default). Their seat had nobody to pick for it. Now a dealt drafter no longer in the room is on a
    zero-length deadline, timer or not, and the draft bot picks for them at once. If they come back before
    the draft ends, the seat waits for them again.
+6. **A dropped entrant was still paired, and each pairing was a free 2–0 for their opponent.** That is a
+   second bye in the round, and the same player could take one round after round (claw, `9p leavers`: two
+   players had two free wins each). Every leave and DQ cell of the 5, 7 and 9-human fields broke the new
+   invariant "one free win per round at most". Now `#pairRound` leaves dropped entrants out of the pairing:
+   their results stand, an odd remainder gets the one bye.
 
 ### The known leftover from wtourney: a leaver shown as a raw id
 
@@ -135,6 +140,10 @@ it in every cell, a restart included, with the real `attachPeople` sweep.
   makes the room's own read join them again, so the "leaver" was an AFK drafter (prove5, 2 of 3). The real
   Leave goes home as it answers. Rejected: having the room screen stop joining once its viewer has left.
   That join is how an invite link works, and the real button never hits it.
+
+- **A dropped entrant (left or DQ) is paired no more** (bug 6). Rejected: keeping the old "their pairing is
+  the opponent's win". No ruling asked for it (11-24's ruling keeps only a bye the DQ'd player already held),
+  and it hands out extra byes, unevenly. Standard Swiss removes a dropped player from the pairings.
 
 ## The claw e2e for Sunday
 

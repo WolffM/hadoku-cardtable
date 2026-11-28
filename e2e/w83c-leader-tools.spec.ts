@@ -173,7 +173,7 @@ test(titled('a watching leader resets a game (the score stands, a fresh game fol
     const lost = r.game.pod.results.find((x) => x.round === 1 && (x.playerA === bobId || x.playerB === bobId))!;
     expect(lost.playerA === bobId ? [lost.gamesA, lost.gamesB] : [lost.gamesB, lost.gamesA], 'a loss').toEqual([0, 2]);
 
-    // Carol finishes round 1; round 2 gives Bob no table — his opponent's pairing is a bye.
+    // Carol finishes round 1; round 2 does not pair Bob, and the odd field left gives one bye.
     await carol.page.getByTestId('live-concede').click();
     await carol.page.getByTestId('live-concede-yes').click();
     await expect.poll(async () => (await room()).game.pod.round, { timeout: UI_TIMEOUT }).toBeGreaterThan(1);

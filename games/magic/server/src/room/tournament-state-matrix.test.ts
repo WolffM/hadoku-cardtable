@@ -297,6 +297,11 @@ function invariants(pod: Pod, label: string): void {
 		expect(met.has(key), `${label}: ${key} meet twice`).toBe(false);
 		met.add(key);
 	}
+	// A round has one free win at most, its bye: whoever is out is out of the pairing, not a second bye for their opponent.
+	for (let r = 1; r <= round; r++) {
+		const free = p.results.filter((x) => x.round === r && x.playerB === null).map((x) => x.playerA);
+		expect(free.length, `${label}: round ${r} gives ${free.length} free wins (${free.join(', ')})`).toBeLessThanOrEqual(1);
+	}
 	// Nobody is stranded: a live table's players are members, seated at it.
 	for (const pairing of liveTables(pod)) {
 		for (const id of pairing.players) {
