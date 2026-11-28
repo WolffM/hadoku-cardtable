@@ -247,15 +247,15 @@ describe.skipIf(!available.ok)(title('Bloomburrow mechanics do what the card say
 	it('gift a card: Wear Down promised destroys two, the opponent draws, and Jolly Gerbils draws for the giver', { timeout: T }, async () => {
 		await withBoard(
 			2911,
-			{ hand: ['Wear Down'], battlefield: [...n('Forest', 2), 'Jolly Gerbils'], aiBattlefield: ['Mind Stone', 'Intangible Virtue', 'Plains'] },
+			{ hand: ['Wear Down'], battlefield: [...n('Forest', 2), 'Jolly Gerbils'], aiBattlefield: ['Ornithopter', 'Intangible Virtue', 'Plains'] },
 			[PROMISE],
 			async (s) => {
-				const stone = one(s, 'ai', 'Battlefield', 'Mind Stone');
+				const thopter = one(s, 'ai', 'Battlefield', 'Ornithopter');
 				const virtue = one(s, 'ai', 'Battlefield', 'Intangible Virtue');
 				const myHand = cards(s, 'me', 'Hand').length;
 				const theirHand = cards(s, 'ai', 'Hand').length;
-				await cast(s, 'Wear Down', () => names(s, 'ai', 'Graveyard').length === 2, { picks: [{ when: /Select target artifact or enchantment/, ids: [stone.id, virtue.id] }] });
-				expect(names(s, 'ai', 'Graveyard')).toEqual(['Intangible Virtue', 'Mind Stone']);
+				await cast(s, 'Wear Down', () => names(s, 'ai', 'Graveyard').length === 2, { picks: [{ when: /Select target artifact or enchantment/, ids: [thopter.id, virtue.id] }] });
+				expect(names(s, 'ai', 'Graveyard')).toEqual(['Intangible Virtue', 'Ornithopter']);
 				expect(cards(s, 'ai', 'Hand').length, 'the gift: the opponent drew a card').toBe(theirHand + 1);
 				expect(cards(s, 'me', 'Hand').length, 'Wear Down left, Jolly Gerbils drew one').toBe(myHand);
 			},
@@ -265,14 +265,14 @@ describe.skipIf(!available.ok)(title('Bloomburrow mechanics do what the card say
 	it('gift a card refused: Wear Down destroys one, nobody draws', { timeout: T }, async () => {
 		await withBoard(
 			2912,
-			{ hand: ['Wear Down'], battlefield: [...n('Forest', 2), 'Jolly Gerbils'], aiBattlefield: ['Mind Stone', 'Intangible Virtue', 'Plains'] },
+			{ hand: ['Wear Down'], battlefield: [...n('Forest', 2), 'Jolly Gerbils'], aiBattlefield: ['Ornithopter', 'Intangible Virtue', 'Plains'] },
 			[],
 			async (s) => {
-				const stone = one(s, 'ai', 'Battlefield', 'Mind Stone');
+				const thopter = one(s, 'ai', 'Battlefield', 'Ornithopter');
 				const theirHand = cards(s, 'ai', 'Hand').length;
 				const myHand = cards(s, 'me', 'Hand').length;
-				await cast(s, 'Wear Down', () => names(s, 'ai', 'Graveyard').length === 1, { picks: [{ when: /Select target artifact or enchantment/, ids: [stone.id] }] });
-				expect(names(s, 'ai', 'Graveyard')).toEqual(['Mind Stone']);
+				await cast(s, 'Wear Down', () => names(s, 'ai', 'Graveyard').length === 1, { picks: [{ when: /Select target artifact or enchantment/, ids: [thopter.id] }] });
+				expect(names(s, 'ai', 'Graveyard')).toEqual(['Ornithopter']);
 				expect(names(s, 'ai', 'Battlefield')).toContain('Intangible Virtue');
 				expect(cards(s, 'ai', 'Hand').length).toBe(theirHand);
 				expect(cards(s, 'me', 'Hand').length, 'no gift, so Jolly Gerbils drew nothing').toBe(myHand - 1);
@@ -341,8 +341,12 @@ describe.skipIf(!available.ok)(title('Bloomburrow mechanics do what the card say
 			[ability(/Additional cost: Forage/)],
 			async (s) => {
 				const giant = one(s, 'ai', 'Battlefield', 'Hill Giant');
+				const food = one(s, 'me', 'Battlefield', 'Food Token');
 				await cast(s, 'Feed the Cycle', () => names(s, 'ai', 'Graveyard').includes('Hill Giant') && count(s, 'me', 'Battlefield', 'Food Token') === 0, {
-					picks: [{ when: /Select target creature or planeswalker/, ids: [giant.id] }],
+					picks: [
+						{ when: /Select target creature or planeswalker/, ids: [giant.id] },
+						{ when: /Select Food to sacrifice/, ids: [food.id] },
+					],
 					bars: [{ when: /Sacrifice Food/, yes: true }],
 				});
 				expect(cards(s, 'me', 'Exile'), 'the Food paid it, not the graveyard').toHaveLength(0);
