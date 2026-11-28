@@ -80,7 +80,10 @@ graveyards, exile, library order).
    the table still says playing: ⋯ → **Restart turn**; refused or no snapshot → **Reset game** (the same
    game from its start, the series score stands). Never award a result nobody played out unless both
    players agree (**Game to ‹player›**).
-4. **The same claw keeps failing:** it is already quarantined (no new matches) until it passes a
+4. **A player sees "Play here instead?" on the only tab they have open** (seen once, right after a
+   server restart, on a player whose game had been re-attached): they press **Yes**; it takes the room
+   back to that tab and nothing is lost.
+5. **The same claw keeps failing:** it is already quarantined (no new matches) until it passes a
    canary. Nothing to do on Sunday; note the alert times for the operator.
 
 **What can be lost in a turn-start restore**, in Bloomburrow terms: this turn's plays (above), an
