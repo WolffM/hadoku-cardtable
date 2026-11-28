@@ -9,7 +9,7 @@
 import { expect, test } from '@playwright/test';
 
 import { deckPileTop } from './deckBuilder.ts';
-import { anchorableCardIn, cardPointIn, emptyPointIn, openSoloDeckEditor, surfaceTransform } from './w90e-editor.ts';
+import { anchoredWheelIn, cardPointIn, emptyPointIn, openSoloDeckEditor, surfaceTransform } from './w90e-editor.ts';
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -47,21 +47,20 @@ test('one inspector, a zoom pill, ctrl+wheel and step zoom, a mouse pans only fr
   expect(await surfaceTransform(page, 'main-grid')).toEqual({ x: 0, y: 0, zoom: 1 });
 
   // ctrl+wheel zooms, and the card under the pointer stays under it. The card is one the pan's clamp
-  // leaves alone at this zoom: where the clamp binds it wins over the anchor (`anchorableCardIn`).
-  // 60 px of wheel is e^0.6, `pan.ts`'s `WHEEL_SENSITIVITY` of 100 px an e-fold.
-  const wheelZoom = Math.exp(60 / 100);
-  const anchor = await anchorableCardIn(page, 'main-grid', wheelZoom);
+  // leaves alone at this zoom: where the clamp binds it wins over the anchor, and how much of a deck
+  // it leaves free depends on the deck the draft dealt (`anchoredWheelIn`).
+  const anchor = await anchoredWheelIn(page, 'main-grid');
   const before = await anchor.card.boundingBox();
   if (before === null) throw new Error('no pile card to measure');
   const under = { x: anchor.x, y: anchor.y };
   const name = await anchor.card.getAttribute('aria-label');
   await page.mouse.move(under.x, under.y);
   await page.keyboard.down('Control');
-  await page.mouse.wheel(0, -60);
+  await page.mouse.wheel(0, -anchor.wheel);
   await page.keyboard.up('Control');
   await expect(pill).not.toHaveText('100%');
   await expect(pill).toBeEnabled();
-  expect((await surfaceTransform(page, 'main-grid')).zoom, 'one wheel of 60 px zoomed by e^0.6').toBeCloseTo(wheelZoom, 3);
+  expect((await surfaceTransform(page, 'main-grid')).zoom, `one wheel of ${anchor.wheel} px zoomed by e^${anchor.wheel / 100}`).toBeCloseTo(anchor.zoom, 3);
   expect((await anchor.card.boundingBox())!.width, 'the card drew bigger').toBeGreaterThan(before.width * 1.05);
   const stillUnder = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-testid="card"]')?.getAttribute('aria-label') ?? null, under);
   expect(stillUnder, 'the zoom kept the card under the pointer').toBe(name);

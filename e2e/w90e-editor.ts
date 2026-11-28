@@ -126,8 +126,28 @@ export async function visibleCardIn(cards: Locator, viewportTestId: string): Pro
  * no top card may qualify; a strip higher up does. Names drawn twice (a basic land) are skipped,
  * so landing on the wrong copy can never pass. The point is measured from the viewport's content
  * box, where the surface's offset is.
+ *
+ * How deep the clamp leaves a point free depends on the deck: zoomed by `z`, a point `a` down a
+ * surface `content` tall in a viewport `view` tall is free while `a ≤ (content·z − view) / (z − 1)`.
+ * A solo draft's deck is random, and a flat one (its tallest pile short) left no strip free at one
+ * 60 px wheel: two e2e-nightly reds on 11-28 (46128545777, 46132052023) while main passed. So the
+ * wheel is the smallest of `WHEELS` this deck leaves a card free at, never one fixed step.
  */
-export async function anchorableCardIn(page: Page, viewportTestId: string, zoom: number): Promise<{ card: Locator; x: number; y: number }> {
+export const WHEELS = [60, 80, 100] as const;
+
+/** `pan.ts`'s `WHEEL_SENSITIVITY`: 100 px of ctrl+wheel is an e-fold of zoom. */
+export const wheelZoom = (px: number): number => Math.exp(px / 100);
+
+export async function anchoredWheelIn(page: Page, viewportTestId: string): Promise<{ wheel: number; zoom: number; card: Locator; x: number; y: number }> {
+  for (const wheel of WHEELS) {
+    const zoom = wheelZoom(wheel);
+    const anchor = await anchorableCardAt(page, viewportTestId, zoom);
+    if (anchor !== null) return { wheel, zoom, ...anchor };
+  }
+  throw new Error(`${viewportTestId}: every drawn card is where a zoom of up to ${wheelZoom(WHEELS[WHEELS.length - 1])} is clamped`);
+}
+
+async function anchorableCardAt(page: Page, viewportTestId: string, zoom: number): Promise<{ card: Locator; x: number; y: number } | null> {
   const found = await page.getByTestId(viewportTestId).evaluate((el, z) => {
     const surface = el.firstElementChild as HTMLElement;
     const s = getComputedStyle(el);
@@ -152,6 +172,6 @@ export async function anchorableCardIn(page: Page, viewportTestId: string, zoom:
     }
     return null;
   }, zoom);
-  if (found === null) throw new Error(`${viewportTestId}: every drawn card is where a zoom to ${zoom} is clamped`);
+  if (found === null) return null;
   return { card: page.getByTestId(viewportTestId).getByTestId('card').nth(found.i), x: found.x, y: found.y };
 }
