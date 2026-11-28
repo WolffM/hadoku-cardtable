@@ -181,20 +181,30 @@ function round1(players: PodPlayer[]): PairRoundResult {
  * has not already had one (a prior bye is a `MatchResult` with `playerB: null`
  * for that player, at any round).
  */
-function laterRound(players: PodPlayer[], results: MatchResult[]): PairRoundResult {
+/** Who has met whom, and who has had a bye, in `results`. */
+function history(results: MatchResult[]): { played: Set<string>; hadBye: Set<string> } {
   const hadBye = new Set<string>();
   const played = new Set<string>();
   for (const r of results) {
     if (r.playerB === null) hadBye.add(r.playerA);
     else played.add(pairKey(r.playerA, r.playerB));
   }
+  return { played, hadBye };
+}
 
-  const ranked = [...players].sort((a, b) => {
+/** `players` by match points, ties by `podSeat`: the order a later round pairs down from. */
+function byScore(players: PodPlayer[], results: MatchResult[]): PodPlayer[] {
+  return [...players].sort((a, b) => {
     const pa = matchPointsTotal(a.id, results);
     const pb = matchPointsTotal(b.id, results);
     if (pa !== pb) return pb - pa;
     return a.podSeat - b.podSeat;
   });
+}
+
+function laterRound(players: PodPlayer[], results: MatchResult[]): PairRoundResult {
+  const { played, hadBye } = history(results);
+  const ranked = byScore(players, results);
 
   let bye: string | null = null;
   let pool = ranked;
@@ -253,6 +263,43 @@ function swissRound(players: PodPlayer[], results: MatchResult[], round: number)
   if (humans.length < 2 || bots.length === 0) {
     return round === 1 ? round1(players) : laterRound(players, results);
   }
+  const split = humansFirstSplit(humans, bots, results, round);
+  if (round === 1) return split;
+  // Each side paired alone can only repeat once it has nobody new left (a side of two meets again in
+  // round 2): the whole field, humans still first, pairs with no repeat whenever one exists.
+  const { played } = history(results);
+  if (!split.tables.some(([a, b]) => played.has(pairKey(a, b)))) return split;
+  return humansFirstFresh(humans, bots, results) ?? split;
+}
+
+/**
+ * A later round of the whole field with no repeat pairing, humans first: ranked humans then ranked
+ * bots, paired down from the top (`tryPair`), so a human is tried against every human it has not met
+ * before any bot, and a bot meets a human only when that human has no fresh human left. An odd field's
+ * bye goes to the lowest-ranked bot without one, else the lowest-ranked human without one (as the
+ * split gives it to a bot). Null when every choice of bye leaves a repeat.
+ */
+function humansFirstFresh(humans: PodPlayer[], bots: PodPlayer[], results: MatchResult[]): PairRoundResult | null {
+  const { played, hadBye } = history(results);
+  const order = [...byScore(humans, results), ...byScore(bots, results)];
+  if (order.length % 2 === 0) {
+    const tables = tryPair(order, played, true);
+    return tables === null ? null : { tables, bye: null };
+  }
+  const byeFirst = [...byScore(bots, results).reverse(), ...byScore(humans, results).reverse()].filter((p) => !hadBye.has(p.id));
+  for (const bye of byeFirst) {
+    const tables = tryPair(
+      order.filter((p) => p.id !== bye.id),
+      played,
+      true,
+    );
+    if (tables !== null) return { tables, bye: bye.id };
+  }
+  return null;
+}
+
+/** `swissRound`'s pairing of each side alone (its own doc). */
+function humansFirstSplit(humans: PodPlayer[], bots: PodPlayer[], results: MatchResult[], round: number): PairRoundResult {
   const human = round === 1 ? round1(humans) : laterRound(humans, results);
   const bot = round === 1 ? round1(bots) : laterRound(bots, results);
   if (human.bye === null) {

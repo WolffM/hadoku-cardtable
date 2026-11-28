@@ -1005,6 +1005,11 @@ function gauntletNamed(g: GauntletState, members: readonly LobbyMember[]): Gaunt
 	return { ...g, players: [a!, b!] };
 }
 
+/** The current round's pod pairing played at `tableId`, if it is one: its players are the table's, fixed. */
+function podPairingAt(room: RoomRecord, tableId: string): { tableId: string; players: [string, string] } | undefined {
+	return room.game.pod?.pairings.find((p) => p.tableId === tableId);
+}
+
 function seriesUnderWay(series: SeriesRecord): boolean {
 	return series.phase === 'playing' || series.phase === 'sideboarding' || series.phase === 'between';
 }
@@ -1543,6 +1548,10 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		const { room, table } = found;
 		const held = table.seats.indexOf(memberId);
 		if (seat === undefined ? held !== -1 : held === seat) return true;
+		// Nobody but the pairing's own players sits at a pod's table. A seeded testing room's seed leaves its seat for an
+		// admin to take (`testing-rooms.ts`).
+		const pairing = podPairingAt(room, table.id);
+		if (pairing !== undefined && !pairing.players.includes(memberId) && room.testing !== true) return false;
 		if (this.seatsShut(room) !== null || !sitAt(room.game.tables, table, memberId, seat)) return false;
 		this.#tookSeat(room.id, table.id, memberId);
 		this.persist(room);
@@ -1561,6 +1570,8 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		for (const room of this.#rooms()) {
 			for (const table of room.game.tables) {
 				if (!table.seats.includes(memberId)) continue;
+				// A pod's pairing fixes who plays at its table: a player away past the window still plays there.
+				if (podPairingAt(room, table.id) !== undefined) continue;
 				if ((this.#seatTaken.get(`${room.id}\u0000${table.id}\u0000${memberId}`) ?? 0) > mark) continue;
 				// A series under way keeps its seats between games too (sideboarding,
 				// between, or a game whose match went away): only a settled or unstarted one frees them.
@@ -1672,7 +1683,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		const table = room.game.tables.find((t) => t.id === tableId);
 		if (table === undefined) return { ok: false, reason: 'no-such-table' };
-		const pairing = room.game.pod?.pairings.find((p) => p.tableId === tableId);
+		const pairing = podPairingAt(room, tableId);
 		if (room.game.pod === null || pairing === undefined) return { ok: false, reason: 'not-pod-table' };
 		if (!table.seats.includes(callerId) || !pairing.players.includes(callerId)) return { ok: false, reason: 'not-seated' };
 		if (table.series.phase === 'done') return { ok: false, reason: 'nothing-to-drop' };
@@ -2509,7 +2520,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 	tournamentPairingOf(roomId: string, tableId: string): TournamentPairing | null {
 		const room = this.#room(roomId);
 		if (room === undefined) return null;
-		const pairing = room.game.pod?.pairings.find((p) => p.tableId === tableId);
+		const pairing = podPairingAt(room, tableId);
 		if (pairing === undefined) return null;
 		const [a, b] = pairing.players;
 		// The AI's slot (if either is one) always LAST, matching the seat
@@ -2619,10 +2630,15 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 	 */
 	#dealPodRounds(room: RoomRecord, entrants: string[]): void {
 		const rounds = roundsFor(entrants.length);
+		// An entrant who left the room before the deal (mid-draft) is locked in and out from round 1: their
+		// pairings are their opponents' wins (`#pairRound`), never a table that waits for them.
+		const gone = entrants.filter((id) => !isAiEntrant(id) && !room.members.some((m) => m.id === id));
+		const dropped = gone.length === 0 ? {} : { dropped: gone };
+		room.game.pod = { humans: entrants, round: 1, rounds, results: [], pairings: [], bye: null, ...dropped };
 		const { pairings, settled, bots, bye } = this.#pairRound(room, podPlayers(room, entrants), [], 1);
 		const byeResult: MatchResult[] = bye === null ? [] : [{ round: 1, playerA: bye, playerB: null, gamesA: 2, gamesB: 0 }];
-		room.game.pod = { humans: entrants, round: 1, rounds, results: [...byeResult, ...settled], pairings, botGames: bots.map((players) => ({ players })), bye };
-		this.log({ event: 'pod-rounds-started', roomId: room.id, rounds, tables: pairings.length, bye, settled: settled.length, botGames: bots.length });
+		room.game.pod = { humans: entrants, round: 1, rounds, results: [...byeResult, ...settled], pairings, botGames: bots.map((players) => ({ players })), bye, ...dropped };
+		this.log({ event: 'pod-rounds-started', roomId: room.id, rounds, tables: pairings.length, bye, settled: settled.length, botGames: bots.length, dropped: gone });
 		if (pairings.length === 0 && bots.length === 0) this.#advancePodRound(room, room.game.pod);
 		else this.#playPairedBots(room);
 	}

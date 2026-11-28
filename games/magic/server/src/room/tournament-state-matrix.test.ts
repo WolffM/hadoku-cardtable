@@ -20,7 +20,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { PodView } from '@hadoku/shared';
+import type { PodView, Tournament } from '@hadoku/shared';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { attachPeople, type People, type Person as Account } from '@hadoku/game-server/people';
@@ -29,7 +29,6 @@ import { openLobby, type Lobby, type MagicRoomView } from './lobby.ts';
 import { magicView } from './magic-view.js';
 import { roundNamesOf } from './plan.ts';
 import { isAiEntrant, type GameHooks } from './pods.ts';
-import type { Tournament } from './tournaments.ts';
 
 const dirs: string[] = [];
 afterAll(async () => {
@@ -89,8 +88,10 @@ function side(): Side {
 	return s;
 }
 
-/** Bot games answer on a later turn of the event loop. */
-const settle = () => new Promise<void>((done) => setTimeout(done, 0));
+/** A bot game's answer, and an account lookup's, arrive as settled promises: every queued continuation runs. */
+async function settle(): Promise<void> {
+	for (let i = 0; i < 10; i++) await Promise.resolve();
+}
 
 interface Field {
 	name: string;
@@ -332,7 +333,7 @@ const EVENTS: readonly Event[] = ['tab-short', 'tab-long', 'leave', 'dq', 'drop-
 /** Fires `event` at `pod` and checks the event's own outcome. Answers the pod to go on with (a restart's is a new process). */
 async function fire(pod: Pod, event: Event, phase: Phase): Promise<Pod> {
 	const who = target(pod);
-	const table = tableOf(pod, who) ?? liveTables(pod)[0]?.tableId ?? null;
+	const table = tableOf(pod, who.id) ?? liveTables(pod)[0]?.tableId ?? null;
 	const before = podOf(pod);
 	switch (event) {
 		case 'tab-short':
