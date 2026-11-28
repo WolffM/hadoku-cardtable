@@ -653,7 +653,7 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 						expect(four.state, 'the copy is written as the card it copied').toMatch(/Prodigal Sorcerer\|[^;]*\|TokenCopy:/);
 						expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: true });
 					} else {
-						expect(four.lossy, `${precast}: the copy is named`).toEqual(['token']);
+						expect(four.lossy, `${precast}: the copy is named, and why`).toEqual([expect.stringMatching(/^token\(Prodigal Sorcerer: /)]);
 						expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: false });
 						expect(s.match.restartAct(1, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
 					}

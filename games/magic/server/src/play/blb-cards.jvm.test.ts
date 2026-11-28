@@ -165,6 +165,7 @@ interface Board {
 	battlefield?: string[];
 	graveyard?: string[];
 	library?: string[];
+	aiHand?: string[];
 	aiBattlefield?: string[];
 	aiLibrary?: string[];
 	life?: number;
@@ -181,7 +182,7 @@ function stateOf(b: Board): string {
 		`humanbattlefield=${list(b.battlefield ?? [])}`,
 		`humangraveyard=${list(b.graveyard ?? [])}`,
 		`humanlibrary=${list(b.library ?? n('Plains', 10))}`,
-		'aihand=',
+		`aihand=${list(b.aiHand ?? [])}`,
 		`aibattlefield=${list(b.aiBattlefield ?? [])}`,
 		'aigraveyard=',
 		`ailibrary=${list(b.aiLibrary ?? n('Plains', 10))}`,
@@ -242,6 +243,17 @@ async function withBoard(seed: number, board: Board, answers: Answer[], body: (s
 
 const PROMISE = choose(/Promise Gift/);
 const T = 240_000;
+
+/**
+ * What the turn-start snapshot of `turn` could not write (`GameState.unwritten`), once the game reaches it,
+ * passing every priority and attack on the way. A kind named here is a board a failover restores
+ * differently, and a turn Restart turn refuses (the PPE soak of 2026-11-28 named `token` ×19, `effect` ×6).
+ */
+async function lossyAt(s: Scenario, turn: number): Promise<string[]> {
+	const snapshot = () => s.lines.find((l): l is Extract<typeof l, { t: 'snapshot' }> => l.t === 'snapshot' && l.turn === turn);
+	await drive(s, `turn ${turn}'s snapshot`, () => snapshot() !== undefined, { pass: true }, 180_000);
+	return snapshot()!.lossy ?? [];
+}
 
 describe.skipIf(!available.ok)(title('Bloomburrow mechanics do what the card says, against real Forge'), () => {
 	it('gift a card: Wear Down promised destroys two, the opponent draws, and Jolly Gerbils draws for the giver', { timeout: T }, async () => {
@@ -331,6 +343,68 @@ describe.skipIf(!available.ok)(title('Bloomburrow mechanics do what the card say
 			]);
 			await cast(s, 'Mind Stone', () => life(s, 'ai') === 18);
 			expect(life(s, 'ai'), 'one damage from each Mage').toBe(18);
+		});
+	});
+
+	it('offspring through a snapshot: the next turn writes the real 1/1 copy Offspring made (Coruscation Mage)', { timeout: T }, async () => {
+		await withBoard(2930, { hand: ['Coruscation Mage'], battlefield: n('Mountain', 6) }, [], async (s) => {
+			await cast(s, 'Coruscation Mage', () => count(s, 'me', 'Battlefield', 'Coruscation Mage') === 2, { bars: [{ when: /Offspring/, yes: true }] });
+			expect(await lossyAt(s, 4), 'nothing the snapshot cannot write').toEqual([]);
+		});
+	});
+
+	for (const [card, land, seed] of [
+		['Rust-Shield Rampager', 'Forest', 2932],
+		['Darkstar Augur', 'Swamp', 2933],
+		['Starscape Cleric', 'Swamp', 2939],
+	] as const) {
+		it(`offspring through a snapshot: the next turn writes ${card}'s 1/1 copy`, { timeout: T }, async () => {
+			await withBoard(seed, { hand: [card], battlefield: n(land, 6) }, [], async (s) => {
+				await cast(s, card, () => count(s, 'me', 'Battlefield', card) === 2, { bars: [{ when: /Offspring/, yes: true }] });
+				expect(await lossyAt(s, 4), 'nothing the snapshot cannot write').toEqual([]);
+			});
+		});
+	}
+
+	for (const [card, land, seed] of [
+		['Rust-Shield Rampager', 'Forest', 2937],
+		['Darkstar Augur', 'Swamp', 2938],
+		['Manifold Mouse', 'Mountain', 2940],
+		['Starscape Cleric', 'Swamp', 2941],
+	] as const) {
+		it(`offspring the AI paid, through a snapshot: the turn after writes ${card}'s 1/1 copy`, { timeout: T }, async () => {
+			await withBoard(seed, { aiHand: [card], aiBattlefield: n(land, 7) }, [], async (s) => {
+				await drive(s, `the AI to cast ${card} with offspring`, () => count(s, 'ai', 'Battlefield', card) === 2, { pass: true }, 120_000);
+				expect(await lossyAt(s, 5), 'nothing the snapshot cannot write').toEqual([]);
+			});
+		});
+	}
+
+	it('a copy through a snapshot: Season of Weaving copies a creature, and the next turn writes the copy', { timeout: T }, async () => {
+		let picked = 0;
+		const copyOnce: Answer = (f) => {
+			if (f.method !== 'getChoices' || !/Choose a mode/.test(String(f.message))) return undefined;
+			return picked++ === 0 ? choose(/Create a token that's a copy/)(f) : [];
+		};
+		await withBoard(2936, { hand: ['Season of Weaving'], battlefield: [...n('Island', 6), 'Coruscation Mage'] }, [copyOnce], async (s) => {
+			await cast(s, 'Season of Weaving', () => count(s, 'me', 'Battlefield', 'Coruscation Mage') === 2, { picks: [{ when: /Choose an artifact or creature|Select/, ids: [one(s, 'me', 'Battlefield', 'Coruscation Mage').id] }] });
+			expect(await lossyAt(s, 4), 'nothing the snapshot cannot write').toEqual([]);
+		});
+	});
+
+	it('a Season through a snapshot: Season of the Bold exile-and-play and its spell-cast damage, both lasting to the end of the next turn, are written', { timeout: T }, async () => {
+		const modes = [/Exile the top two cards/, /deals 2 damage to up to one target creature/];
+		let picked = 0;
+		const season: Answer = (f) => {
+			if (f.method !== 'getChoices' || !/Choose a mode/.test(String(f.message))) return undefined;
+			const want = modes[picked];
+			if (want === undefined) return [];
+			picked++;
+			return choose(want)(f);
+		};
+		await withBoard(2931, { hand: ['Season of the Bold'], battlefield: n('Mountain', 5), library: [...n('Shock', 2), ...n('Mountain', 8)] }, [season], async (s) => {
+			await cast(s, 'Season of the Bold', () => cards(s, 'me', 'Exile').length === 2);
+			expect(await lossyAt(s, 4), 'nothing the snapshot cannot write').toEqual([]);
 		});
 	});
 
