@@ -414,7 +414,27 @@ async function playStep(
     await attempt(`concede, round ${round}`, async () => {
       try {
         if (phone) {
-          await (await inMenu(a, 'live-concede')).tap({ timeout: 5_000 });
+          const concede = await inMenu(a, 'live-concede');
+          const docked = a.getByTestId('decision-dock').filter({ visible: true });
+          if ((await docked.count()) > 0) {
+            // A decision docked while ⋯'s menu is open: is every menu row on top of it? Recorded, then the
+            // decision minimised (as a player would) so the concede can go on.
+            const seen = await concede.evaluate((el) => {
+              const r = el.getBoundingClientRect();
+              const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+              const dock = document.querySelector('[data-testid="decision-dock"]');
+              return { onTop: top !== null && (el === top || el.contains(top)), top: top === null ? null : `${top.tagName}.${String(top.className).slice(0, 60)} ${top.closest('[data-testid]')?.getAttribute('data-testid') ?? ''}`, question: dock?.textContent?.replace(/\s+/g, ' ').slice(0, 120) ?? '' };
+            });
+            await shotBoth([a], `f9-dock-r${round}-${seen.onTop ? 'clear' : 'covered'}`, S('match', '#/match/<id>', `⋯ → Menu open over a docked decision (“${seen.question}”): Concede ${seen.onTop ? 'on top' : `under ${seen.top}`}`));
+            say(`F9 probe, round ${round}: docked "${seen.question}", Concede ${seen.onTop ? 'on top' : `UNDER ${seen.top}`}`);
+            if (!seen.onTop) {
+              const min = a.getByTestId('decision-minimize').filter({ visible: true });
+              const more = a.getByTestId('action-more');
+              if ((await more.getAttribute('aria-expanded')) === 'true') await more.tap({ timeout: 5_000 });
+              if ((await min.count()) > 0) await min.first().tap({ timeout: 5_000 });
+              await (await inMenu(a, 'live-concede')).tap({ timeout: 5_000 });
+            } else await concede.tap({ timeout: 5_000 });
+          } else await concede.tap({ timeout: 5_000 });
           const more = a.getByTestId('action-more');
           if ((await a.getByTestId('action-menu').getAttribute('aria-expanded')) === 'true') await more.tap({ timeout: 5_000 });
           if ((await more.getAttribute('aria-expanded')) === 'true') await more.tap({ timeout: 5_000 });
