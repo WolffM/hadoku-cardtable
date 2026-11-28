@@ -22,7 +22,9 @@ export function findingsOf(r: PvpResult): string[] {
     else if (!x.same) out.push(`restart of turn ${x.turn}: the restored turn differs — ${x.diff.map((d) => `${d.key} lost [${d.before.join('; ')}] gained [${d.after.join('; ')}]`).join(' / ')}`);
   }
   const restored = new Set(r.report.restores.map((x) => x.turn));
-  for (const t of r.restarts.allowed) if (!restored.has(t) && r.outcome === 'over') out.push(`restart of turn ${t} was allowed but never restored`);
+  // An allow the server turned away because the turn had already moved on (`no-ask`, `turn-moved-on`) is the race, not a lost restart.
+  const outrun = (t: number): boolean => r.report.refused.some((x) => x.act === 'allow' && STALE_VIEW.has(x.error) && (x.turn ?? -1) >= t);
+  for (const t of r.restarts.allowed) if (!restored.has(t) && !outrun(t) && r.outcome === 'over') out.push(`restart of turn ${t} was allowed but never restored`);
   for (const x of r.report.refused) if (!STALE_VIEW.has(x.error)) out.push(`take-back refused at turn ${x.turn ?? '?'}: ${x.act} → ${x.error}`);
   const w = r.watcher;
   if (r.matchId !== 'unstarted') {

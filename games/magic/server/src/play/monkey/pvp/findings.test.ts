@@ -42,6 +42,10 @@ describe('findingsOf', () => {
     ]);
   });
 
+  it('does not count an allow the turn outran: the server closed the ask first and said so', () => {
+    expect(findingsOf(result({ restarts: { asked: [8], allowed: [8], unavailable: [] }, report: { restores: [], lossy: [], refused: [{ turn: 9, act: 'allow', error: 'no-ask' }] } }))).toEqual([]);
+  });
+
   it('finds a watcher that is not one, or that shows another game than the seats', () => {
     expect(findingsOf(result({ watcher: { isWatcher: false, turn: 9, lives: [0, 7], seatTurn: 9, seatLives: [0, 7] } }))).toEqual(['the third account was not made the watcher']);
     expect(findingsOf(result({ watcher: { isWatcher: true, turn: 8, lives: [3, 7], seatTurn: 9, seatLives: [0, 7] } }))).toHaveLength(1);
