@@ -60,8 +60,8 @@ on:
         default: ''
       sweep_args:
         description: >-
-          More sweep flags, e.g. `--seed 7 --per-match 4` or `--variant accept`. A seed or several cards a
-          match plays the set a way the nightly does not; every play still has to match the recorded one.
+          More sweep flags, e.g. `--seed 7 --per-match 4` or `--variant accept`. On another seed a play's
+          difference from the recording is printed, not failed; a flag or a broken keyword still fails.
         required: false
         default: ''
 

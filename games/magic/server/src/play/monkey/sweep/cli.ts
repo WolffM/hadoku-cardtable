@@ -9,8 +9,8 @@
  *
  * A card has a match of its own unless `--per-match` says otherwise. A play that does not ask what is
  * recorded is played again alone, three times at most, and counts as differing only if it never does.
- * Exit 0: no flag, every optional-cost keyword asked and refusable (`mechanics.ts`), and every card
- * asked what `expected/<SET>.json` records. Exit 1 otherwise.
+ * Exit 0: no flag, every optional-cost keyword asked and refusable (`mechanics.ts`), and, on the
+ * recorded seed, every card asked what `expected/<SET>.json` records. Exit 1 otherwise.
  * `--update` records what was asked instead of checking it.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -23,7 +23,7 @@ import { watchExit } from '../exit-watch.ts';
 import { RUN_STACK_ENV, runPool } from '../pool.ts';
 import { makeRng, seedFrom } from '../rng.ts';
 
-import { differences, differenceText, expectedOf, signatureOf, type Expected } from './expected.ts';
+import { differences, differenceText, expectedOf, RECORDED_SEED, signatureOf, sweepExit, type Expected } from './expected.ts';
 import { mechanicProblems } from './mechanics.ts';
 import type { Variant } from './policy.ts';
 import { runCards, type CardResult } from './run-cards.ts';
@@ -54,6 +54,11 @@ async function main(): Promise<void> {
   const seed = seedFrom(arg('seed') ?? 1);
   const concurrency = Number(arg('concurrency') ?? '2');
   const update = process.argv.includes('--update');
+  if (update && seed !== RECORDED_SEED) {
+    console.error(`[sweep] --update records on seed ${RECORDED_SEED}, the one every run is checked against; drop --seed`);
+    process.exitCode = 2;
+    return;
+  }
   // What is recorded is what a card asks in a match of its own, so recording plays one card a match.
   const perMatch = update ? 1 : Number(arg('per-match') ?? '1');
 
@@ -152,7 +157,8 @@ async function main(): Promise<void> {
       if (settled.length > 0) console.log(`[sweep] ${settled.length} play(s) asked what is recorded only when played again: ${settled.join(', ')}`);
     }
     console.log(`[sweep] ${results.length} run(s): ${flagged.length} flagged, ${broken} keyword promise(s) broken, ${differing} differing from what is recorded, ${unplayed.length} not played through. Report: ${out}`);
-    process.exitCode = flagged.length > 0 || broken > 0 || differing > 0 ? 1 : 0;
+    if (differing > 0 && seed !== RECORDED_SEED) console.log(`[sweep] seed ${seed} is not the recorded seed ${RECORDED_SEED}: its ${differing} difference(s) are reported, not failed`);
+    process.exitCode = sweepExit({ flagged: flagged.length, broken, differing, seed });
   } finally {
     await stack.stop();
     watchExit(30_000);

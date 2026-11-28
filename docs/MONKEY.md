@@ -153,6 +153,12 @@ So each run is reduced to a signature (`expected.ts`: how the cast ended, the qu
 card's own play and which were refused, what the server answered in the seat's place) and checked
 against `sweep/expected/<SET>.json`. A difference prints both sides and fails the run.
 
+A recording is seed 1's boards (`RECORDED_SEED`): the targets a pick names, whether a sacrifice
+cost has a nonland permanent to offer, which mode the seat picks all depend on it. So a run with
+another `--seed` prints its differences and does not fail on them (on Bloomburrow, seed 1129 at
+three a match, 23 of 514 plays differed this way and none was a card that changed). It still fails
+on a flag or a broken keyword promise. `--update` refuses another seed.
+
 A play that differs is first played again alone, three times at most: a question can land a frame either
 side of the click that answers it, and a card that really changed differs every time. The run says
 which plays matched only on a replay.
@@ -165,7 +171,7 @@ ask for it, `accept` must take it, and `decline` must be able to refuse it. A br
 `--update` records instead of checking. Read the diff of the expectations file before committing
 it: every changed line is a card that now asks something different.
 
-Exit codes: 0 clean, 1 flagged, a keyword promise broken or differing, 2 could not run. A `not-offered` card is not a flag
+Exit codes: 0 clean, 1 flagged, a keyword promise broken or differing on the recorded seed, 2 could not run. A `not-offered` card is not a flag
 (nothing went wrong), and it is not covered either: it needs a scenario of its own.
 
 ## Decks covered
@@ -233,7 +239,8 @@ alerting decision is the operator's to make.
 
 The same workflow has a second job, `forge-sweep`: the card sweep on every set with a
 `sweep/expected/<SET>.json`, nightly after the same cron, two matches at a time. A dispatch with
-`sweep_set=BLB` runs the sweep on that set instead of the monkey. Its report is the `sweep-report`
+`sweep_set=BLB` runs the sweep on that set instead of the monkey, and `sweep_args` adds sweep flags
+(`--seed 1129 --per-match 3`). Its report is the `sweep-report`
 artifact, and like the monkey it gates nothing.
 
 Both stacks keep a finished match's game on its JVM for 10 s (`CARDTABLE_PLAY_OVER_GRACE_MS`,
