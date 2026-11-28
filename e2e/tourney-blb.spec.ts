@@ -48,6 +48,9 @@ import { splitPods } from '../packages/shared/src/index.ts';
 import { PREFIX } from './identities.ts';
 import { lifeOf, makeTitled, resizeWindow, roomIdFromAddress, serverLog } from './play/board.ts';
 import { describePage, openFriend, type Friend } from './play/browser.ts';
+import { startClaws } from './play/claws.ts';
+import type { Fault } from './play/failover.ts';
+import { failoverRound } from './play/failover-field.ts';
 import { connectHands, type Hands } from './play/hands.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
@@ -85,6 +88,11 @@ interface Scenario {
   env?: Record<string, string>;
   /** One person in each pod (never the leader) presses Leave after a few picks and closes their page. */
   leaverPerPod?: boolean;
+  /**
+   * On scratch claws (`play/claws.ts`), with `CARDTABLE_E2E_FAILOVER`'s fault fired into round 1 once
+   * every one of its tables is past turn 3 (`play/failover-field.ts`). Never in CI: a lease-drained claw only.
+   */
+  claws?: boolean;
 }
 
 /**
@@ -113,7 +121,10 @@ const ALL_SCENARIOS: readonly Scenario[] = [
   // pairs on. Every game is conceded (no live board), and finished games leave their JVM in 30 s, so nine browsers fit a claw.
   { key: '9p leavers', humans: 9, bots: 0, botsPlay: false, realGames: 0, realTables: 0, minutes: 36, env: { CARDTABLE_PLAY_OVER_GRACE_MS: '30000' }, leaverPerPod: true },
 ];
-const SCENARIOS = ALL_SCENARIOS.filter((s) => CLAW_FIELDS.has(s.key) || process.env.CARDTABLE_E2E_BIG_FIELDS === '1');
+const FAILOVER = process.env.CARDTABLE_E2E_FAILOVER as Fault | undefined;
+// Sunday's room, one pod of six a side: six tables a round, each played out, on two scratch claws.
+const CLAWS_FIELD: Scenario = { key: `12p claws ${FAILOVER ?? ''}`, humans: 12, bots: 0, botsPlay: true, realGames: 1, realTables: 6, minutes: 60, claws: true, env: { CARDTABLE_PLAY_OVER_GRACE_MS: '30000' } };
+const SCENARIOS = FAILOVER !== undefined ? [CLAWS_FIELD] : ALL_SCENARIOS.filter((s) => CLAW_FIELDS.has(s.key) || process.env.CARDTABLE_E2E_BIG_FIELDS === '1');
 
 const NAMES = ['alice', 'bob', 'carol', ...Array.from({ length: 14 }, (_, i) => `drafter${i + 3}`)];
 
@@ -729,7 +740,8 @@ function serverFindings(run: Run): void {
 
 async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo): Promise<void> {
   const started = Date.now();
-  const stack = await startPlayStack(forge as { jar: string; res: string }, { env: scenario.env ?? {} });
+  const claws = scenario.claws === true ? await startClaws({ count: 2, ...(FAILOVER === 'disk-full' ? { diskMb: { 0: 1200, 1: 1200 } } : {}) }) : null;
+  const stack = await startPlayStack(forge as { jar: string; res: string }, { env: { ...scenario.env, ...claws?.env } });
   const run: Run = { scenario, stack, roomId: '', roomUrl: '', players: [], findings: [], realTables: new Map(), done: false, info };
   try {
     const players = await Promise.all(NAMES.slice(0, scenario.humans).map((n) => openPlayer(browser, n)));
@@ -828,9 +840,16 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
     const humans = new Set(players.map((p) => p.id));
     const deadline = started + (scenario.minutes - 4) * 60_000;
     const agents = staying.map((p) => playTournament(p, run));
+    const faulted =
+      claws !== null && FAILOVER !== undefined
+        ? failoverRound({ stack, claws, fault: FAILOVER, pages: () => staying.map((p) => ({ name: p.name, page: p.f.page })), minMatches: Math.floor(staying.length / 2), minTurn: 3, deadline: started + 25 * 60_000 }).then((lines) => {
+            for (const l of lines) finding(run, l);
+          })
+        : Promise.resolve();
     let pod: PodView;
     try {
       pod = await watchRoom(run, humans, deadline);
+      await faulted;
     } finally {
       run.done = true;
       await Promise.all(agents);
@@ -857,6 +876,7 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
     for (const p of run.players) for (const e of new Set(p.errors)) finding(run, `${p.name} ${e}`);
     say(`${scenario.key}: ${run.findings.length} finding(s)`);
     await stack.stop();
+    await claws?.stop();
   }
   expect(run.findings, `${scenario.key}: findings`).toEqual([]);
 }
