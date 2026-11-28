@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { uiPath, uiSheets } from '../ui-sources.testing.ts';
-import { CARD_RATIO, MIN_CARD_W, MIN_FIT, PILE_PEEK, columnsOf, fitGrid, fitPiles, fitScale, gridAt, largestCard, pilesAt } from './cardFit.ts';
+import { CARD_RATIO, MIN_CARD_W, MIN_FIT, PILE_PEEK, columnsOf, fitGrid, fitPiles, fitScale, gridAt, largestCard, pilesAt, settleFit } from './cardFit.ts';
 
 const H = (w: number): number => w / CARD_RATIO;
 
@@ -138,5 +138,23 @@ describe("a card's rules text fits its tile at any size", () => {
     const base = rules.find((r) => r.selector === '.card__rules')!.body;
     expect(base).toMatch(/overflow:\s*hidden/);
     expect(base, 'a flex item shrinks to its box instead of growing the tile').toMatch(/min-height:\s*0/);
+  });
+});
+
+describe('a fit column settles on a scale that fits, even where its text rewraps', () => {
+  /**
+   * The draft's side column at 1280×800 after 1440×900, as measured on a claw: the seats scale with the
+   * fit (280.3px a unit), the room's bar is one line shorter under 0.78 (110px a unit) than at or over it
+   * (131), the gap between them is 12px, and the box is 328.2px tall.
+   */
+  const draftAside = (fit: number): number => fit * (fit >= 0.78 ? 131 : 110) + 12 + fit * 280.3;
+
+  it('never rises back to a scale it has already drawn too tall', () => {
+    const fit = settleFit(draftAside, 0.95, 328.2);
+    expect(draftAside(fit), `settled at ${fit}`).toBeLessThanOrEqual(328.2);
+  });
+
+  it('still rises when the box grows and nothing it tried was too tall', () => {
+    expect(settleFit((f) => f * 300, 0.6, 400)).toBe(1);
   });
 });

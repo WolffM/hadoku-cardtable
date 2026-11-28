@@ -169,6 +169,20 @@ export function fitScale(content: number, fit: number, available: number): numbe
   return next > fit && next - fit < 2 * FIT_STEP - 1e-9 ? fit : next;
 }
 
+/**
+ * The scale a column settles on, in at most `FIT_SETTLE` measures: `contentAt(fit)` draws it at `fit`
+ * and says how tall it is.
+ */
+export function settleFit(contentAt: (fit: number) => number, start: number, available: number): number {
+  let fit = start;
+  for (let i = 0; i < FIT_SETTLE; i++) {
+    const next = fitScale(contentAt(fit), fit, available);
+    if (next === fit) break;
+    fit = next;
+  }
+  return fit;
+}
+
 /** How tall `el`'s children reach inside its content box, whatever the box's own height and however far it is scrolled. */
 function contentHeight(el: HTMLElement): number {
   const style = getComputedStyle(el);
@@ -200,13 +214,15 @@ export function useFitScale(): (el: HTMLElement | null) => void {
       // Settled here, not over the observer's next reports: a part that does not scale (an image's
       // own size, a border) leaves the first guess off, and a column whose children resize again
       // in the same frame is a ResizeObserver loop.
-      let fit = parseFloat(el.style.getPropertyValue('--fit')) || 1;
-      for (let i = 0; i < FIT_SETTLE; i++) {
-        const next = fitScale(contentHeight(el), fit, available);
-        if (next === fit) break;
-        el.style.setProperty('--fit', String(next));
-        fit = next;
-      }
+      const fit = settleFit(
+        (f) => {
+          el.style.setProperty('--fit', String(f));
+          return contentHeight(el);
+        },
+        parseFloat(el.style.getPropertyValue('--fit')) || 1,
+        available,
+      );
+      el.style.setProperty('--fit', String(fit));
       for (const child of el.children) {
         if (watched.has(child)) continue;
         watched.add(child);
