@@ -58,7 +58,7 @@ export const SHARED_HOLD_MS = 75_000;
 /**
  * The agent's fencing window: an agent that has heard nothing from the coordinator for this long
  * kills every JVM it runs. Longer than the coordinator's shared hold plus a failover window, so
- * a coordinator that stalled (hokon's own loop, 3–17 s on 2026-11-27) or lost its network finds
+ * a coordinator that stalled (its own loop, 3–17 s on 2026-11-27) or lost its network finds
  * every match still running when it is back. A claw that was failed over meanwhile runs a copy
  * nobody hears: the coordinator drops its lines, and kills it when the claw is connected again.
  */

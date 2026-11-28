@@ -7,7 +7,7 @@
  *
  * Anything this cannot vouch for is `unknown`, never `ok` nor `warn`: no file, a file older than
  * `PRESSURE_STALE_MS` (its writer stopped), a torn one, or one where fleet-manager says it could not
- * read a pressure source. Hokon's stalls (2026-11-27, 2026-11-28) stopped every claw's heartbeat at
+ * read a pressure source. The coordinator host's stalls (2026-11-27, 2026-11-28) stopped every claw's heartbeat at
  * once; with this beside them in telemetry, a stall is named as the host's.
  */
 import { readFileSync } from 'node:fs';
