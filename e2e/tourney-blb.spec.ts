@@ -119,7 +119,7 @@ const ALL_SCENARIOS: readonly Scenario[] = [
   { key: '1p+7bots bye', humans: 1, bots: 7, botsPlay: false, realGames: 0, realTables: 0, minutes: 20 },
   // A room past one pod with a drafter gone from each mid-draft: both pods' drafts end, the leavers are dropped, and the Swiss of the rest
   // pairs on. Every game is conceded (no live board), and finished games leave their JVM in 30 s, so nine browsers fit a claw.
-  { key: '9p leavers', humans: 9, bots: 0, botsPlay: false, realGames: 0, realTables: 0, minutes: 36, env: { CARDTABLE_PLAY_OVER_GRACE_MS: '30000' }, leaverPerPod: true },
+  { key: '9p leavers', humans: 9, bots: 0, botsPlay: false, realGames: 0, realTables: 0, minutes: 30, env: { CARDTABLE_PLAY_OVER_GRACE_MS: '30000' }, leaverPerPod: true },
 ];
 const FAILOVER = process.env.CARDTABLE_E2E_FAILOVER as Fault | undefined;
 // Sunday's room, one pod of six a side: six tables a round, each played out, on two scratch claws.
