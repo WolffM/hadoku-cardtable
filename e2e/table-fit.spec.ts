@@ -2560,20 +2560,16 @@ test(W15_TITLE, async ({ browser }) => {
     const badge = page.locator(`[data-card-id="${elspeth}"] > .board-card__pt`);
     await expect(badge, 'Elspeth’s loyalty badge is on the board before anything is activated').toHaveText('2');
 
-    // At loyalty 2 her other two abilities (costing 3 and 7) are unaffordable,
-    // so Forge offers exactly one: +1 ("Create three 1/1 white Soldier
-    // creature tokens") — one legal choice, which the server's own
-    // "getAbilityToPlay" single-option shortcut answers itself the instant
-    // the card is clicked (confirmed from the server log: `ask-answered
-    // getAbilityToPlay` then `auto-passed` then back to `stackEmpty` inside
-    // one tick) — no picker ever reaches the browser, and the activate,
-    // resolve and auto-pass are too fast for a `stackCount` poll to ever
-    // reliably catch the stack non-empty (the same transient-stack race
-    // `wave33-evidence`'s Full Control note describes for Mana Leak). The
-    // one thing that is NOT transient is the number this item is actually
-    // about, so that is what is polled.
+    // At loyalty 2 her other two abilities (costing 3 and 7) are unaffordable, so Forge offers exactly
+    // one: +1 ("Create three 1/1 white Soldier creature tokens"). The activate, resolve and auto-pass are
+    // too fast for a `stackCount` poll to catch the stack non-empty (the transient-stack race
+    // `wave33-evidence`'s Full Control note describes for Mana Leak). The one thing that is NOT
+    // transient is the number this item is about, so that is what is polled.
     await expect.poll(() => offered(page), { timeout: 15_000, message: 'Elspeth is offered — the only legal ability' }).not.toEqual([]);
     await page.locator(`[data-board-card="${elspeth}"] button`).first().click();
+    // The picker opens with her −3 and −7 greyed (the operator, 2026-11-27: every planeswalker lists all
+    // its abilities, only the payable ones clickable); the one enabled row is the +1.
+    await page.locator('[data-testid="prompt-choice"]:not(:disabled)').click();
 
     // The cost of a loyalty ability is paid on activation, not on resolution
     // (`AddCounter<1/LOYALTY>` is Elspeth's own `Cost$`), so the number on the
