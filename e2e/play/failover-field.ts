@@ -63,12 +63,14 @@ export async function failoverRound(opts: {
   const target = [...counts].sort((a, b) => b[1] - a[1])[0]![0];
   const coordinator = fault === 'coord-stall' || fault === 'coord-restart' || fault === 'coord-kill';
   const touched = live.filter(([id]) => coordinator || hosts.get(id) === target);
-  const turns = new Map(touched.map(([id]) => [id, latestTurn(before, id)]));
   for (const [, seats] of touched) for (const s of seats) await mark(s.page);
   const asks: Row = {};
   for (const [id, seats] of touched) for (const s of seats) asks[`${id}:${s.name}`] = await promptMethod(s.page);
+  // Read last, just before the fault: marking and reading a dozen pages takes seconds, and the games go on meanwhile.
+  const atFire = rows(stack);
+  const turns = new Map(touched.map(([id]) => [id, latestTurn(atFire, id)]));
   say('field-fire', { fault, target, placement: Object.fromEntries(hosts), touched: touched.map(([id]) => id), turns: Object.fromEntries(turns), asks });
-  const from = before.length;
+  const from = atFire.length;
   // What a player sees across the gap: each touched seat's status line and prompt, sampled every second.
   const seen = new Map<string, string[]>();
   const at = Date.now();
