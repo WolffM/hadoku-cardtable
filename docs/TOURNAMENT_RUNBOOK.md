@@ -19,12 +19,13 @@ lock in as an entrant.
 ## Before the pod
 
 - **A few minutes before Start draft, open the pod room's settings and choose its pool** (or choose it
-  again). That runs the pool's card check in the pool JVM, which pages it back in. On prod that JVM
-  has had over a gigabyte swapped out (measured 2026-11-28), and the first call it serves can take
-  longer than its 30 s bound. Start draft is that first call otherwise: it deals every round's
-  boosters.
-- **Start draft answers "could not deal the realistic round(s)…"**: press it again. The pool JVM is
-  paged in by then, and nothing was dealt.
+  again). That runs the pool's card check in the pool JVM, which pages it back in. Cheap insurance:
+  a pool JVM with over a gigabyte swapped out still dealt 8 boosters in under half a second
+  (measured 2026-11-28), and since that day's fix an idle pool JVM keeps its live set paged in and a
+  deal waits out a JVM still working on it, up to 90 s. Within a minute of a restart, the pool JVM
+  is still booting and walking every set: wait for it.
+- **Start draft answers "could not deal the realistic round(s)…"**: press it again. Nothing was
+  dealt. Then read `grep -h -E 'pool-(call-slow|spawned|stderr)|sets-warm' ~/.pm2/logs/cardtable-out.log | tail`.
 
 ## Read a match first: softlock or slow player?
 
