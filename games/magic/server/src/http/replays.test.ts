@@ -8,13 +8,19 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import express from 'express';
+import { personOf } from '@hadoku/game-server/erase/index';
+import { recordingsStep } from '@hadoku/game-server/erase/recordings';
+import { sweepRecordings } from '@hadoku/game-server/play/recording/retention';
+import { createMatchRecordingWriter, keepEarlierEpoch } from '@hadoku/game-server/play/recording/writer';
 import { identityFromHeaders } from '@hadoku/game-server/room/identity';
+import { UNNAMED } from '@hadoku/game-server/room/constants';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { DELTA_TYPE, deltaKeyType } from '@hadoku/forge-wire';
 import { REPLAY_BODY_VERSION } from '@hadoku/shared';
 import type { ArtIds } from '../play/art-ids.ts';
+import { writePublicStream } from '../play/recording/rebuild.ts';
 import { fixtureFrames } from '../play/fixtures/transcript.ts';
 import { createProjector, EVERY_PLAYER, type StateFrame } from '../play/visibility.ts';
 
@@ -199,46 +205,79 @@ describe('GET /api/replays', () => {
 	});
 });
 
-describe('GET /api/replays reads a recording once, not on every list', () => {
-	// PPE 2026-11-28: every page load's list gunzipped all 300 recordings one after another (p50
-	// 823 ms, p95 2.5 s, max 3 s), and the list grows with every game played.
-	it('lists an unchanged recording from what it read the first time, and reads one again once it has changed', async () => {
+describe('the list follows every writer of the recordings directory', () => {
+	// The list is an index built once at boot; each thing that writes, moves or removes a recording
+	// says so, and only that recording is read again. Nothing else ever reaches the list.
+	const ids = async (base: string, tier = 'friend'): Promise<[string, string[], 0 | 1 | null][]> =>
+		((await call(base, '/api/replays', tier)).json.replays as { matchId: string; players: string[]; winner: 0 | 1 | null }[]).map((r) => [r.matchId, r.players, r.winner]);
+	const finished = (dir: string, matchId: string, winner: 0 | 1 | null, opts: { aside?: boolean; userId?: string } = {}): Promise<void> =>
+		createMatchRecordingWriter({
+			dir,
+			matchId,
+			actionsHeader: { matchId, roomId: null, pin: 'abc', bridge: 'def', server: '0', startedAt: '2026-01-01T00:00:00.000Z', spec: { seats: [{ name: 'Player 1', ai: false }, { name: 'Player 2', ai: false }] } },
+			publicHeader: { matchId, roomId: null, players: ['Ari', 'Bo'], ai: [false, false], decks: [null, null], art: [], startedAt: '2026-01-01T00:00:00.000Z' },
+		}).finish({ endedAt: '2026-01-01T00:10:00.000Z', reason: 'game-over' }, { endedAt: '2026-01-01T00:10:00.000Z', winner, ...(opts.userId === undefined ? {} : { seats: [{ seat: 0, claimed: true, playerId: 0, userId: opts.userId }] }) }, opts.aside === true ? { aside: true } : {});
+
+	it("lists a match the recorder finishes after boot, and an earlier epoch it moves aside under its own id", async () => {
 		const dir = await recordingsDir();
-		writePublic(dir, 'm-done', { winner: 1, startedAt: '2026-01-01T00:00:00.000Z' });
-		writePublic(dir, 'm-live', { winner: null, startedAt: '2026-01-02T00:00:00.000Z' });
-		// A whole-second mtime, which utimes can put back exactly.
-		const done = join(dir, 'm-done.public.jsonl.gz');
-		const mtime = new Date('2026-01-01T00:10:00.000Z');
-		utimesSync(done, mtime, mtime);
 		const base = await openApp(dir);
-		const first = (await call(base, '/api/replays')).json.replays as { matchId: string; winner: 0 | 1 | null }[];
-		expect(first.map((r) => [r.matchId, r.winner])).toEqual([
-			['m-live', null],
-			['m-done', 1],
+		expect(await ids(base)).toEqual([]);
+		await finished(dir, 'm-1', 1);
+		await expect.poll(() => ids(base)).toEqual([['m-1', ['Ari', 'Bo'], 1]]);
+		// A restore's new epoch finishing onto the same id moves the first aside.
+		await finished(dir, 'm-1', 0);
+		await expect.poll(async () => (await ids(base)).sort()).toEqual([
+			['m-1', ['Ari', 'Bo'], 0],
+			['m-1-e1', ['Ari', 'Bo'], 1],
 		]);
-
-		// The same bytes on disk as far as a stat can tell (its size and mtime), and unreadable if opened.
-		const { size } = statSync(done);
-		writeFileSync(done, Buffer.alloc(size, 0x20), { flag: 'r+' });
-		utimesSync(done, mtime, mtime);
-		// A recording that changed: the game ended with seat 0 winning.
-		writePublic(dir, 'm-live', { winner: 0, startedAt: '2026-01-02T00:00:00.000Z', envs: [{ t: 'env', at: 0, env: { frame: { kind: 'notify' } } }, { t: 'env', at: 1, env: { frame: { kind: 'notify' } } }] });
-
-		const second = (await call(base, '/api/replays')).json.replays as { matchId: string; winner: 0 | 1 | null }[];
-		expect(second.map((r) => [r.matchId, r.winner])).toEqual([
-			['m-live', 0],
-			['m-done', 1],
-		]);
-		expect(logged.filter((l) => l.evt === 'replay-list-read-failed')).toEqual([]);
+		// One still live when it is restored is finished aside, straight to the next free epoch.
+		await finished(dir, 'm-1', null, { aside: true });
+		await expect.poll(async () => (await ids(base)).map(([id]) => id).sort()).toEqual(['m-1', 'm-1-e1', 'm-1-e2']);
+		// A restore of a match whose last epoch already finished moves its files aside before the next is written.
+		keepEarlierEpoch(dir, 'm-1', () => undefined);
+		await expect.poll(async () => (await ids(base)).map(([id]) => id).sort()).toEqual(['m-1-e1', 'm-1-e2', 'm-1-e3']);
 	});
 
-	it('forgets a recording once its file is gone', async () => {
+	it('forgets what retention sweeps, and lists a rebuild from what the action log alone still offers', async () => {
 		const dir = await recordingsDir();
-		writePublic(dir, 'm-gone');
+		await finished(dir, 'm-1', 1);
+		const base = await openApp(dir, { canRebuild: () => true });
+		expect(await ids(base)).toEqual([['m-1', ['Ari', 'Bo'], 1]]);
+		// Eight days on, the public stream has aged out and the action log is all that is left.
+		sweepRecordings(dir, Date.now() + 8 * 24 * 60 * 60 * 1000);
+		await expect.poll(() => ids(base)).toEqual([['m-1', ['Player 1', 'Player 2'], null]]);
+		sweepRecordings(dir, Date.now() + 91 * 24 * 60 * 60 * 1000);
+		await expect.poll(() => ids(base)).toEqual([]);
+	});
+
+	it("lists the stream a rebuild writes back in place of the rebuild it was", async () => {
+		const dir = await recordingsDir();
+		writeActionsOnly(dir, 'm-2');
+		const base = await openApp(dir, { canRebuild: () => true });
+		expect(((await call(base, '/api/replays')).json.replays as { source: string }[]).map((r) => r.source)).toEqual(['rebuild']);
+		writePublicStream(dir, 'm-2', [
+			{ t: 'header', v: 2, matchId: 'm-2', roomId: null, players: ['A', 'B'], ai: [false, false], decks: [null, null], art: [], startedAt: '2026-01-01T00:00:00.000Z' },
+			{ t: 'end', endedAt: '2026-01-01T00:05:00.000Z', winner: 1 },
+		]);
+		await expect.poll(async () => ((await call(base, '/api/replays')).json.replays as { source: string; winner: number | null }[]).map((r) => [r.source, r.winner])).toEqual([['stream', 1]]);
+	});
+
+	it("plays an erased account's seat as unnamed from the erase on", async () => {
+		const dir = await recordingsDir();
+		await finished(dir, 'm-3', 1, { userId: 'uid-ari' });
 		const base = await openApp(dir);
-		expect(((await call(base, '/api/replays')).json.replays as unknown[]).length).toBe(1);
-		unlinkSync(join(dir, 'm-gone.public.jsonl.gz'));
-		expect((await call(base, '/api/replays')).json.replays).toEqual([]);
+		expect(await ids(base)).toEqual([['m-3', ['Ari', 'Bo'], 1]]);
+		expect(await recordingsStep(dir).erase(personOf('uid-ari'))).toBe(1);
+		await expect.poll(() => ids(base)).toEqual([['m-3', [UNNAMED, 'Bo'], 1]]);
+	});
+
+	it('logs a recording it cannot read and lists the rest', async () => {
+		const dir = await recordingsDir();
+		writeFileSync(join(dir, 'm-bad.public.jsonl.gz'), 'not gzip');
+		writePublic(dir, 'm-ok');
+		const base = await openApp(dir);
+		expect((await ids(base)).map(([id]) => id)).toEqual(['m-ok']);
+		expect(logged.filter((l) => l.evt === 'replay-list-read-failed').map((l) => l.matchId)).toEqual(['m-bad']);
 	});
 });
 
@@ -477,5 +516,44 @@ describe('POST /api/replays/report', () => {
 		expect((await call(base, '/api/replays/report', 'friend', { what: 'player-error', matchId: 'm-1', ui: '0.1.0', detail: { error: 'x' } })).status).toBe(204);
 		expect(logged).toContainEqual({ evt: 'replay-report', what: 'player-error', matchId: 'm-1', ui: '0.1.0', detail: { error: 'x' } });
 		expect((await call(base, '/api/replays/report', 'friend', { what: 'anything', detail: {} })).status).toBe(400);
+	});
+});
+
+describe("the list's bytes", () => {
+	// Every kind of row the list can hold, in one directory: what the list answers for it is kept
+	// byte for byte, so a change to how the list is read can be told from a change to what it says.
+	it('answers exactly as it always has for every kind of recording', async () => {
+		testingRooms.add('r-test');
+		const dir = await recordingsDir();
+		const env = (at: number): unknown => ({ t: 'env', at, env: { frame: { kind: 'notify' } } });
+		const SEATS = [
+			{ seat: 0, claimed: true, playerId: 0, avatarId: 'sage', userId: 'uid-ari' },
+			{ seat: 1, claimed: true, playerId: 1, userId: 'uid-gone' },
+		];
+		writePublic(dir, 'm-stream', { roomId: 'r-1', winner: 1, seats: SEATS, startedAt: '2026-01-01T00:00:09.000Z', envs: [env(0), env(6_000), env(7_000)] });
+		writeGz(join(dir, 'm-stream-e1.public.jsonl.gz'), [
+			{ t: 'header', v: 2, matchId: 'm-stream', roomId: 'r-1', players: ['A', 'B'], ai: [false, false], decks: [['W'], ['U', 'B']], art: ['a1', 'a2'], startedAt: '2026-01-01T00:00:07.000Z' },
+			env(0),
+			{ t: 'end', endedAt: '2026-01-01T00:04:00.000Z', winner: null },
+		]);
+		writePublic(dir, 'm-vsai', { ai: [false, true], startedAt: '2026-01-01T00:00:06.000Z' });
+		writePublic(dir, 'm-testing', { roomId: 'r-test', startedAt: '2026-01-01T00:00:05.000Z' });
+		writePublic(dir, 'm-v1', { v: 1, startedAt: '2026-01-01T00:00:04.000Z' });
+		writeActionsOnly(dir, 'm-v1', { startedAt: '2026-01-01T00:00:04.000Z' });
+		writeActionsOnly(dir, 'm-rebuild', { startedAt: '2026-01-01T00:00:03.000Z' });
+		writeActionsOnly(dir, 'm-unknown', { seats: null, startedAt: '2026-01-01T00:00:02.000Z' });
+		writeActionsOnly(dir, 'm-refused', { startedAt: '2026-01-01T00:00:01.000Z' });
+		writeGz(join(dir, 'm-users.actions.jsonl.gz'), [
+			{ t: 'header', v: 2, matchId: 'm-users', roomId: null, pin: 'abc', bridge: 'def', server: '0', startedAt: '2026-01-01T00:00:00.500Z', spec: { seats: [{ name: 'Player 1', ai: false }, { name: 'Player 2', ai: false }] } },
+			{ t: 'end', endedAt: '2026-01-01T00:05:00.000Z', reason: 'game-over', users: [null, 'uid-ari'] },
+		]);
+		writeFileSync(join(dir, 'm-corrupt.public.jsonl.gz'), 'not gzip');
+		writeFileSync(join(dir, 'notes.txt'), 'not a recording');
+		const people = { resolve: async (ids: readonly string[]) => new Map(ids.filter((id) => id === 'uid-ari').map((id) => [id, { name: 'Ari', sprite: 'mage' }] as const)), peek: () => undefined };
+		const base = await openApp(dir, { people: people as never, canRebuild: (header) => header.matchId !== 'm-refused' });
+		const text = async (path: string, tier = 'friend'): Promise<string> => (await fetch(`${base}${path}`, { headers: { 'x-edge-auth': EDGE_SECRET, 'x-hadoku-tier': tier, 'x-user-id': 'u-1', 'x-user-name': 'u-1', 'x-user-key': 'k' } })).text();
+		for (const [path, tier] of [['/api/replays', 'friend'], ['/api/replays', 'admin'], ['/api/replays?humans=only', 'friend'], ['/api/replays?limit=2', 'friend'], ['/api/replays?limit=abc', 'admin']] as const) {
+			expect(await text(path, tier)).toMatchSnapshot(`${tier} ${path}`);
+		}
 	});
 });
