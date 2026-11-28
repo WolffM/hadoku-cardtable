@@ -24,7 +24,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 
 import type { GauntletView } from '../packages/shared/src/gauntlet.ts';
 import { EDGE_ORIGIN, PREFIX, SESSION_COOKIE } from './identities.ts';
-import { coinOverPool, watchCoinOverPool } from './gauntletCoin.ts';
+import { coinOverPool, freezeForReady, installRevealClock } from './gauntletCoin.ts';
 import { keepPrefsLocal } from './prefsLocal.ts';
 
 const ERA = 'modern-2012-07-13';
@@ -67,7 +67,7 @@ test('the Gauntlet board at 1440×900: both columns on screen, no pool name or p
   await context.addCookies([{ name: SESSION_COOKIE, value: 'alice', domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Strict' }]);
   await keepPrefsLocal(context, EDGE_ORIGIN);
   const page = await context.newPage();
-  await watchCoinOverPool(page);
+  await installRevealClock(page);
   try {
     await page.goto(`${PREFIX}/`);
     const created = await send<{ id: string }>(context.request, 'POST', '/rooms', {
@@ -82,6 +82,7 @@ test('the Gauntlet board at 1440×900: both columns on screen, no pool name or p
     await page.goto(`${PREFIX}/#/room/${roomId}`);
     await expect(page.getByTestId('constructed')).toBeVisible({ timeout: 15_000 });
     expect((await send(context.request, 'POST', `/tables/rooms/${roomId}/sit`)).status).toBe(200);
+    await freezeForReady(page);
     const ready = await send<GauntletView>(context.request, 'POST', `/tables/rooms/${roomId}/gauntlet/ready`, { ready: true, ai: true });
     expect(ready.status, JSON.stringify(ready.body)).toBe(200);
     expect(ready.body.era?.id).toBe(ERA);
@@ -91,8 +92,8 @@ test('the Gauntlet board at 1440×900: both columns on screen, no pool name or p
     await expect(page.getByTestId('gauntlet-title')).toHaveText(ready.body.era!.title, { timeout: 15_000 });
 
     // The coin, while it is up, covers the pool exactly — the redesign must not have broken its `inset: 0`.
-    await expect.poll(() => coinOverPool(page), { timeout: 15_000, message: 'the coin was drawn' }).not.toBeNull();
-    const coinBox = (await coinOverPool(page))!;
+    expect(ready.body.revealAt, 'the ready started the reveal').not.toBeNull();
+    const coinBox = await coinOverPool(page, ready.body.revealAt!);
     console.log(`[w90d-gauntlet-board] coin over pool: ${JSON.stringify(coinBox)}`);
     expect(coinBox.coin, 'the coin overlay is the pool’s own box').toEqual(coinBox.pool);
 
