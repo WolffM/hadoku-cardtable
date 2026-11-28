@@ -262,6 +262,12 @@ interface DraftSocketDeps {
 interface DraftSocketHandle {
 	/** Release the rate limiter from the package's sweep registry. */
 	close(): void;
+	/**
+	 * `memberId`'s seat in the room's running draft picks by the draft bot (`on`): at once, and at every
+	 * pick after, until they come back to the draft (their next `join` clears it), as a seat whose drafter
+	 * left does (`goneSeats`). `on: false` hands the seat back. A leader's or operator's tool (`/draft/pick-for`).
+	 */
+	pickFor(roomId: string, memberId: string, on: boolean): 'ok' | 'not-drafting' | 'not-a-drafter';
 	/** Bot picks by where they came from since the last call (`capacity`'s window). */
 	draftbotPicks(): Record<DraftbotOutcome, number>;
 }
@@ -505,17 +511,45 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	const goneSeats = (room: DraftRoom): Set<number> => {
 		const { roomId } = podOfDraftId(room.roomId);
 		const gone = new Set<number>();
-		const { seats } = stateOf(room).table;
-		const dealt = deps.lobby.dealtSeats(room.roomId);
-		for (const id of magicView(deps.lobby.get(roomId))?.game?.pod?.drafters ?? []) {
-			if (deps.lobby.isMember(roomId, id)) continue;
-			const sitting = seats.find((s) => s.occupant?.kind === 'human' && s.occupant.participantId === id);
-			const seat = dealt.get(id) ?? sitting?.id ?? room.seats.remembered[id];
-			if (seat === undefined) continue;
-			const occupant = seats[seat]?.occupant ?? null;
-			if (occupant === null || (occupant.kind === 'human' && occupant.participantId === id)) gone.add(seat);
+		const left = (magicView(deps.lobby.get(roomId))?.game?.pod?.drafters ?? []).filter((id) => !deps.lobby.isMember(roomId, id));
+		// A leader's or operator's word (`pickFor`) puts a seat on the same footing as a drafter who left.
+		for (const id of [...left, ...(proxied.get(room.roomId) ?? [])]) {
+			const seat = seatOfDrafter(room, id);
+			if (seat !== null) gone.add(seat);
 		}
 		return gone;
+	};
+
+	/**
+	 * A drafter's seat: the one the pod dealt them (`Lobby.dealtSeats`, which outlives a restart), else the one
+	 * they sit in, else the one the table remembers them by; and only while nobody else has taken it.
+	 */
+	const seatOfDrafter = (room: DraftRoom, id: string): number | null => {
+		const { seats } = stateOf(room).table;
+		const sitting = seats.find((s) => s.occupant?.kind === 'human' && s.occupant.participantId === id);
+		const seat = deps.lobby.dealtSeats(room.roomId).get(id) ?? sitting?.id ?? room.seats.remembered[id as ParticipantId];
+		if (seat === undefined) return null;
+		const occupant = seats[seat]?.occupant ?? null;
+		return occupant === null || (occupant.kind === 'human' && occupant.participantId === id) ? seat : null;
+	};
+
+	/** Per draft, the drafters whose seat the draft bot picks for on a leader's word (`pickFor`) until they come back. */
+	const proxied = new Map<string, Set<string>>();
+
+	/** Every deadline as it stands, so a change that moved no card (a timer turned on, a seat picked for) still reaches the screens. */
+	const ropeSig = (room: DraftRoom): string => [...room.app.rope].map(([seat, d]) => `${seat}:${d.key}:${d.endsAt}`).join(',');
+
+	/** One pod's draft brought up to date with the room: its bots and its rope, and a step to every screen when either moved. */
+	const resync = (room: DraftRoom): void => {
+		const seq = stateOf(room).seq;
+		const sig = ropeSig(room);
+		settle(room);
+		if (stateOf(room).seq !== seq) stepped(room);
+		// No card moved, so no new seq: each screen gets its whole table again (a state, as a join's), timers and all.
+		else if (ropeSig(room) !== sig && deps.rooms !== undefined && deps.rooms !== null) {
+			const meta = deps.rooms.cubeMetaOf(room);
+			emitPerRecipient<DraftApp, DraftClient, ServerMessage>(io, room, DRAFT_CHANNEL.serverToClient, (client) => stateMessage(viewForClient(room, client), meta), policy);
+		}
 	};
 
 	/**
@@ -609,19 +643,33 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		if (timedOut > 0) stepped(room);
 	};
 
-	// A drafter who leaves the room is gone from their seat at once (`goneSeats`): each pod of a room that changed
-	// while it drafts brings its deadlines up to date, and a pick that takes moves the table on.
-	const stopWatchingRooms = deps.lobby.onChange((roomId) => {
+	/** Each pod's draft of a room that is drafting. */
+	const draftsOf = (roomId: string): DraftRoom[] => {
 		const pod = magicView(deps.lobby.get(roomId))?.game?.pod;
-		if (pod?.phase !== 'drafting') return;
-		for (let k = 0; k < Math.max(1, pod.pods?.length ?? 0); k++) {
-			const room = deps.rooms?.find(podDraftId(roomId, k));
-			if (room === undefined || goneSeats(room).size === 0) continue;
-			const seq = stateOf(room).seq;
-			settle(room);
-			if (stateOf(room).seq !== seq) stepped(room);
-		}
+		if (pod?.phase !== 'drafting') return [];
+		return Array.from({ length: Math.max(1, pod.pods?.length ?? 0) }, (_, k) => deps.rooms?.find(podDraftId(roomId, k))).filter((r): r is DraftRoom => r !== undefined);
+	};
+
+	// A room that changed while it drafts brings each pod's deadlines up to date: a drafter who left is gone
+	// from their seat at once (`goneSeats`), and a pick timer turned on mid-draft (`Lobby.setPickTimer`) starts.
+	const stopWatchingRooms = deps.lobby.onChange((roomId) => {
+		for (const room of draftsOf(roomId)) resync(room);
 	});
+
+	const pickFor = (roomId: string, memberId: string, on: boolean): 'ok' | 'not-drafting' | 'not-a-drafter' => {
+		const drafts = draftsOf(roomId);
+		if (drafts.length === 0) return 'not-drafting';
+		const room = drafts.find((r) => seatOf(r.seats, memberId as ParticipantId) !== null);
+		if (room === undefined) return 'not-a-drafter';
+		const set = proxied.get(room.roomId) ?? new Set<string>();
+		if (on) set.add(memberId);
+		else set.delete(memberId);
+		if (set.size === 0) proxied.delete(room.roomId);
+		else proxied.set(room.roomId, set);
+		log({ evt: 'pick-for', draftId: room.roomId, memberId, on, seat: seatOf(room.seats, memberId as ParticipantId) });
+		resync(room);
+		return 'ok';
+	};
 
 	// The one handshake gate. See the module header.
 	gateSocketIo(io, { minTier: deps.minTier, surface: 'draft-socket' });
@@ -730,6 +778,8 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 					// A room of several pods: the joiner's own pod's draft (`DraftRooms.routeFor`).
 					const room = rooms.open(rooms.routeFor(msg.draftId, participantId));
 					const outcome = joinDraftRoom(room, socket.id, participantId, tier, rooms.drafters(room.roomId));
+					// Back: a seat the draft bot was picking for (`pickFor`) is theirs again.
+					if (proxied.get(room.roomId)?.delete(participantId) === true) log({ evt: 'pick-for-ended', draftId: room.roomId, memberId: participantId });
 					log({
 						evt: 'join',
 						participantId,
@@ -922,5 +972,6 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			// (`createSeatPresence`) owns its shutdown.
 		},
 		draftbotPicks: () => tally.drain(),
+		pickFor,
 	};
 }

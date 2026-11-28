@@ -40,6 +40,8 @@ export const tablesPlugin: CardtablePlugin = {
 			seriesEnded: (roomId, tableId) => state.tables.seriesEnded(roomId, tableId),
 			awardGame: (roomId, tableId, winner) => state.tables.awardGame(roomId, tableId, winner),
 			epochsOf: (matchId) => earlierEpochs(MAGIC_CONFIG.recordingsDir, matchId),
+			// Attached by the play plugin after these routes; read when a route asks.
+			draft: () => (state.draftSocket as typeof state.draftSocket | undefined),
 		});
 
 		// The front page's featured match. Built before play, whose `liveChanged` re-picks it; its

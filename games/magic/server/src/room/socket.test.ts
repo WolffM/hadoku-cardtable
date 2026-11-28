@@ -139,6 +139,8 @@ interface Harness {
 	presence: PresenceTracker<string>;
 	draftbotPicks: () => Record<string, number>;
 	close: () => Promise<void>;
+	/** The leader's or operator's `/draft/pick-for` (`DraftSocketHandle.pickFor`). */
+	pickFor(roomId: string, memberId: string, on: boolean): 'ok' | 'not-drafting' | 'not-a-drafter';
 }
 
 const openPeers: ClientSocket[] = [];
@@ -234,6 +236,7 @@ async function boot(
 		lines,
 		presence,
 		draftbotPicks: () => handle.draftbotPicks(),
+		pickFor: (roomId, memberId, on) => handle.pickFor(roomId, memberId, on),
 		close: async () => {
 			sessions?.close();
 			handle.close();
@@ -1147,6 +1150,26 @@ function roomsSeq(): number {
 
 /* ── Reconnect ───────────────────────────────────────────────────────── */
 
+/** Alice and Bob draft with six bots, the pick timer off; Bob never connects. */
+function twoDraftersMidDraft(): { id: string; bob: string; seatOfBob: () => number } {
+	const { lobby, rooms } = live();
+	const alice = { id: identityFromHeaders(edgeHeaders('mid-alice'), 'unused'), name: 'alice', userId: null };
+	const bob = { id: identityFromHeaders(edgeHeaders('mid-bob'), 'unused'), name: 'bob', userId: null };
+	const made = lobby.create(alice, { name: 'midway', gameType: 'draft', clientMode: 'builtin' });
+	if (!made.ok) throw new Error(made.reason);
+	const id = made.room.id;
+	expect(lobby.join(id, bob).ok).toBe(true);
+	for (const m of [alice, bob]) expect(lobby.sitSeat(id, m.id).ok).toBe(true);
+	lobby.get(id)!.game!.pod!.seats.forEach((s, seat) => {
+		if (s === null) expect(lobby.aiSeat(id, alice.id, seat, true).ok).toBe(true);
+	});
+	lobby.setPodPlan(id, alice.id, lobby.get(id)!.game!.pod!.plan!, { ok: true, cards: 1 });
+	for (const m of [alice, bob]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+	expect(lobby.startDraft(id, alice.id).ok).toBe(true);
+	rooms.setPodLookup((draftId) => lobby.podDraft(draftId));
+	return { id, bob: bob.id, seatOfBob: () => seatOf(rooms.find(id)!.seats, bob.id)! };
+}
+
 describe('a drafter who leaves the room mid-draft', () => {
 	/** Alice and Bob draft with six bots, the pick timer off (the room's default). */
 	function twoDrafters(): { id: string; bob: string; seatOfBob: () => number } {
@@ -1228,6 +1251,51 @@ describe('a drafter who leaves the room mid-draft', () => {
 			await waitUntil(() => poolOf(aliceSeat) === pick, `alice's pick ${pick} to land`);
 		}
 		await waitUntil(() => poolOf(seat) >= 4, "the bot's picks for the seat bob was dealt");
+	});
+});
+
+describe('mid-draft, on the leader’s or an operator’s word', () => {
+	it('the draft bot picks for a drafter who is still in the room but gone, at every pick, until they join again', async () => {
+		const { id, bob, seatOfBob } = twoDraftersMidDraft();
+		const alice = await connect(live().port, edgeHeaders('mid-alice'));
+		await joinAndSettle(alice, id);
+		const seat = seatOfBob();
+		expect(live().pickFor(id, 'fk:nobody', true)).toBe('not-a-drafter');
+		expect(live().pickFor(startedRoomId === id ? 'no-such' : startedRoomId, bob, true)).toBe('not-drafting');
+		expect(live().pickFor(id, bob, true)).toBe('ok');
+		await waitUntil(() => (roomsMod.stateOf(live().rooms.find(id)!).pools[seat]?.length ?? 0) >= 1, "the bot's pick for bob's seat");
+		expect(lines().some((l) => l.evt === 'pick-timeout' && l.seat === seat)).toBe(true);
+		// Bob comes back: his seat is his again, and nothing more is picked for him.
+		const back = await connect(live().port, edgeHeaders('mid-bob'));
+		await joinAndSettle(back, id);
+		expect(lines().some((l) => l.evt === 'pick-for-ended' && l.memberId === bob)).toBe(true);
+		const had = roomsMod.stateOf(live().rooms.find(id)!).pools[seat]!.length;
+		const v = lastView(alice);
+		if (v?.viewer.kind !== 'seat') throw new Error('alice is seated');
+		const aliceCard = v.viewer.pack?.[0]?.cardId;
+		if (aliceCard === undefined) throw new Error('alice has a pack');
+		alice.send(pickCard(id, aliceCard));
+		await waitUntil(() => (roomsMod.stateOf(live().rooms.find(id)!).pools[v.viewer.kind === 'seat' ? v.viewer.seatId : 0]?.length ?? 0) >= 1, 'alice picked');
+		await new Promise((done) => setTimeout(done, 100));
+		expect(roomsMod.stateOf(live().rooms.find(id)!).pools[seat], 'bob picks for himself again').toHaveLength(had);
+	});
+
+	it('a pick timer turned on mid-draft starts on every human seat, and the screens show it', async () => {
+		const { id } = twoDraftersMidDraft();
+		const alice = await connect(live().port, edgeHeaders('mid-alice'));
+		await joinAndSettle(alice, id);
+		const before = lastView(alice);
+		if (before?.viewer.kind !== 'seat') throw new Error('alice is seated');
+		expect(before.viewer.timer, 'no timer to begin with').toBeUndefined();
+		const leader = magicView(live().lobby.get(id))!.leader;
+		expect(live().lobby.setPickTimer(id, leader, { on: true, speed: 4 })).toEqual({ ok: true });
+		await waitUntil(() => {
+			const v = lastView(alice);
+			return v?.viewer.kind === 'seat' && v.viewer.timer !== undefined;
+		}, 'alice sees her pick timed');
+		const v = lastView(alice);
+		if (v?.viewer.kind !== 'seat') throw new Error('alice is seated');
+		expect(v.viewer.timer?.totalMs).toBe(pickTimeMs(15, 4));
 	});
 });
 
