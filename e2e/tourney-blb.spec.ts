@@ -341,6 +341,9 @@ async function draft(p: Player, upTo = Number.POSITIVE_INFINITY): Promise<void> 
 /** A few picks, then Leave and close the page: the person who walks out mid-draft. */
 async function leaveMidDraft(p: Player, run: Run): Promise<void> {
   await draft(p, 3);
+  // Off the room screen first, as the real Leave does (`leaveRoomThen`): a room screen still drawn
+  // when its viewer stops being a member joins them again on the next read.
+  await p.f.page.goto('about:blank');
   const res = await p.f.context.request.post(`${run.stack.origin}${PREFIX}/api/rooms/${run.roomId}/leave`, { data: {} });
   expect(res.status(), `${p.name}: Leave`).toBe(200);
   p.gone = true;

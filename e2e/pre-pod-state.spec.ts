@@ -119,6 +119,14 @@ async function podCell(browser: Browser, jar: { jar: string; res: string }, name
       await p.page.goto(roomUrl);
       await expect(p.page.getByTestId('draft-lobby'), `${p.name}: joined the room`).toBeVisible({ timeout: UI_TIMEOUT });
     }
+    // The lobby draws before its join lands, so wait on the room naming everyone.
+    const wanted = players.map((p) => `e2e-${p.name}`);
+    await expect
+      .poll(async () => {
+        const { members } = await roomOf(leader, origin, roomId);
+        return wanted.filter((n) => !members.some((m) => m.name === n));
+      }, { timeout: UI_TIMEOUT, message: 'every drafter is a member' })
+      .toEqual([]);
     // `useWhoami()` reads the real `fk:` id, which this edge serves no `/session/whoami` for (`w72-pod.spec.ts`).
     const members = (await roomOf(leader, origin, roomId)).members;
     const idOf = new Map<Friend, string>();
@@ -149,6 +157,9 @@ async function podCell(browser: Browser, jar: { jar: string; res: string }, name
     console.log(`[pre-pod] ${names.length}: restart mid-draft, all ${names.length} back on a pick`);
 
     /* ── the leaver presses Leave mid-draft; the pick timer is off ────── */
+    // Off the room screen first, as the real Leave does (`leaveRoomThen`): a room screen still drawn
+    // when its viewer stops being a member joins them again on the next read.
+    await gone.page.goto('about:blank');
     expect((await api(gone, origin, 'POST', `/rooms/${roomId}/leave`)).status, `${leaver} leaves`).toBe(200);
     await gone.page.close();
     // Their seat is picked for (the draft bot), or this never finishes and the test times out.
