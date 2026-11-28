@@ -45,6 +45,51 @@ table last moved.
 | **Server restart** (pm2 restart, a deploy) | Live games are handed over and resume by themselves; rooms and brackets persist. A game that could not be adopted lets its table go with no result: the players reopen the table link and the same game starts again, the score standing. Prod changes only through `release.yml`; do not cut a release mid-event. |
 | **Whole room wrong** (not a tournament yet) | The leader's **Reset** beside Close in the room (an operator: `api('tables/reset', {})` below). A tournament under way can only be closed. |
 
+## A claw fails mid-match (failover)
+
+Matches run on the claws (claw-8, claw-9, then claw-10; hokon only in an emergency). When one stops
+answering, its matches move by themselves. Nobody needs to press anything for the common cases.
+Measured on scratch claws, 2026-11-28 (`scripts/stress/hosting/failover.spec.ts` and tourney-blb's
+`12p claws` field):
+
+| What broke | Discord says | How long the board is frozen | Where the game comes back |
+| --- | --- | --- | --- |
+| A claw's agent dies or its link goes silent | 🚨 **Failover: claw-N** — moved K: m-… → claw-M (restored at the start of turn T) | ~9 s (the 10 s heartbeat window) | the **start of the current turn**, on another claw |
+| A match's JVM dies | 🚨 **Failover** as above | under 1 s | start of the current turn, another claw |
+| The server froze for >10 s (hokon busy) | 🔁 **Fenced: claw-N** — "this server was silent, not the claw" | as long as the freeze, plus <1 s | start of the current turn, usually the same claw |
+| The server restarted (deploy, pm2) or crashed | nothing, or the deploy | a few seconds; "Reconnecting…" | **exactly where it was** (nothing is rewound) |
+| A claw's disk filled | nothing | none | the game goes on |
+
+**What a player sees.** The board stops answering for those seconds, then comes back by itself
+**without reloading the page**: the same match, the same opponent, the clock where it was. After a
+failover or a fence the game is **back at the start of the turn** it was in: a land played this turn
+is back in hand, a spell cast this turn is back in hand and its mana untapped, an attack is undone,
+and whoever was active draws the same card again. The page does not say so: tell the players at that
+table, if they ask, *"the server moved your game; it went back to the start of the turn, play the
+turn again."* Nothing is lost from earlier turns (life, counters, tokens, Auras and Equipment,
+graveyards, exile, library order).
+
+**What the admin does:**
+
+1. **Nothing, if the table is moving again.** Open ⋯ on the match: **Turn N** and ↻ ticking over
+   means it recovered. The pairing's result is recorded when the game ends, as usual.
+2. **A player says their screen is stuck after the move:** ⋯ → **Re-send asks** first, then
+   **Restart turn** (see *The emergencies*). The page never needs a reload; if a player reloaded
+   anyway, they reopen the table link and press **Return to game**.
+3. **🚨 Match lost** (no claw and no backstop could take it), or the board says the game ended while
+   the table still says playing: ⋯ → **Restart turn**; refused or no snapshot → **Reset game** (the same
+   game from its start, the series score stands). Never award a result nobody played out unless both
+   players agree (**Game to ‹player›**).
+4. **The same claw keeps failing:** it is already quarantined (no new matches) until it passes a
+   canary. Nothing to do on Sunday; note the alert times for the operator.
+
+**What can be lost in a turn-start restore**, in Bloomburrow terms: this turn's plays (above), an
+"until end of turn" effect, and anything on the stack. ⚠ On pin 706507109 an **Offspring token copy**
+comes back as a plain 1/1 body without the copied creature's abilities (the turn's snapshot names it
+`token`); fixed by fork 83886be5 once that pin is deployed. Until then, if a failover hits a table
+with an Offspring token on the board, the players may agree to treat the token as having its
+abilities, or use **Reset game**.
+
 ## API equivalents (when the page will not load)
 
 From the browser console on `hadoku.me/cardtable/`, signed in as an operator:
