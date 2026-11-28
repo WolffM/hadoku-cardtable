@@ -112,6 +112,48 @@ with what it is. Then use **Reset game**, or **Game to ‹player›** if both pl
 on such a turn still restores the board, without that token's abilities: look at the board with both
 players, and award the game if it mattered.
 
+## The server itself stalls (hokon busy): every table freezes at once
+
+hokon runs the site and talks to every claw. When hokon stalls (its disk or memory is overloaded),
+**every table freezes at the same moment**, the draft and lobby too. On 2026-11-27/28 it happened
+about a dozen times, for 3 to 40 s each. Once branch `pre-hostguard` has landed and
+the claws' agents are reinstalled, a stall costs nothing but the wait. (Until the agents are
+reinstalled, a freeze over 10 s still rewinds each game to the start of its turn: the **Fenced** row
+in the failover table.)
+
+| How long hokon stalls | What players see | Where the game comes back | Discord |
+| --- | --- | --- | --- |
+| under 75 s (every stall seen so far) | the board stops answering ("Waiting for …"); if the server itself froze, "Reconnecting…" from ~22 s | **exactly where it was**: nothing rewound, nothing lost, same claw | nothing |
+| 75–90 s, hokon's network silent | as above | the claws fail over as in *A claw fails mid-match*: start of the turn | 🚨 Failover, one per claw |
+| over 90 s | as above | each game restored at the start of its turn when hokon is back | 🔁 Fenced |
+
+Measured on scratch claws (6 live BLB tables, 12 players, 2026-11-28): the claws cut off from the
+server for 30 s, every table re-attached and every screen was live again at 36 s; the server frozen
+30 s, live at 36 s; frozen 60 s, live at 66 s. Nothing restored, nothing rewound, no page reload, open
+choices still open, no game lost. For comparison, one claw really dying: its 3 games restored at
+the start of their turn on another claw in 9 s, screens live at 12 s.
+
+**What a player sees.** Everything stops answering at once, theirs and their opponent's alike. If the
+server itself froze, past about 20 s the page shows "Reconnecting…". It comes back by itself **without reloading**, at the
+same point in the same turn, and a choice they were halfway through is still open. Tell them:
+*"the server hiccupped; nothing was lost, carry on."*
+
+**What the admin does:**
+
+1. **Everyone frozen at once means hokon, not a claw.** Wait up to 90 s. Do **not** press
+   **Restart turn**, **Reset game** or restart the server while it is frozen: the games are intact
+   on the claws and come back on their own. Restarting would only rewind them.
+2. **To confirm it was the host** (afterwards, from a terminal on hokon):
+   `grep '"evt":"host-stall"' ~/.pm2/logs/cardtable-out.log | tail -5`: `kind: loop` means the server's
+   own process froze, `kind: network` means it could not hear any claw. Each line carries
+   `hostPressure` (fleet-manager's verdict: `warn` with its reasons, `ok`, or `unknown` when it could
+   not tell). `cat /run/user/1000/fleet/host-pressure.json` shows the pressure now.
+3. **Past 90 s, or 🚨 Failover / 🔁 Fenced alerts arrive:** follow *A claw fails mid-match*. Games
+   are back at the start of the turn; nothing from earlier turns is lost.
+4. **Stalls keep coming (several in an hour):** note the times for the operator. Don't start a new
+   round while one is under way: a match started during a stall waits for the claws, and does not
+   go onto hokon.
+
 ## Find the tool from what you see
 
 | What you see | Tool |
@@ -120,6 +162,7 @@ players, and award the game if it mattered.
 | A drafter's tab closed mid-draft and the table waits on their pack | console: **the bot picks for them** (below); it stops by itself when they come back |
 | A player sat down but never readies, and the field has not locked | their seat chip → **Bot** (the AI takes it) or **Remove** |
 | A seat is empty and nobody is coming | the seat chip → **AI**, or **Close** |
+| Every table freezes at the same moment (the lobby and draft too) | nothing: wait up to 90 s (*The server itself stalls*) |
 | A screen shows nothing to do, but the game doesn't move | ⋯ → **Re-send asks** |
 | A game will not move, and Re-send asks did not help | ⋯ → **Restart turn** |
 | Restart turn is refused, or the game itself is wrong from the start | ⋯ → **Reset game** |
