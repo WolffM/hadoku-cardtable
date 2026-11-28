@@ -138,13 +138,26 @@ import type { JvmLauncher, JvmTransport } from './jvm-transport.js';
 export const FORGE_HEARTBEAT_TIMEOUT_S = 86_400;
 
 /**
- * Flags every bridge JVM gets, before the heap cap and the operator's `jvmOpts` (so a later flag
- * of theirs wins). `ExitOnOutOfMemoryError`: G1 has no GC-overhead limit, and without this a JVM
- * out of heap never exits — its games die of `OutOfMemoryError` and the JVM limps on
- * (hosting-test-plan B4: 62 % GC, act p99 14.6 s). With it the JVM exits (code 3), which fails
- * every match on it through the exit path.
+ * After this long without a GC, an idle JVM's G1 runs one on its own (JEP 346). That returns
+ * the committed heap a busy spell left behind, and walks the live set, so a quiet JVM keeps
+ * its live set paged in. Measured on the pool JVM, 2026-11-28: 190 MB live in 1.1–1.75 GB
+ * committed that was never handed back, and after a quiet spell 1.67 GB of it was in the
+ * cgroup's swap; with this, 340 MB committed, and one periodic GC paged 230 MB back from swap.
+ * A JVM doing work collects far more often than this, so it never fires there.
  */
-export const BRIDGE_JVM_FLAGS: readonly string[] = ['-XX:+ExitOnOutOfMemoryError', `-Dforge.net.heartbeatTimeout=${FORGE_HEARTBEAT_TIMEOUT_S}`];
+export const JVM_IDLE_GC_MS = 300_000;
+
+/**
+ * Flags every Forge JVM gets (match bridges and the pool service), before its heap cap and the
+ * operator's `jvmOpts` (so a later flag of theirs wins). `ExitOnOutOfMemoryError`: G1 has no
+ * GC-overhead limit, and without this a JVM out of heap never exits — its games die of
+ * `OutOfMemoryError` and the JVM limps on (hosting-test-plan B4: 62 % GC, act p99 14.6 s). With
+ * it the JVM exits (code 3), which fails everything on it through the exit path.
+ */
+export const FORGE_JVM_FLAGS: readonly string[] = ['-XX:+ExitOnOutOfMemoryError', `-XX:G1PeriodicGCInterval=${JVM_IDLE_GC_MS}`];
+
+/** {@link FORGE_JVM_FLAGS}, and Forge's client timeout far past any pause. */
+export const BRIDGE_JVM_FLAGS: readonly string[] = [...FORGE_JVM_FLAGS, `-Dforge.net.heartbeatTimeout=${FORGE_HEARTBEAT_TIMEOUT_S}`];
 
 /* ── The JVM host ────────────────────────────────────────────────────── */
 
@@ -209,8 +222,9 @@ export const MATCHES_PER_JVM = 25;
 /**
  * Each JVM's heap cap: the budget for {@link MATCHES_PER_JVM} matches. A JVM is ~172 MB live idle
  * and ~10 MB per match (Wave 9 lane D; 4–9 MB in hosting-test-plan B3), so 25 matches live in
- * ~420 MB of a 2 GB heap. G1 does not hand committed heap back, so a JVM's RSS is budgeted at its
- * peak: ~2.3 GB with metaspace, code cache and Netty.
+ * ~420 MB of a 2 GB heap. G1 hands committed heap back only once the JVM is idle
+ * ({@link JVM_IDLE_GC_MS}), so a JVM's RSS is budgeted at its peak: ~2.3 GB with metaspace, code
+ * cache and Netty.
  */
 export const JVM_HEAP_MB = 2048;
 

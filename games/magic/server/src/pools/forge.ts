@@ -54,7 +54,8 @@ import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 
-import { bridgeLaunch, type JvmHostConfig } from '@hadoku/game-server/play/host';
+import { pidWork } from '@hadoku/game-server/play/engine-runtime';
+import { bridgeLaunch, FORGE_JVM_FLAGS, type JvmHostConfig } from '@hadoku/game-server/play/host';
 import { POOL_SERVICE_SOURCE } from '../root.js';
 
 export interface SetSummary {
@@ -124,12 +125,36 @@ function isReply(value: unknown): value is JsonResponse & { id: string } {
 	return typeof value === 'object' && value !== null && typeof (value as { id?: unknown }).id === 'string';
 }
 
+/**
+ * The pool JVM's heap cap. Its live set is Forge's card data, 190 MB after a full GC, and an
+ * 8-seat booster deal or the boot's whole-catalog load fit in 512 MB (measured 2026-11-28);
+ * this is that with room. Without a cap the JVM took a quarter of the cgroup's limit (8 GB),
+ * grew to 1.1–1.75 GB at boot and kept it. `CARDTABLE_PLAY_JVM_OPTS`' own `-Xmx` wins.
+ */
+export const POOL_JVM_HEAP_MB = 768;
+
 export interface PoolTiming {
+	/** A call fails once the JVM has done no work on it for this long. */
 	callTimeoutMs: number;
+	/** And once it has taken this long, working or not: under the edge's 100 s request deadline. */
+	callCapMs: number;
 	bootTimeoutMs: number;
 }
 
-const DEFAULT_TIMING: PoolTiming = { callTimeoutMs: 30_000, bootTimeoutMs: 180_000 };
+const DEFAULT_TIMING: PoolTiming = { callTimeoutMs: 30_000, callCapMs: 90_000, bootTimeoutMs: 180_000 };
+
+/** Linux's `/proc` clock tick (USER_HZ), the same 100 on every architecture's user ABI. */
+const MS_PER_TICK = 10;
+
+/**
+ * Whether the JVM worked through the last `windowMs`: a twentieth of it on CPU (collecting,
+ * computing a pack), or a page-in every 100 ms (reading its heap back from swap). An idle JVM
+ * does neither; a JVM waiting on nothing for a whole window is stuck, not slow.
+ */
+function worked(before: ReturnType<typeof pidWork>, after: ReturnType<typeof pidWork>, windowMs: number): boolean {
+	if (before === null || after === null) return false;
+	return (after.cpuTicks - before.cpuTicks) * MS_PER_TICK >= windowMs / 20 || after.majorFaults - before.majorFaults >= windowMs / 100;
+}
 
 export function createForgePools(config: JvmHostConfig, log: (entry: Record<string, unknown>) => void = () => {}, timing: PoolTiming = DEFAULT_TIMING): ForgePools {
 	const CALL_TIMEOUT_MS = timing.callTimeoutMs;
@@ -192,8 +217,10 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 			);
 		}
 		// Out of heap, the JVM exits rather than limping on at ~94 % GC (hosting-test-plan H7): every
-		// waiter is then rejected by `onExit` and the next call spawns a fresh pool JVM.
-		const c = spawn(poolConfig.java, ['-Djava.awt.headless=true', '-XX:+ExitOnOutOfMemoryError', `-Djava.io.tmpdir=${join(run, 'tmp')}`, ...poolConfig.jvmOpts, ...bridge.args], {
+		// waiter is then rejected by `onExit` and the next call spawns a fresh pool JVM. Idle, it hands
+		// its spare heap back and keeps its live set paged in (`FORGE_JVM_FLAGS`).
+		const flags = ['-Djava.awt.headless=true', ...FORGE_JVM_FLAGS, `-Xmx${POOL_JVM_HEAP_MB}m`, `-Djava.io.tmpdir=${join(run, 'tmp')}`, ...poolConfig.jvmOpts];
+		const c = spawn(poolConfig.java, [...flags, ...bridge.args], {
 			cwd: run,
 			stdio: ['pipe', 'pipe', 'pipe'],
 		});
@@ -226,13 +253,30 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 			await booted;
 			return new Promise<JsonResponse>((resolveCall, reject) => {
 				const id = String(nextId++);
-				const timer = setTimeout(() => {
+				const started = Date.now();
+				// Slow is not stuck: a JVM paging its heap back in or collecting it is still on the call,
+				// so each window it worked through buys another, up to the cap.
+				let seen = c.pid === undefined ? null : pidWork(c.pid);
+				let slow = false;
+				const check = (): void => {
+					const now = c.pid === undefined ? null : pidWork(c.pid);
+					const left = timing.callCapMs - (Date.now() - started);
+					const working = worked(seen, now, CALL_TIMEOUT_MS);
+					seen = now;
+					if (working && left > 0) {
+						slow = true;
+						timer = setTimeout(check, Math.min(CALL_TIMEOUT_MS, left));
+						return;
+					}
 					pending.delete(id);
-					reject(new Error(`pool JVM did not answer "${op}" within ${CALL_TIMEOUT_MS}ms`));
-				}, CALL_TIMEOUT_MS);
+					if (slow) log({ evt: 'pool-call-slow', op, ms: Date.now() - started, answered: false });
+					reject(new Error(`pool JVM did not answer "${op}" within ${left <= 0 ? timing.callCapMs : CALL_TIMEOUT_MS}ms`));
+				};
+				let timer = setTimeout(check, CALL_TIMEOUT_MS);
 				pending.set(id, {
 					resolve: (v) => {
 						clearTimeout(timer);
+						if (slow) log({ evt: 'pool-call-slow', op, ms: Date.now() - started, answered: true });
 						resolveCall(v);
 					},
 					reject: (e) => {

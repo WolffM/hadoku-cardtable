@@ -270,6 +270,22 @@ export function pidIsRunning(pid: number): boolean {
 	}
 }
 
+/**
+ * The work a process has done so far, as `/proc/<pid>/stat` counts it: CPU time (user + system,
+ * in clock ticks) and major page faults (pages it waited to read back, from swap or disk). Two
+ * readings apart say whether it is getting anywhere; `null` once it has exited, or without `/proc`.
+ */
+export function pidWork(pid: number): { cpuTicks: number; majorFaults: number } | null {
+	try {
+		const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+		// After the `(comm)`, fields[0] is field 3 (state): majflt is field 12, utime 14, stime 15.
+		const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+		return { cpuTicks: Number(fields[11]) + Number(fields[12]), majorFaults: Number(fields[9]) };
+	} catch {
+		return null;
+	}
+}
+
 /** How long a kill will spin waiting for a SIGKILL to land. Measured at 0 ms. */
 export const REAP_CONFIRM_MS = 100;
 
