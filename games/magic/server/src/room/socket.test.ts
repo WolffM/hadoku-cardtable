@@ -1280,6 +1280,27 @@ describe('mid-draft, on the leader’s or an operator’s word', () => {
 		expect(roomsMod.stateOf(live().rooms.find(id)!).pools[seat], 'bob picks for himself again').toHaveLength(had);
 	});
 
+	it('picks for a drafter whose page has closed (the seat vacated, only remembered for them), at every pick', async () => {
+		const { id, bob, seatOfBob } = twoDraftersMidDraft();
+		const alice = await connect(live().port, edgeHeaders('mid-alice'));
+		const gone = await connect(live().port, edgeHeaders('mid-bob'));
+		await joinAndSettle(alice, id);
+		await joinAndSettle(gone, id);
+		const seat = seatOfBob();
+		const room = (): DraftRoom => live().rooms.find(id)!;
+		gone.socket.disconnect();
+		await waitUntil(() => roomsMod.stateOf(room()).table.seats[seat]?.occupant === null, 'bob’s seat vacated');
+		expect(live().pickFor(id, bob, true), 'still their seat, by what the table remembers').toBe('ok');
+		const poolOf = (x: number): number => roomsMod.stateOf(room()).pools[x]?.length ?? 0;
+		const aliceSeat = seatOf(room().seats, room().clients.get(alice.id)!.participantId)!;
+		for (let n = 1; n <= 4; n++) {
+			await waitUntil(() => packOf(roomsMod.stateOf(room()), aliceSeat).length > 0 && poolOf(aliceSeat) === n - 1, `alice's pack ${n}`);
+			alice.send(pickCard(id, packOf(roomsMod.stateOf(room()), aliceSeat)[0]!.cardId));
+			await waitUntil(() => poolOf(aliceSeat) === n, `alice's pick ${n}`);
+		}
+		await waitUntil(() => poolOf(seat) >= 4, 'the bot picks for bob’s vacated seat');
+	});
+
 	it('a pick timer turned on mid-draft starts on every human seat, and the screens show it', async () => {
 		const { id } = twoDraftersMidDraft();
 		const alice = await connect(live().port, edgeHeaders('mid-alice'));

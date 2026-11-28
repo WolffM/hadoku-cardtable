@@ -659,14 +659,14 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	const pickFor = (roomId: string, memberId: string, on: boolean): 'ok' | 'not-drafting' | 'not-a-drafter' => {
 		const drafts = draftsOf(roomId);
 		if (drafts.length === 0) return 'not-drafting';
-		const room = drafts.find((r) => seatOf(r.seats, memberId as ParticipantId) !== null);
+		const room = drafts.find((r) => seatOfDrafter(r, memberId) !== null);
 		if (room === undefined) return 'not-a-drafter';
 		const set = proxied.get(room.roomId) ?? new Set<string>();
 		if (on) set.add(memberId);
 		else set.delete(memberId);
 		if (set.size === 0) proxied.delete(room.roomId);
 		else proxied.set(room.roomId, set);
-		log({ evt: 'pick-for', draftId: room.roomId, memberId, on, seat: seatOf(room.seats, memberId as ParticipantId) });
+		log({ evt: 'pick-for', draftId: room.roomId, memberId, on, seat: seatOfDrafter(room, memberId) });
 		resync(room);
 		return 'ok';
 	};
