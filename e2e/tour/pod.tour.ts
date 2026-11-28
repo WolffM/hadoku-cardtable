@@ -213,6 +213,9 @@ test('pod: a BLB set-cube pod from the lobby to the podium, as two players and a
         if (round === 2) {
           // alice has been sitting on the hub since her round-1 match: round 2 arrives on it, unreloaded.
           await attempt('round 2 arrives on the hub', async () => {
+            // Her round-1 match may be the round's last: its result is still up, and Back to room is her way on.
+            const back = a.getByTestId('game-result-room');
+            if (await back.isVisible().catch(() => false)) await back.click({ timeout: 3_000 });
             await a.getByTestId('pod-tables').waitFor({ timeout: UI });
             await shotBoth([a], 'hub-r2-arrives', S('hub', '#/room/<id>', 'round 2’s pairings arriving on the hub alice sat on'), { full: true });
           }, a);
