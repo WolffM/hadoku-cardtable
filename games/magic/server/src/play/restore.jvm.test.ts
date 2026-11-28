@@ -560,6 +560,19 @@ describe.skipIf(!available.ok)(title, () => {
 				const instigators = (): { id: number; token: boolean }[] =>
 					s.zone(0, 'Battlefield').filter((c) => c.name === 'Agate Instigator').map((c) => ({ id: c.id, token: Boolean(([...s.state(0).values()].find((o) => o._type === 0 && o._id === c.id)?.Token as { v?: boolean } | undefined)?.v) }));
 				expect(instigators().map((c) => c.token).sort(), 'the Instigator and its Offspring copy').toEqual([false, true]);
+				// The Offspring copy as the wire draws it: its face's power, toughness and ability text.
+				const tokenFace = (): { power: unknown; toughness: unknown; text: string } => {
+					const token = instigators().find((c) => c.token)!;
+					const state = s.state(0);
+					const current = (state.get(deltaKey(DELTA_TYPE.card, token.id))?.CurrentState as { v?: number } | undefined)?.v ?? 0;
+					const face: Record<string, unknown> = state.get(deltaKey(DELTA_TYPE.cardState, token.id * 16 + current)) ?? {};
+					const v = (k: string): unknown => (face[k] as { v?: unknown } | undefined)?.v;
+					return { power: v('Power'), toughness: v('Toughness'), text: String(v('AbilityText') ?? v('RulesText') ?? v('OracleText') ?? '') };
+				};
+				const tokenBefore = tokenFace();
+				console.log(`[jvm] Offspring copy before: ${JSON.stringify(tokenBefore)}`);
+				expect(tokenBefore).toMatchObject({ power: 1, toughness: 1 });
+				expect(tokenBefore.text, 'the copy has the Instigator\'s trigger').toMatch(/deals 1 damage to each opponent/);
 				const four = snapshots(s).find((l) => l.turn === 4)!;
 				console.log(`[jvm] BLB snapshot lossy: ${JSON.stringify(four.lossy ?? [])}`);
 				// The claim: nothing on a Bloomburrow board is beyond the snapshot. A failover restores a lossy
@@ -571,6 +584,9 @@ describe.skipIf(!available.ok)(title, () => {
 				await passUntil(s, noAttacks(s, () => inOwnMain(s, 1, 4)), 'the restored turn 4, its first main', 120_000);
 				expect([life(s, 0), life(s, 1)]).toEqual([17, 13]);
 				expect(instigators().map((c) => c.token).sort(), 'both Instigators came back, one a token').toEqual([false, true]);
+				const tokenAfter = tokenFace();
+				console.log(`[jvm] Offspring copy after the restore: ${JSON.stringify(tokenAfter)}`);
+				expect(tokenAfter, 'the restored copy is the same 1/1 with the same abilities').toEqual(tokenBefore);
 				const hero = s.zone(0, 'Battlefield').find((c) => c.name === 'Heartfire Hero');
 				const heroObj = [...s.state(0).values()].find((o) => o._type === 0 && o._id === hero?.id) as Record<string, unknown>;
 				expect((heroObj.Counters as { v?: unknown } | undefined)?.v).toEqual([['+1/+1', 2]]);
@@ -671,34 +687,48 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 	);
 
 	it(
-		'a token no script makes, holding an ability of its own, is named and not restarted: a token copy of Prodigal Sorcerer',
+		'a token copy of a card comes back as that card, ability and all; a copy with an exception no line carries is named and not restarted',
 		async () => {
 			if (!available.ok) return;
-			// A t: line rebuilds a token with no script as a body and keywords: the copy's tap ability would be lost.
-			const scenario = [
-				'turn=3',
-				'activeplayer=human',
-				'activephase=MAIN1',
-				'humanlife=20',
-				'ailife=20',
-				'humanbattlefield=Prodigal Sorcerer|Id:501',
-				'humanprecast=501:CustomScript:DB$ CopyPermanent | Defined$ Self',
-				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
-				'aibattlefield=Mountain',
-				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
-			].join('\n');
-			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
-			try {
-				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
-				expect(s.zone(0, 'Battlefield').filter((c) => c.name === 'Prodigal Sorcerer'), 'the Sorcerer and its token copy').toHaveLength(2);
-				expect(snapshots(s).find((l) => l.turn === 4)?.lossy).toEqual(['token']);
-				expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: false });
-				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
-			} finally {
-				await s.stop();
+			// A plain copy (Cackling Counterpart's, Offspring's without its 1/1) is written as the card it copied (`TokenCopy:`);
+			// one that also gained a keyword is written as a body and keywords, so the snapshot names it and the turn is refused.
+			const scenario = (precast: string): string =>
+				[
+					'turn=3',
+					'activeplayer=human',
+					'activephase=MAIN1',
+					'humanlife=20',
+					'ailife=20',
+					'humanbattlefield=Prodigal Sorcerer|Id:501',
+					`humanprecast=501:CustomScript:${precast}`,
+					'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+					'aibattlefield=Mountain',
+					'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+				].join('\n');
+			for (const [precast, carried] of [
+				['DB$ CopyPermanent | Defined$ Self', true],
+				['DB$ CopyPermanent | Defined$ Self | AddKeywords$ Haste', false],
+			] as const) {
+				const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario: scenario(precast), skipOpening: true });
+				try {
+					await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+					expect(s.zone(0, 'Battlefield').filter((c) => c.name === 'Prodigal Sorcerer'), 'the Sorcerer and its token copy').toHaveLength(2);
+					const four = snapshots(s).find((l) => l.turn === 4)!;
+					if (carried) {
+						expect(four.lossy, `${precast}: nothing unwritten`).toBeUndefined();
+						expect(four.state, 'the copy is written as the card it copied').toMatch(/Prodigal Sorcerer\|[^;]*\|TokenCopy:/);
+						expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: true });
+					} else {
+						expect(four.lossy, `${precast}: the copy is named`).toEqual(['token']);
+						expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: false });
+						expect(s.match.restartAct(1, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
+					}
+				} finally {
+					await s.stop();
+				}
 			}
 		},
-		300_000,
+		420_000,
 	);
 
 	it(
