@@ -28,14 +28,16 @@ import { attachPeople, type People, type Person as Account } from '@hadoku/game-
 import { openLobby, type Lobby, type MagicRoomView } from './lobby.ts';
 import { magicView } from './magic-view.js';
 import { roundNamesOf } from './plan.ts';
-import { isAiEntrant, type GameHooks } from './pods.ts';
+import { isAiEntrant, podDraftId, type GameHooks } from './pods.ts';
 
 const dirs: string[] = [];
 afterAll(async () => {
 	for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });
 });
 
-const now = () => 1_800_000_000_000;
+/** The lobby's clock: an absence moves it on (`absent-30m`). */
+let clock = 1_800_000_000_000;
+const now = () => clock;
 
 interface Person {
 	id: string;
@@ -321,8 +323,8 @@ async function stillFinishes(pod: Pod, label: string): Promise<void> {
 	if (p.phase === 'lobby') return;
 	if (p.phase === 'drafting') {
 		await finishDraft(pod);
-		// Whoever left during the draft is in the field the deal fixed, out of it from the start.
-		for (const id of p.drafters) if (!isAiEntrant(id) && !isMember(pod, id)) expect(podOf(pod).dropped, `${label}: ${id} left mid-draft`).toContain(id);
+		// Whoever left or was disqualified during the draft is in the field the deal fixed, out of it from the start.
+		for (const id of p.drafters) if (!isAiEntrant(id) && (!isMember(pod, id) || (p.dropped ?? []).includes(id))) expect(podOf(pod).dropped, `${label}: ${id} out mid-draft`).toContain(id);
 	}
 	await playOut(pod);
 	invariants(pod, `${label}, at the end`);
@@ -339,8 +341,31 @@ function target(pod: Pod): Person {
 	return pod.players[pod.players.length - 1]!;
 }
 
-type Event = 'tab-short' | 'tab-long' | 'leave' | 'dq' | 'drop-table' | 'reset-game' | 'reset-room' | 'restart' | 'failover' | 'failover-lost' | 'clock-flag';
-const EVENTS: readonly Event[] = ['tab-short', 'tab-long', 'leave', 'dq', 'drop-table', 'reset-game', 'reset-room', 'restart', 'failover', 'failover-lost', 'clock-flag'];
+type Event =
+	| 'tab-short' | 'tab-long' | 'absent-30m' | 'leave' | 'leave-rejoin' | 'dq' | 'dq-restart' | 'drop-table' | 'reset-game' | 'reset-room' | 'restart' | 'failover' | 'failover-lost'
+	| 'clock-flag';
+const EVENTS: readonly Event[] = [
+	'tab-short', 'tab-long', 'absent-30m', 'leave', 'leave-rejoin', 'dq', 'dq-restart', 'drop-table', 'reset-game', 'reset-room', 'restart', 'failover', 'failover-lost', 'clock-flag',
+];
+
+/** Phases in which the pod's event is under way: an entrant there is out only by a DQ or their own word. */
+const UNDER_WAY: ReadonlySet<Phase> = new Set(['drafting', 'building', 'in-play', 'between', 'last-round']);
+
+/** Whether `who` is still in the event: entered and not dropped. */
+function stillIn(pod: Pod, who: string): boolean {
+	const p = podOf(pod);
+	return p.drafters.includes(who) && !(p.dropped ?? []).includes(who);
+}
+
+/** A process that restarts over the same directory, as a deploy does (`Lobby.flushed` first). */
+async function restarted(pod: Pod): Promise<Pod> {
+	await pod.lobby.flushed();
+	const lobby = await namedLobby(pod.dir, pod.archived);
+	lobby.useGameType('draft', pod.side.hooks);
+	lobby.useGameType('constructed-1v1', pod.side.hooks);
+	await settle();
+	return { ...pod, lobby };
+}
 
 /** Fires `event` at `pod` and checks the event's own outcome. Answers the pod to go on with (a restart's is a new process). */
 async function fire(pod: Pod, event: Event, phase: Phase): Promise<Pod> {
@@ -355,19 +380,51 @@ async function fire(pod: Pod, event: Event, phase: Phase): Promise<Pod> {
 			// Gone past the seat window: the socket layer releases every seat it may (`releaseAbandonedSeats`).
 			pod.lobby.releaseAbandonedSeats(who.id);
 			if (phase === 'lobby') expect(podOf(pod).seats.some((s) => s?.memberId === who.id), 'a pod seat in the lobby is kept').toBe(true);
+			if (UNDER_WAY.has(phase)) expect(stillIn(pod, who.id), 'an absence never drops an entrant').toBe(true);
+			return pod;
+		}
+		case 'absent-30m': {
+			// Half an hour away, every clock the lobby has run past it: the seat release, and the idle sweep.
+			clock += 30 * 60_000;
+			pod.lobby.releaseAbandonedSeats(who.id);
+			expect(pod.lobby.sweep(), 'the room outlives half an hour of nobody touching it').not.toContain(pod.id);
+			expect(isMember(pod, who.id), 'still a member').toBe(true);
+			if (UNDER_WAY.has(phase)) expect(stillIn(pod, who.id), 'an absence never drops an entrant').toBe(true);
+			if (table !== null && podOf(pod).pairings.find((x) => x.tableId === table)?.players.includes(who.id) === true) {
+				expect(pod.lobby.seats(pod.id, table).some((x) => x.memberId === who.id), 'their table seat is kept').toBe(true);
+			}
 			return pod;
 		}
 		case 'leave': {
+			// Only ever asked for: the route refuses an unasked leave while it would drop (`room-core.ts`).
+			expect(pod.lobby.leaveDrops(pod.id, who.id), 'leaving drops while the event is under way').toBe(UNDER_WAY.has(phase));
 			expect(pod.lobby.leave(pod.id, who.id).ok).toBe(true);
 			await settle();
 			await settle();
 			const after = podOf(pod);
-			if (after.phase === 'rounds' || (after.phase === 'done' && before.phase === 'rounds')) expect(after.dropped, 'a leaver is dropped').toContain(who.id);
+			if (UNDER_WAY.has(phase) && after.phase !== 'done') expect(after.dropped, 'a leaver is dropped').toContain(who.id);
+			return pod;
+		}
+		case 'leave-rejoin': {
+			// Out on their own word, then back in the room: they watch; the event does not take them back.
+			expect(pod.lobby.leave(pod.id, who.id).ok).toBe(true);
+			await settle();
+			expect(pod.lobby.join(pod.id, who).ok).toBe(true);
+			await settle();
+			if (UNDER_WAY.has(phase) && podOf(pod).phase !== 'done') expect(podOf(pod).dropped, 'a rejoin does not undo a leave').toContain(who.id);
+			if (UNDER_WAY.has(phase)) expect(pod.lobby.leaveDrops(pod.id, who.id), 'nothing more to drop').toBe(false);
 			return pod;
 		}
 		case 'dq': {
 			const r = pod.lobby.dqPlayer(pod.id, pod.leader.id, who.id);
-			if (before.phase === 'rounds') {
+			if (before.phase === 'drafting' || before.phase === 'building') {
+				// Out before the rounds: the draft bot has their seat (`socket.ts`), and round 1 never pairs them.
+				expect(r.ok, `the leader disqualifies a drafter in ${before.phase}`).toBe(true);
+				expect(podOf(pod).dropped).toContain(who.id);
+				const drafts = Array.from({ length: Math.max(1, podOf(pod).pods?.length ?? 0) }, (_, k) => pod.lobby.podDraft(podDraftId(pod.id, k)));
+				expect(drafts.some((d) => d?.humans.some((h) => h.participantId === who.id) === true), 'no longer one of the draft’s drafters').toBe(false);
+				expect(pod.lobby.dqPlayer(pod.id, pod.leader.id, who.id)).toEqual({ ok: false, reason: 'already-dropped' });
+			} else if (before.phase === 'rounds') {
 				expect(r.ok, 'the leader disqualifies an entrant mid-rounds').toBe(true);
 				await settle();
 				expect(podOf(pod).dropped).toContain(who.id);
@@ -386,6 +443,13 @@ async function fire(pod: Pod, event: Event, phase: Phase): Promise<Pod> {
 				expect(r.ok, `no DQ in ${before.phase}`).toBe(false);
 			}
 			return pod;
+		}
+		case 'dq-restart': {
+			// A DQ outlives a deploy: the restarted process still has them out.
+			const r = pod.lobby.dqPlayer(pod.id, pod.leader.id, who.id);
+			const next = await restarted(pod);
+			if (r.ok && podOf(next).phase !== 'done') expect(podOf(next).dropped, 'a DQ survives a restart').toContain(who.id);
+			return next;
 		}
 		case 'drop-table': {
 			if (table === null || !podOf(pod).pairings.find((x) => x.tableId === table)?.players.includes(who.id)) return pod;
@@ -416,13 +480,9 @@ async function fire(pod: Pod, event: Event, phase: Phase): Promise<Pod> {
 			const shapeOf = (p: Pod) => ({ ...view(p).game!.pod, verdict: null });
 			const shape = JSON.stringify(shapeOf(pod));
 			// A deploy's shutdown drains the snapshot writes before the process exits (`Lobby.flushed`).
-			await pod.lobby.flushed();
-			const lobby = await namedLobby(pod.dir, pod.archived);
-			lobby.useGameType('draft', pod.side.hooks);
-			lobby.useGameType('constructed-1v1', pod.side.hooks);
-			const next = { ...pod, lobby };
-			await settle();
+			const next = await restarted(pod);
 			expect(shapeOf(next), 'a restart changes nothing the pod shows').toEqual(JSON.parse(shape));
+			if (UNDER_WAY.has(phase)) expect(stillIn(next, who.id), 'a restart never drops an entrant').toBe(true);
 			return next;
 		}
 		case 'failover':

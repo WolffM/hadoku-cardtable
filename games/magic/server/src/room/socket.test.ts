@@ -1254,6 +1254,104 @@ describe('a drafter who leaves the room mid-draft', () => {
 	});
 });
 
+describe('a tournament draft seat never expires: only a DQ or the drafter’s own Leave ends it', () => {
+	/** The pod seats a third member, Carol, who watches: someone who could take a seat the hold gave up. */
+	function withWatcher(id: string): { carol: string } {
+		const carol = { id: identityFromHeaders(edgeHeaders('tenure-carol'), 'unused'), name: 'carol', userId: null };
+		expect(live().lobby.join(id, carol).ok).toBe(true);
+		return { carol: carol.id };
+	}
+
+	const room = (id: string): DraftRoom => live().rooms.find(id)!;
+	const poolOf = (id: string, seat: number): number => roomsMod.stateOf(room(id)).pools[seat]?.length ?? 0;
+
+	/** Alice takes `picks` cards, each once her pack is in front of her. */
+	async function alicePicks(alice: Peer, id: string, picks: number): Promise<void> {
+		const aliceSeat = seatOf(room(id).seats, room(id).clients.get(alice.id)!.participantId)!;
+		const from = poolOf(id, aliceSeat);
+		for (let n = 1; n <= picks; n++) {
+			await waitUntil(() => packOf(roomsMod.stateOf(room(id)), aliceSeat).length > 0 && poolOf(id, aliceSeat) === from + n - 1, `alice's pack ${n}`);
+			alice.send(pickCard(id, packOf(roomsMod.stateOf(room(id)), aliceSeat)[0]!.cardId));
+			await waitUntil(() => poolOf(id, aliceSeat) === from + n, `alice's pick ${n}`);
+		}
+	}
+
+	for (const [away, reason] of [
+		['30 s', 'the hold still standing'],
+		['5 min', 'past the 120 s hold'],
+		['30 min', 'long past the hold, and a restore forgot the table remembered them'],
+	] as const) {
+		it(`a drafter away ${away} (${reason}) keeps their seat: nobody takes it, nothing is picked for them, and they pick again on return`, async () => {
+			const { id, bob, seatOfBob } = twoDraftersMidDraft();
+			const { carol } = withWatcher(id);
+			const alice = await connect(live().port, edgeHeaders('mid-alice'));
+			const gone = await connect(live().port, edgeHeaders('mid-bob'));
+			await joinAndSettle(alice, id);
+			await joinAndSettle(gone, id);
+			const seat = seatOfBob();
+			gone.socket.disconnect();
+			await waitUntil(() => roomsMod.stateOf(room(id)).table.seats[seat]?.occupant === null, 'bob’s page closed');
+			// The hold running out is all the clock does to the seat; past a restore, even the table's memory of him.
+			if (away !== '30 s') room(id).seats.reservations = {};
+			if (away === '30 min') room(id).seats.remembered = {};
+			const watcher = await connect(live().port, edgeHeaders('tenure-carol'));
+			await joinAndSettle(watcher, id);
+			expect(seatOf(room(id).seats, carol), 'carol watches: the seat is not hers to take').toBeNull();
+			await alicePicks(alice, id, 3);
+			await new Promise((done) => setTimeout(done, 100));
+			expect(poolOf(id, seat), 'nothing is picked for an absent drafter').toBe(0);
+			expect(lines().some((l) => l.evt === 'pick-timeout' && l.seat === seat), 'no bot pick at his seat').toBe(false);
+			// Back: his own seat, his packs waiting, and his pick is his.
+			const back = await connect(live().port, edgeHeaders('mid-bob'));
+			await joinAndSettle(back, id);
+			expect(seatOf(room(id).seats, bob)).toBe(seat);
+			const v = lastView(back);
+			if (v?.viewer.kind !== 'seat') throw new Error('bob is seated again');
+			const card = v.viewer.pack?.[0]?.cardId;
+			if (card === undefined) throw new Error('bob has a pack waiting');
+			back.send(pickCard(id, card));
+			await waitUntil(() => poolOf(id, seat) === 1, 'bob’s own pick');
+			expect(roomsMod.stateOf(room(id)).pools[seat]?.[0]?.cardId).toBe(card);
+		});
+	}
+
+	it('a disqualified drafter’s seat is the draft bot’s at once, their open page can no longer pick, and a return only watches', async () => {
+		const { id, bob, seatOfBob } = twoDraftersMidDraft();
+		const alice = await connect(live().port, edgeHeaders('mid-alice'));
+		const dqd = await connect(live().port, edgeHeaders('mid-bob'));
+		await joinAndSettle(alice, id);
+		await joinAndSettle(dqd, id);
+		const seat = seatOfBob();
+		const leader = magicView(live().lobby.get(id))!.leader;
+		expect(live().lobby.dqPlayer(id, leader, bob)).toEqual({ ok: true, tableId: null, matchIds: [] });
+		await waitUntil(() => poolOf(id, seat) >= 1, "the bot's pick for the seat bob was disqualified from");
+		expect(lines().some((l) => l.evt === 'drafter-out' && l.memberId === bob)).toBe(true);
+		dqd.send(pickCard(id, packOf(roomsMod.stateOf(room(id)), seat)[0]?.cardId ?? 'none'));
+		await waitUntil(() => errors(dqd).some((e) => e.code === 'not-seated'), 'bob’s pick refused');
+		await alicePicks(alice, id, 3);
+		await waitUntil(() => poolOf(id, seat) >= 4, 'the bot keeps picking for the seat');
+		const back = await connect(live().port, edgeHeaders('mid-bob'));
+		await joinAndSettle(back, id);
+		expect(seatOf(room(id).seats, bob), 'a disqualified drafter only watches').toBeNull();
+		expect(lastView(back)?.viewer.kind).toBe('watcher');
+	});
+
+	it('a drafter who left on their own word and joins the room again stays out: the bot keeps their seat', async () => {
+		const { id, bob, seatOfBob } = twoDraftersMidDraft();
+		const alice = await connect(live().port, edgeHeaders('mid-alice'));
+		await joinAndSettle(alice, id);
+		const seat = seatOfBob();
+		expect(live().lobby.leave(id, bob).ok).toBe(true);
+		await waitUntil(() => poolOf(id, seat) >= 1, "the bot's pick for the seat bob left");
+		expect(live().lobby.join(id, { id: bob, name: 'bob', userId: null }).ok).toBe(true);
+		const back = await connect(live().port, edgeHeaders('mid-bob'));
+		await joinAndSettle(back, id);
+		expect(seatOf(room(id).seats, bob), 'back in the room, out of the draft').toBeNull();
+		await alicePicks(alice, id, 3);
+		await waitUntil(() => poolOf(id, seat) >= 4, 'the bot keeps picking for the seat');
+	});
+});
+
 describe('mid-draft, on the leader’s or an operator’s word', () => {
 	it('the draft bot picks for a drafter who is still in the room but gone, at every pick, until they join again', async () => {
 		const { id, bob, seatOfBob } = twoDraftersMidDraft();

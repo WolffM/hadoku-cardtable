@@ -107,6 +107,7 @@ function asLobbyCore(lobby: ToyLobby): import('./room-core.ts').LobbyCore<ToyVie
 		get: lobby.get.bind(lobby),
 		offered: lobby.offered.bind(lobby),
 		isMember: lobby.isMember.bind(lobby),
+		leaveDrops: lobby.leaveDrops.bind(lobby),
 		create: lobby.create.bind(lobby),
 		minTierOf: lobby.minTierOf.bind(lobby),
 		join: lobby.join.bind(lobby),

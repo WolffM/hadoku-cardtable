@@ -224,7 +224,7 @@ test(titled('a seated leader resets their own game and both seats are back in a 
     expect(after.series).toMatchObject({ wins: [0, 0], phase: 'playing' });
 
     // Bob leaves the room mid-game: a drop. Alice's board ends on her win within seconds.
-    expect((await call(bob, stack.origin, 'POST', `/rooms/${roomId}/leave`)).status).toBe(200);
+    expect((await call(bob, stack.origin, 'POST', `/rooms/${roomId}/leave?drop=1`)).status).toBe(200);
     await expect(alice.page.getByTestId('game-result'), 'alice: the game ends on the leave').toBeVisible({ timeout: 15_000 });
     await expect(alice.page.getByTestId('game-result')).toHaveAttribute('data-result', 'victory');
     const done = await room();

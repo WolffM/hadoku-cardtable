@@ -160,7 +160,7 @@ async function podCell(browser: Browser, jar: { jar: string; res: string }, name
     // Off the room screen first, as the real Leave does (`leaveRoomThen`): a room screen still drawn
     // when its viewer stops being a member joins them again on the next read.
     await gone.page.goto('about:blank');
-    expect((await api(gone, origin, 'POST', `/rooms/${roomId}/leave`)).status, `${leaver} leaves`).toBe(200);
+    expect((await api(gone, origin, 'POST', `/rooms/${roomId}/leave?drop=1`)).status, `${leaver} leaves`).toBe(200);
     await gone.page.close();
     // Their seat is picked for (the draft bot), or this never finishes and the test times out.
     await Promise.all(staying.map((p) => draftUntilDone(p.page)));

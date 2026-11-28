@@ -15,13 +15,14 @@ import * as route from '../../screens/route.ts';
 
 afterEach(cleanup);
 
-function shell(leave: RoomShellProps['leave']): ReactNode {
+function shell(leave: RoomShellProps['leave'], leaveAsks?: string): ReactNode {
   return createElement(RoomShell, {
     shellRef: () => undefined,
     dataMembers: 2,
     roomTitle: 'Friday cube',
     settled: true,
     leave,
+    ...(leaveAsks === undefined ? {} : { leaveAsks }),
     headerTools: createElement('button', { type: 'button', 'data-testid': 'room-settings' }, 'Room settings'),
     streamed: false,
     streamedSubLine: null,
@@ -129,6 +130,35 @@ describe('the room page leaves', () => {
     } finally {
       go.mockRestore();
     }
+  });
+});
+
+describe('a tournament under way: only an asked-for Leave ever drops anyone (the operator, 2026-11-28)', () => {
+  it('Leave reads as leaving the tournament and asks once more; Cancel leaves nothing', async () => {
+    const home = vi.fn();
+    const leave = vi.fn(() => Promise.resolve());
+    render(page(home, shell(leave, 'Leave tournament')));
+    expect(screen.getByTestId('room-leave').textContent).toBe('Leave tournament');
+    fireEvent.click(screen.getByTestId('room-leave'));
+    expect(leave).not.toHaveBeenCalled();
+    expect(screen.getByTestId('room-leave-yes').textContent).toBe('Leave tournament');
+    fireEvent.click(screen.getByTestId('room-leave-no'));
+    expect(screen.queryByTestId('room-leave-ask')).toBeNull();
+    expect(leave).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('room-leave'));
+    fireEvent.click(screen.getByTestId('room-leave-yes'));
+    expect(leave).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(home).toHaveBeenCalledTimes(1));
+  });
+
+  it('the top bar and the page toolbar only go home: they never leave the tournament', async () => {
+    const home = vi.fn();
+    const leave = vi.fn(() => Promise.resolve());
+    render(page(home, shell(leave, 'Leave tournament')));
+    fireEvent.click(screen.getByTestId('chrome-home'));
+    PAGE_TOOLBAR.onHome?.();
+    await waitFor(() => expect(home).toHaveBeenCalled());
+    expect(leave).not.toHaveBeenCalled();
   });
 });
 

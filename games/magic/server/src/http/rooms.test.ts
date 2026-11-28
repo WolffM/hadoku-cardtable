@@ -1582,7 +1582,7 @@ describe('POST /api/rooms/:id/leave', () => {
 		).toEqual([room.creator]);
 	});
 
-	it('a tournament entrant who leaves mid-round has dropped out: their forfeited game is handed on to end, theirs to lose', async () => {
+	it('a tournament entrant who leaves mid-round, and says so, has dropped out: their forfeited game is handed on to end, theirs to lose', async () => {
 		const forfeits: { roomId: string; tableId: string; loser: string; matches: readonly string[] }[] = [];
 		const h = await openApp(await tempDir(), { forfeited: (roomId, tableId, loser, matches) => void forfeits.push({ roomId, tableId, loser, matches }) });
 		const room = (await call(h, 'POST', '/api/rooms', { as: 'alice', body: { name: 'Leave night', gameType: 'constructed-1v1', mode: 'classic', modeOptions: {} } })).json() as import('../room/lobby.ts').MagicRoomView;
@@ -1598,7 +1598,14 @@ describe('POST /api/rooms/:id/leave', () => {
 		const tableId = started.room.game!.pod!.pairings[0]!.tableId;
 		expect(h.lobby.setTableMatch(room.id, tableId, 'm-0000000000a1')).toBe(true);
 
-		expect((await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'bob' })).status).toBe(200);
+		// A leave nobody asked for (a result screen's Main menu, the page's top bar) costs nothing: refused, still in.
+		const unasked = await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'bob' });
+		expect(unasked.status).toBe(409);
+		expect(unasked.json()).toMatchObject({ reason: 'drops' });
+		expect(h.lobby.isMember(room.id, ids[1]!), 'still a member').toBe(true);
+		expect(h.lobby.get(room.id)!.game!.pod!.dropped, 'still in the tournament').toEqual([]);
+		expect(forfeits).toEqual([]);
+		expect((await call(h, 'POST', `/api/rooms/${room.id}/leave?drop=1`, { as: 'bob' })).status).toBe(200);
 		expect(forfeits).toEqual([{ roomId: room.id, tableId, loser: ids[1], matches: ['m-0000000000a1'] }]);
 		expect(h.lobby.get(room.id)!.game!.pod).toMatchObject({ dropped: [ids[1]], phase: 'done' });
 		expect((await call(h, 'POST', `/api/rooms/${room.id}/leave`, { as: 'alice' })).status).toBe(200);
