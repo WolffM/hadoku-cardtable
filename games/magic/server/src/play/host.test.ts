@@ -377,6 +377,8 @@ describe('the JVM\'s flags', () => {
 		const { run } = spawned(poolLog, pool.jvms()[0]!.hostId);
 		const argv = readFileSync(join(run, 'bridge.stderr.txt'), 'utf8').split('\n').find((l) => l.startsWith('fake-java argv: ')) ?? '';
 		expect(argv).toContain(' -XX:+ExitOnOutOfMemoryError ');
+		// An idle JVM's heap shrinks back to its live set, which stays paged in.
+		expect(argv).toMatch(/ -XX:G1PeriodicGCInterval=[1-9]\d* /);
 		const timeouts = [...argv.matchAll(/-Dforge\.net\.heartbeatTimeout=(\d+)/g)].map((m) => Number(m[1]));
 		// Ours first and far past UNRESPONSIVE_MS (which ends a stopped JVM long before); a later flag of the operator's wins.
 		expect(timeouts).toEqual([86_400, 2]);
