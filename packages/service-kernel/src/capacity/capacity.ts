@@ -33,7 +33,7 @@ export interface CapacityDeps {
 	/** Counts for the window, read once as each post goes out; the reader resets its own. */
 	counts?: () => Record<string, unknown>;
 	/** Process memory; `process.memoryUsage` in production. */
-	memory?: () => { rss: number; heapUsed: number };
+	memory?: () => Pick<NodeJS.MemoryUsage, 'rss' | 'heapUsed'> & Partial<NodeJS.MemoryUsage>;
 	/** A request path counted on its own, under `uncountedField`, never timed. Default: none. */
 	uncountedPath?: (path: string) => boolean;
 	/** The capacity event's field for `uncountedPath`'s count. Default: `'uncounted'`. */
@@ -77,6 +77,10 @@ export function capacitySampler(deps: CapacityDeps): CapacitySampler {
 			...Object.fromEntries(Object.entries(deps.gauges).map(([k, read]) => [k, read()])),
 			rssMb: Math.round(m.rss / MB),
 			heapMb: Math.round(m.heapUsed / MB),
+			// What RSS holds beyond the live heap: V8's reservation, Buffers, and native memory behind them.
+			...(m.heapTotal === undefined ? {} : { heapTotalMb: Math.round(m.heapTotal / MB) }),
+			...(m.external === undefined ? {} : { externalMb: Math.round(m.external / MB) }),
+			...(m.arrayBuffers === undefined ? {} : { arrayBuffersMb: Math.round(m.arrayBuffers / MB) }),
 		};
 		for (const [k, v] of Object.entries(reading)) peaks[k] = Math.max(peaks[k] ?? v, v);
 		last = reading;
