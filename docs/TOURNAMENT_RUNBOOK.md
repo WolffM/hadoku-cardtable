@@ -34,6 +34,7 @@ table last moved.
 | --- | --- |
 | **Softlock** (a game will not move) | ⋯ → **Restart turn**: the game goes back to the start of the current turn on a new JVM, same match, nobody's clock rewound. Refused when that turn cannot be restored exactly (it names what, e.g. `token`): then **Reset game** (the same game again from its start, the series score stands) or, if the players agree who would have won, **Game to ‹player›**. The game before a restart is kept as its own replay, linked under the state rows (`#/replay/<matchId>-e1`). |
 | **No-show before the lock** (sat down, never readies, so the field never locks) | The seat chip's **Bot** (the AI takes the seat; the field is fixed once everyone left is ready) or **Remove** (seat freed for someone else). An empty seat: **Close** it. |
+| **A drafter stops picking mid-draft** (closed the tab; the pod waits on them) | Someone who **leaves the room** is picked for by the draft bot at once. Still in the room but gone: from the console below, `api('draft/pick-for', { memberId: ID })`: the draft bot picks for their seat now and at every pick until they reconnect to the draft (or `{ memberId: ID, on: false }`). Or turn the pick timer on for everyone: `api('draft/timer', { on: true, speed: 1 })` (speed 0.25–4; higher is faster), and a gone seat's pick falls to the bot when its time runs out. |
 | **No-show after the lock** | ⋯ → **Match to ‹opponent›** (this match only; they are paired again next round), or **DQ ‹player›** (this match lost and every later pairing of theirs a bye for its opponent; they stay in the standings, marked). |
 | **Disconnect mid-match** | Wait out the rejoin grace (their name turns the danger colour when they are gone). Back: they reopen the table link and press **Return to game**. Not back: **Match to ‹opponent›**, or **DQ** if they are gone for the day. |
 | **Wrong result, this round still playing** | ⋯ → **Match to ‹right player›**: a finished match of the current round is corrected in place; the standings follow. One game wrong in a match still going: **Game to ‹player›** for the game in play, or **Replay match** (0–0 again, no result). |
@@ -56,6 +57,8 @@ await api(`tables/${TABLE}/award`, { seat: 0 });          // Game to table seat 
 await api(`tables/${TABLE}/award`, { seat: 1, match: true }); // Match to table seat 1
 await api(`tables/${TABLE}/replay`, {});                  // Replay match
 await api('pod/dq', { memberId: ID });                    // DQ
+await api('draft/pick-for', { memberId: ID });            // mid-draft: the bot picks for them until they're back
+await api('draft/timer', { on: true, speed: 1 });         // mid-draft: the pick timer on
 await api('tables/reset', {});                            // Reset room (no tournament under way)
 await api('seats/bot', { seat: 3 });                      // before the lock: the AI takes seat 3
 await api('seats/remove', { memberId: ID });              // before the lock: stand them up
