@@ -189,6 +189,39 @@ describe('pairRound: humans first (the operator, 2026-11-16 — amends the full 
   });
 });
 
+describe('pairRound humans first: never a repeat pairing while the whole field has a fresh one', () => {
+  // Every mix of people and bots a pod of eight seats (or fewer, closed) can hold, played to its last round
+  // with results from several seeds: humans-first pairs each side alone, and a side of two (two humans, or
+  // two bots) has nobody new after round 1 — they met again every round.
+  const mixes: [number, number][] = [];
+  for (let h = 2; h <= 7; h++) for (let b = 1; h + b <= 8; b++) mixes.push([h, b]);
+  for (const [h, b] of mixes) {
+    it(`${h} humans + ${b} bots: no pairing repeats in any round`, () => {
+      for (let seed = 1; seed <= 6; seed++) {
+        const rng = rngFromSeed(`humans-first-${h}-${b}-${seed}`);
+        const field: PodPlayer[] = [
+          ...Array.from({ length: h }, (_, i): PodPlayer => ({ id: `h${i}`, podSeat: i })),
+          ...Array.from({ length: b }, (_, i): PodPlayer => ({ id: `ai:${h + i}`, podSeat: h + i, isBot: true })),
+        ];
+        const results: MatchResult[] = [];
+        const met = new Set<string>();
+        const key = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${x}`);
+        for (let round = 1; round <= roundsFor(h + b); round++) {
+          const { tables, bye } = pairRound({ players: field, results, round });
+          for (const [x, y] of tables) {
+            expect(met.has(key(x, y)), `seed ${seed}, round ${round}: ${x} meets ${y} again`).toBe(false);
+          }
+          for (const [x, y] of tables) {
+            met.add(key(x, y));
+            results.push(rng.int(2) === 0 ? win(round, x, y) : win(round, y, x));
+          }
+          if (bye !== null) results.push({ round, playerA: bye, playerB: null, gamesA: 2, gamesB: 0 });
+        }
+      }
+    });
+  }
+});
+
 describe('pairRound later rounds: score-based, avoiding a repeat pairing', () => {
   it('pairs by match points when no repeat is at stake', () => {
     // Round 1: p1 beats p3, p2 beats p4. Round 2 should pair the two leaders
