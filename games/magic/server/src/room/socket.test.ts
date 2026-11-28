@@ -1147,6 +1147,44 @@ function roomsSeq(): number {
 
 /* ── Reconnect ───────────────────────────────────────────────────────── */
 
+describe('a drafter who leaves the room mid-draft', () => {
+	/** Alice and Bob draft with six bots, the pick timer off (the room's default). */
+	function twoDrafters(): { id: string; bob: string; seatOfBob: () => number } {
+		const { lobby, rooms } = live();
+		const alice = { id: identityFromHeaders(edgeHeaders('leave-alice'), 'unused'), name: 'alice', userId: null };
+		const bob = { id: identityFromHeaders(edgeHeaders('leave-bob'), 'unused'), name: 'bob', userId: null };
+		const made = lobby.create(alice, { name: 'leavers', gameType: 'draft', clientMode: 'builtin' });
+		if (!made.ok) throw new Error(made.reason);
+		const id = made.room.id;
+		expect(lobby.join(id, bob).ok).toBe(true);
+		for (const m of [alice, bob]) expect(lobby.sitSeat(id, m.id).ok).toBe(true);
+		lobby.get(id)!.game!.pod!.seats.forEach((s, seat) => {
+			if (s === null) expect(lobby.aiSeat(id, alice.id, seat, true).ok).toBe(true);
+		});
+		lobby.setPodPlan(id, alice.id, lobby.get(id)!.game!.pod!.plan!, { ok: true, cards: 1 });
+		for (const m of [alice, bob]) expect(lobby.setReady(id, m.id, true)).toBe(true);
+		expect(lobby.startDraft(id, alice.id).ok).toBe(true);
+		rooms.setPodLookup((draftId) => lobby.podDraft(draftId));
+		return { id, bob: bob.id, seatOfBob: () => seatOf(rooms.find(id)!.seats, bob.id)! };
+	}
+
+	it('has their seat picked by the draft bot from then on, so the pod never waits on someone gone, timer or no timer', async () => {
+		const { id, bob, seatOfBob } = twoDrafters();
+		const alice = await connect(live().port, edgeHeaders('leave-alice'));
+		await joinAndSettle(alice, id);
+		const seat = seatOfBob();
+		expect(roomsMod.stateOf(live().rooms.find(id)!).pools[seat]).toHaveLength(0);
+		expect(live().lobby.leave(id, bob).ok).toBe(true);
+		await waitUntil(() => (roomsMod.stateOf(live().rooms.find(id)!).pools[seat]?.length ?? 0) >= 1, "the bot's pick for the seat bob left");
+		expect(lines().some((l) => l.evt === 'pick-timeout' && l.seat === seat)).toBe(true);
+		// Alice's own pick is never taken for her: she is still here, and the room has no timer.
+		const v = lastView(alice);
+		if (v?.viewer.kind !== 'seat') throw new Error('alice is seated');
+		expect(v.viewer.pool).toHaveLength(0);
+		expect(v.viewer.timer).toBeUndefined();
+	});
+});
+
 describe('a disconnect and a reconnect inside the reservation TTL', () => {
 	it('returns the participant to the same seat with their pool intact', async () => {
 		const alice = await connect(live().port, edgeHeaders('alice'));
@@ -1484,28 +1522,47 @@ describe('a seat with nobody connected to it, for the window', () => {
 	});
 });
 
+/** Nine drafters split into two pods (5 + 4) and dealt, with `settings`: the room, its people, and one drafter of each pod. */
+function ninePods(settings: Partial<RoomSettings> = {}): { id: string; people: { id: string; name: string; userId: null }[]; one: number; two: number } {
+	const { lobby, rooms } = live();
+	const people = Array.from({ length: 9 }, (_, i) => ({ id: identityFromHeaders(edgeHeaders(`pod-m${i}`), 'unused'), name: `m${i}`, userId: null }));
+	const made = lobby.create(people[0]!, { name: 'pods', gameType: 'draft', clientMode: 'builtin' });
+	if (!made.ok) throw new Error(made.reason);
+	const id = made.room.id;
+	for (const m of people.slice(1)) expect(lobby.join(id, m).ok).toBe(true);
+	for (const m of people) expect(lobby.sitSeat(id, m.id).ok).toBe(true);
+	lobby.get(id)!.game!.pod!.seats.forEach((s, seat) => {
+		if (s === null) expect(lobby.aiSeat(id, people[0]!.id, seat, true).ok).toBe(true);
+	});
+	expect(lobby.setSettings(id, people[0]!.id, settings).ok).toBe(true);
+	lobby.setPodPlan(id, people[0]!.id, lobby.get(id)!.game!.pod!.plan!, { ok: true, cards: 1 });
+	for (const m of people) expect(lobby.setReady(id, m.id, true)).toBe(true);
+	const split = lobby.splitPod(id, people[0]!.id);
+	if (!split.ok) throw new Error(split.reason);
+	const pods = split.room.game!.pod!.pods!;
+	expect(pods.map((p) => p.length)).toEqual([5, 4]);
+	expect(lobby.startDraft(id, people[0]!.id).ok).toBe(true);
+	rooms.setPodLookup((draftId) => lobby.podDraft(draftId));
+	// Who drafts in which pod is the split's draw: one drafter from each.
+	return { id, people, one: people.findIndex((m) => m.id === pods[0]![0]), two: people.findIndex((m) => m.id === pods[1]![0]) };
+}
+
 describe('a room of several pods', () => {
+	it('the room’s pick timer runs in every pod, the second one’s too', async () => {
+		const { id, one, two } = ninePods({ pickTimer: { on: true, speed: 4 } });
+		for (const [n, k] of [[one, 0], [two, 1]] as const) {
+			const peer = await connect(live().port, edgeHeaders(`pod-m${n}`));
+			await joinAndSettle(peer, id);
+			const view = lastView(peer);
+			expect(view?.draftId).toBe(k === 0 ? id : `${id}~1`);
+			if (view?.viewer.kind !== 'seat') throw new Error(`pod ${k + 1}: seated`);
+			expect(view.viewer.timer?.totalMs, `pod ${k + 1}: the pick is timed`).toBe(pickTimeMs(15, 4));
+		}
+	});
+
 	it('a drafter in the second pod names the room’s id and is seated, and picks, in their own pod’s draft', async () => {
-		const { lobby, rooms } = live();
-		const people = Array.from({ length: 9 }, (_, i) => ({ id: identityFromHeaders(edgeHeaders(`pod-m${i}`), 'unused'), name: `m${i}`, userId: null }));
-		const made = lobby.create(people[0]!, { name: 'pods', gameType: 'draft', clientMode: 'builtin' });
-		if (!made.ok) throw new Error(made.reason);
-		const id = made.room.id;
-		for (const m of people.slice(1)) expect(lobby.join(id, m).ok).toBe(true);
-		for (const m of people) expect(lobby.sitSeat(id, m.id).ok).toBe(true);
-		lobby.get(id)!.game!.pod!.seats.forEach((s, seat) => {
-			if (s === null) expect(lobby.aiSeat(id, people[0]!.id, seat, true).ok).toBe(true);
-		});
-		lobby.setPodPlan(id, people[0]!.id, lobby.get(id)!.game!.pod!.plan!, { ok: true, cards: 1 });
-		for (const m of people) expect(lobby.setReady(id, m.id, true)).toBe(true);
-		const split = lobby.splitPod(id, people[0]!.id);
-		if (!split.ok) throw new Error(split.reason);
-		const pods = split.room.game!.pod!.pods!;
-		expect(pods.map((p) => p.length)).toEqual([5, 4]);
-		expect(lobby.startDraft(id, people[0]!.id).ok).toBe(true);
-		// Who drafts in which pod is the split's draw: one drafter from each.
-		const [one, two] = [people.findIndex((m) => m.id === pods[0]![0]), people.findIndex((m) => m.id === pods[1]![0])];
-		rooms.setPodLookup((draftId) => lobby.podDraft(draftId));
+		const { rooms } = live();
+		const { id, people, one, two } = ninePods();
 
 		const first = await connect(live().port, edgeHeaders(`pod-m${one}`));
 		const last = await connect(live().port, edgeHeaders(`pod-m${two}`));

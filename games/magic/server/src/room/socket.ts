@@ -189,6 +189,7 @@ import { handshakeTier } from '@hadoku/game-server/room/socket-auth';
 import type { SessionHandle } from '@hadoku/game-server/room/session';
 import type { Lobby } from './lobby.js';
 import { magicView } from './magic-view.js';
+import { podDraftId, podOfDraftId } from './pods.js';
 import { recordDraftDone } from '../history/index.js';
 import { jsonLogger } from '@hadoku/service-kernel/log';
 
@@ -389,6 +390,8 @@ export function createSeatPresence(opts: SeatPresenceOptions): PresenceTracker<s
 export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): DraftSocketHandle {
 	const log = deps.log ?? defaultLog;
 	const policy = draftEmitPolicy(log);
+	/** The settings of the room a draft is dealt in: a room that drafts as several pods names each pod's draft `<roomId>~<k>` (`podDraftId`). */
+	const settingsOf = (draftId: string) => magicView(deps.lobby.get(podOfDraftId(draftId).roomId))?.settings;
 	/** A pick's step to everyone; the pick that finishes the draft deals the room's round 1 (`Lobby.podDraftDone`). */
 	const stepped = (room: DraftRoom): void => {
 		emitPickStep(io, room, policy);
@@ -456,7 +459,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			return;
 		}
 		const ask = new AbortController();
-		const modelSeats = modelSeatsOf(magicView(deps.lobby.get(draftId))?.settings.draftBots);
+		const modelSeats = modelSeatsOf(settingsOf(draftId)?.draftBots);
 		let answer: DraftbotAnswer = { failed: deps.draftbot === undefined ? 'unset' : 'timeout' };
 		if (deps.draftbot !== undefined) {
 			void askDraftbot(deps.draftbot, stateOf(room), ask.signal, modelSeats).then((a) => {
@@ -488,8 +491,23 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 
 	/** The room's pick-timer speed, or null when its draft has no rope. */
 	const ropeSpeed = (room: DraftRoom): number | null => {
-		const timer = magicView(deps.lobby.get(room.roomId))?.settings.pickTimer;
+		const timer = settingsOf(room.roomId)?.pickTimer;
 		return timer?.on === true ? timer.speed : null;
+	};
+
+	/**
+	 * The human seats whose drafter has left the room (`Lobby.leave`): out of the event (`#dealPodRounds`
+	 * drops them), so nobody waits on their picks. Each is on a deadline of nothing, timer or no timer.
+	 */
+	const goneSeats = (room: DraftRoom): Set<number> => {
+		const { roomId } = podOfDraftId(room.roomId);
+		const drafters = new Set(magicView(deps.lobby.get(roomId))?.game?.pod?.drafters ?? []);
+		const gone = new Set<number>();
+		for (const s of stateOf(room).table.seats) {
+			const id = s.occupant?.kind === 'human' ? s.occupant.participantId : null;
+			if (id !== null && drafters.has(id) && !deps.lobby.isMember(roomId, id)) gone.add(s.id);
+		}
+		return gone;
 	};
 
 	/**
@@ -504,7 +522,8 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		ropeTimers.delete(draftId);
 		const rope = room.app.rope;
 		const speed = ropeSpeed(room);
-		if (speed === null || stateOf(room).status === 'complete') {
+		const gone = stateOf(room).status === 'complete' ? new Set<number>() : goneSeats(room);
+		if ((speed === null && gone.size === 0) || stateOf(room).status === 'complete') {
 			rope.clear();
 			return false;
 		}
@@ -512,7 +531,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		for (let seat = 0; seat < stateOf(room).seatCount; seat++) {
 			const state = stateOf(room);
 			// A question open in front of the seat is the seat's to answer first.
-			if (isBotSeat(state, seat) || packOf(state, seat).length !== 1 || asksOf(state, seat).length > 0) continue;
+			if (isBotSeat(state, seat) || (speed === null && !gone.has(seat)) || packOf(state, seat).length !== 1 || asksOf(state, seat).length > 0) continue;
 			const taken = timeoutPick(state, seat);
 			if (taken === null || !taken.ok) continue;
 			room.app.state = taken.state;
@@ -524,7 +543,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		let earliest = Infinity;
 		for (let seat = 0; seat < state.seatCount; seat++) {
 			const left = decisionSize(state, seat);
-			const totalMs = isBotSeat(state, seat) ? null : pickTimeMs(left, speed);
+			const totalMs = isBotSeat(state, seat) ? null : gone.has(seat) ? 0 : speed === null ? null : pickTimeMs(left, speed);
 			if (totalMs === null) {
 				const dropped = rope.get(seat);
 				if (dropped !== undefined) log({ evt: 'rope-dropped', draftId, seat, key: dropped.key, left, seq: state.seq });
@@ -533,7 +552,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 			}
 			const key = decisionKey(state, seat);
 			let deadline = rope.get(seat);
-			if (deadline?.key !== key) {
+			if (deadline?.key !== key || (totalMs === 0 && deadline.totalMs !== 0)) {
 				// Logged, so a deadline that ends later than the one the seat's page was given (#76) names when it was set.
 				log({ evt: 'rope-set', draftId, seat, key, was: deadline?.key ?? null, left, totalMs, endsAt: now + totalMs, seq: state.seq });
 				deadline = { key, endsAt: now + totalMs, totalMs };
@@ -581,6 +600,20 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 		settle(room);
 		if (timedOut > 0) stepped(room);
 	};
+
+	// A drafter who leaves the room is gone from their seat at once (`goneSeats`): each pod of a room that changed
+	// while it drafts brings its deadlines up to date, and a pick that takes moves the table on.
+	const stopWatchingRooms = deps.lobby.onChange((roomId) => {
+		const pod = magicView(deps.lobby.get(roomId))?.game?.pod;
+		if (pod?.phase !== 'drafting') return;
+		for (let k = 0; k < Math.max(1, pod.pods?.length ?? 0); k++) {
+			const room = deps.rooms?.find(podDraftId(roomId, k));
+			if (room === undefined || goneSeats(room).size === 0) continue;
+			const seq = stateOf(room).seq;
+			settle(room);
+			if (stateOf(room).seq !== seq) stepped(room);
+		}
+	});
 
 	// The one handshake gate. See the module header.
 	gateSocketIo(io, { minTier: deps.minTier, surface: 'draft-socket' });
@@ -867,6 +900,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 
 	return {
 		close(): void {
+			stopWatchingRooms();
 			limiter.deregister();
 			leanLimiter.deregister();
 			for (const timer of [...botTimers.values(), ...ropeTimers.values()]) clearTimeout(timer);
