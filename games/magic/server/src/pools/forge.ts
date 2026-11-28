@@ -115,9 +115,15 @@ function isReply(value: unknown): value is JsonResponse & { id: string } {
 	return typeof value === 'object' && value !== null && typeof (value as { id?: unknown }).id === 'string';
 }
 
-const CALL_TIMEOUT_MS = 30_000;
+export interface PoolTiming {
+	callTimeoutMs: number;
+	bootTimeoutMs: number;
+}
 
-export function createForgePools(config: JvmHostConfig, log: (entry: Record<string, unknown>) => void = () => {}): ForgePools {
+const DEFAULT_TIMING: PoolTiming = { callTimeoutMs: 30_000, bootTimeoutMs: 180_000 };
+
+export function createForgePools(config: JvmHostConfig, log: (entry: Record<string, unknown>) => void = () => {}, timing: PoolTiming = DEFAULT_TIMING): ForgePools {
+	const CALL_TIMEOUT_MS = timing.callTimeoutMs;
 	const poolConfig: JvmHostConfig = { ...config, bridgeSource: POOL_SERVICE_SOURCE };
 	if (!existsSync(poolConfig.bridgeSource)) {
 		throw new Error(`pool service source not found: ${poolConfig.bridgeSource}`);
