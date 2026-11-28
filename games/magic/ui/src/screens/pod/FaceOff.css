@@ -14,6 +14,8 @@
   align-self: stretch;
   gap: 12px;
   margin: 0 0 1rem;
+  /* The arena's size reads this width (`cqw` below): the arena is a container itself, for its fighters. */
+  container-type: inline-size;
 }
 
 .face-off__title {
@@ -34,7 +36,8 @@
 }
 
 .face-off__arena {
-  --avatar: 112px;
+  /* Narrower than about 400px, the two shrink with the page, so each rests whole inside the arena's clip. */
+  --avatar: min(112px, 28cqw);
   --top: 12px;
 
   position: relative;
