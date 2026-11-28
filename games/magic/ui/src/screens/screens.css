@@ -290,6 +290,12 @@
   border-radius: var(--hdk-radius);
   padding: 10px 18px;
   font-weight: 600;
+  /* A way in (`GoLink`) is an anchor in this paint: a button's label, never underlined or visited-coloured. */
+  text-decoration: none;
+}
+
+.lobby__go:visited {
+  color: var(--color-on-primary);
 }
 
 .lobby__go:hover,
