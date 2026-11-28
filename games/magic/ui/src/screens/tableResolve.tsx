@@ -35,6 +35,8 @@ export interface TableResolveHandlers {
   dqable?: ((memberId: string) => boolean) | undefined;
   /** The leader's: the game in play goes back to the start of its turn. */
   onRestore?: (() => Promise<string | null>) | undefined;
+  /** The leader's: every seat is sent again what Forge waits on (a game that does not move with nothing on screen). */
+  onUnstick?: (() => Promise<string | null>) | undefined;
   /** The leader's: the match is played again from 0–0. */
   onReplay?: (() => Promise<string | null>) | undefined;
   /** The leader's: a game (or, `match`, the whole match) to the player at a seat of `players`. */
@@ -51,7 +53,7 @@ export interface TableState {
   /** The server's clock when it was read, for each age below. */
   now: number;
   lastActivityAt: number | null;
-  seats: readonly ({ waitingOn: string | null; askAgeMs: number | null; clockMs: number | null; away: boolean; here: boolean } | null)[];
+  seats: readonly ({ waitingOn: string | null; askAgeMs: number | null; clockMs: number | null; away: boolean; here: boolean; unshown: readonly string[] } | null)[];
   /** The game before each restore, as replay ids. */
   epochs: readonly string[];
 }
@@ -78,12 +80,12 @@ export interface TableResolve {
   panel: ReactNode;
 }
 
-type Resolve = 'concede' | 'abandon' | 'drop' | 'reset' | 'restore' | 'replay' | 'game0' | 'game1' | 'match0' | 'match1' | 'dq0' | 'dq1';
+type Resolve = 'concede' | 'abandon' | 'drop' | 'reset' | 'unstick' | 'restore' | 'replay' | 'game0' | 'game1' | 'match0' | 'match1' | 'dq0' | 'dq1';
 
-const RESOLVES: readonly Resolve[] = ['concede', 'abandon', 'drop', 'reset', 'restore', 'replay', 'game0', 'game1', 'match0', 'match1', 'dq0', 'dq1'];
+const RESOLVES: readonly Resolve[] = ['concede', 'abandon', 'drop', 'reset', 'unstick', 'restore', 'replay', 'game0', 'game1', 'match0', 'match1', 'dq0', 'dq1'];
 
 /** The leader's own: confirmed with Cancel, never Keep playing. */
-const LEADERS: ReadonlySet<Resolve> = new Set(['reset', 'restore', 'replay', 'game0', 'game1', 'match0', 'match1', 'dq0', 'dq1']);
+const LEADERS: ReadonlySet<Resolve> = new Set(['reset', 'unstick', 'restore', 'replay', 'game0', 'game1', 'match0', 'match1', 'dq0', 'dq1']);
 
 /** `ms` as m:ss. */
 const minutes = (ms: number): string => {
@@ -93,7 +95,7 @@ const minutes = (ms: number): string => {
 
 const score = (wins: readonly [number, number]): string => `${wins[0]}–${wins[1]}`;
 
-export function useTableResolve({ testId, players, nameOf, myMemberId, series, matchId, phase, menu, onConcede, onAbandon, onDrop, onReset, onDq, dqable, onRestore, onReplay, onAward, inspect }: TableResolveInput): TableResolve {
+export function useTableResolve({ testId, players, nameOf, myMemberId, series, matchId, phase, menu, onConcede, onAbandon, onDrop, onReset, onDq, dqable, onUnstick, onRestore, onReplay, onAward, inspect }: TableResolveInput): TableResolve {
   const [confirming, setConfirming] = useState<Resolve | null>(null);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +109,7 @@ export function useTableResolve({ testId, players, nameOf, myMemberId, series, m
   if (onAbandon !== undefined && under) run.abandon = onAbandon;
   if (onDrop !== undefined && seated && !finished) run.drop = onDrop;
   if (onReset !== undefined && matchId !== null && !finished && series.phase === 'playing') run.reset = onReset;
+  if (onUnstick !== undefined && matchId !== null && !finished) run.unstick = onUnstick;
   if (onRestore !== undefined && matchId !== null && !finished) run.restore = onRestore;
   if (onReplay !== undefined && !finished && (matchId !== null || series.played > 0)) run.replay = onReplay;
   if (onAward !== undefined) {
@@ -123,6 +126,7 @@ export function useTableResolve({ testId, players, nameOf, myMemberId, series, m
     abandon: { offer: 'Abandon', confirm: 'Abandon' },
     drop: { offer: 'Drop match', confirm: 'Drop match' },
     reset: { offer: 'Reset game', confirm: 'Reset game' },
+    unstick: { offer: 'Re-send asks', confirm: 'Re-send asks' },
     restore: { offer: 'Restart turn', confirm: 'Restart turn' },
     replay: { offer: 'Replay match', confirm: 'Replay match' },
     game0: { offer: `Game to ${nameOf(players[0])}`, confirm: 'Award game' },
@@ -148,6 +152,7 @@ export function useTableResolve({ testId, players, nameOf, myMemberId, series, m
     abandon: 'No result',
     drop: score(forfeitBy(mySeat === 0 ? 0 : 1)),
     reset: score(series.wins),
+    unstick: score(series.wins),
     restore: score(series.wins),
     replay: score([0, 0]),
     game0: score([series.wins[0] + 1, series.wins[1]]),
@@ -265,6 +270,11 @@ function TableStateRows({ state, players, nameOf, testId }: { state: TableState;
           <div key={k} className="table-card__state-seat" data-active={state.active === k ? '' : undefined} data-away={seat.away || !seat.here ? '' : undefined}>
             <span className="table-card__state-name">{nameOf(players[k])}</span>
             {seat.waitingOn !== null && <span className="table-card__state-ask">{seat.waitingOn}</span>}
+            {seat.unshown.map((m) => (
+              <span key={m} className="table-card__state-unshown" data-testid={`${testId}-unshown`}>
+                {m}
+              </span>
+            ))}
             {seat.askAgeMs !== null && <span className="table-card__state-age">{minutes(seat.askAgeMs)}</span>}
             {seat.clockMs !== null && <span className="table-card__state-clock">⏱ {minutes(seat.clockMs)}</span>}
           </div>

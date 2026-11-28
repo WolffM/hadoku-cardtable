@@ -425,6 +425,14 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 					away: s.away,
 					asks: [...s.asks.values()].map((a) => ({ method: a.method, ageMs: now - a.sentAt })),
 					waitingOn: id?.waitingOn?.method ?? null,
+					// What Forge waited on at the last unstick that the seat had not been shown: the softlock a restart can leave.
+					unshown: (() => {
+						const last = this.lastUnstick;
+						const moved = this.activity(now).lastAt;
+						if (last === null || (moved !== null && moved > last.at)) return [];
+						const found = last.seats.find((u) => u.seat === s.seat);
+						return found?.forge?.filter((m) => !found.shown.includes(m)) ?? [];
+					})(),
 					clock: id?.clock ?? null,
 				};
 			}),
@@ -627,6 +635,22 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 		return this.session.probe(seat, message, timeoutMs);
 	}
 
+	/**
+	 * A game that does not move though no screen shows anything to do (a restart left Forge waiting on an
+	 * ask no seat was shown): every human seat is sent again what Forge waits on and what this server holds
+	 * (`ForgeSession.resendPending`). Per seat, what Forge waits on (null: the bridge did not say in time)
+	 * beside what the seat had been shown. An operator's tool (`/tables/:id/unstick`).
+	 */
+	async unstick(timeoutMs = 3_000): Promise<{ seat: number; forge: string[] | null; shown: string[] }[]> {
+		if (this.status !== 'running') return [];
+		const seats = await Promise.all(this.seats.filter((s) => !s.ai).map((s) => this.session.resendPending(s.seat, timeoutMs)));
+		this.lastUnstick = { at: (this.deps.now ?? Date.now)(), seats };
+		return seats;
+	}
+
+	/** What the last `unstick` found and when, for the room's live view (`inspect`) until the table next moves. */
+	private lastUnstick: { at: number; seats: { seat: number; forge: string[] | null; shown: string[] }[] } | null = null;
+
 	live(): TableGameLive | null {
 		return this.session.live();
 	}
@@ -665,6 +689,8 @@ export interface MatchInspection {
 		away: boolean;
 		/** Forge's open asks of this seat, oldest first, with how long each has waited. */
 		asks: { method: string; ageMs: number }[];
+		/** Asks Forge waited on at the last `unstick` that this seat had not been shown. */
+		unshown: string[];
 		/** The input this seat holds the game on, as the other seat is told it (`SeatIdentity.waitingOn`). */
 		waitingOn: string | null;
 		clock: SeatIdentity['clock'] | null;

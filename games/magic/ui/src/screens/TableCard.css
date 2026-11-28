@@ -381,6 +381,10 @@
   color: var(--color-text);
 }
 
+.table-card__state-unshown {
+  color: var(--danger);
+}
+
 .table-card__state-clock {
   margin-left: auto;
 }

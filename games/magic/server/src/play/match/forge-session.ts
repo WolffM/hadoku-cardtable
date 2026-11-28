@@ -812,6 +812,8 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 	/** Which Scryfall id each card of this match is: stamped on every face a seat may see, and preloaded (`art.ts`). */
 	readonly art: ArtIds;
 	readonly probes = new Map<string, (r: ProbeResult) => void>();
+	/** Per seat, who waits on the bridge's next `resent` line (`resendPending`). */
+	private readonly resentWaiters = new Map<number, ((callIds: string[]) => void)[]>();
 	/**
 	 * Wave 35 §S, R4 — the card ids a discard choice JUST sent to Forge. The
 	 * next `getChoices` REVEAL (`min === max === -1`) whose `choices` are
@@ -1535,6 +1537,35 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 				return { ok: true };
 			}
 		}
+	}
+
+	/**
+	 * An operator's unstick (`Match.unstick`): Forge re-sends every ask it waits on for this seat
+	 * (`resend-pending`, `SeatGui.resendPending`), an ask this server never forwarded reaching the seat
+	 * through `onFrame` as any; then the seat is sent again everything this server holds for it
+	 * (`resendAfterSnapshot`), for a screen that lost what it was shown. Resolves with what Forge waits
+	 * on (its methods) beside what the seat had been shown, `forge` null when the bridge did not say.
+	 */
+	resendPending(seat: number, timeoutMs: number): Promise<{ seat: number; forge: string[] | null; shown: string[] }> {
+		const s = this.seats[seat];
+		const shown = s === undefined ? [] : [...s.asks.values()].map((a) => a.method);
+		return new Promise((done) => {
+			const timer = setTimeout(() => {
+				const left = (this.resentWaiters.get(seat) ?? []).filter((w) => w !== answer);
+				if (left.length === 0) this.resentWaiters.delete(seat);
+				else this.resentWaiters.set(seat, left);
+				done({ seat, forge: null, shown });
+			}, timeoutMs);
+			timer.unref();
+			const answer = (callIds: string[]): void => {
+				clearTimeout(timer);
+				this.resendAfterSnapshot(seat);
+				const held = this.seats[seat]?.asks;
+				done({ seat, forge: callIds.map((id) => held?.get(id)?.method ?? id), shown });
+			};
+			this.resentWaiters.set(seat, [...(this.resentWaiters.get(seat) ?? []), answer]);
+			this.command({ t: 'resend-pending', seat });
+		});
 	}
 
 	/** A real server-side `showConfirmDialog` to one seat — see `PlayBridge.probe`. */
@@ -3829,9 +3860,13 @@ export class ForgeSession implements GameSession<BridgeLine, BridgeCommand> {
 				}
 				this.onFrame(line.seat, line.frame);
 				return;
-			case 'resent':
+			case 'resent': {
 				this.deps.log({ evt: 'asks-resent', matchId: this.id, seat: line.seat, callIds: line.callIds });
+				const waiting = this.resentWaiters.get(line.seat) ?? [];
+				this.resentWaiters.delete(line.seat);
+				for (const done of waiting) done(line.callIds);
 				return;
+			}
 			case 'input': {
 				// Forge's input queue moved: whatever window was withheld is no longer what it waits on.
 				const moved = this.seats[line.seat];

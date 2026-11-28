@@ -10,7 +10,7 @@ import { apiBase, bodyOf, getJson, isRecord, sendJson, serverMessage, type Fetch
  * Resolve a game at this table — concede it, abandon its series, drop its match, or (the leader or an
  * operator) reset it, restart its turn or replay the match: null once the server has it, else its sentence.
  */
-export function resolveTable(action: 'concede' | 'abandon' | 'drop' | 'reset' | 'restore' | 'replay', roomId: string, tableId: string, fetchImpl?: Fetch): Promise<string | null> {
+export function resolveTable(action: 'concede' | 'abandon' | 'drop' | 'reset' | 'restore' | 'replay' | 'unstick', roomId: string, tableId: string, fetchImpl?: Fetch): Promise<string | null> {
   return post(`rooms/${encodeURIComponent(roomId)}/tables/${encodeURIComponent(tableId)}/${action}`, {}, fetchImpl);
 }
 
@@ -37,6 +37,8 @@ export interface LiveSeat {
   away: boolean;
   asks: { method: string; ageMs: number }[];
   waitingOn: string | null;
+  /** What Forge waited on at the last re-send that this seat had not been shown. */
+  unshown?: string[];
   clock: { ms: number; running: boolean } | null;
 }
 

@@ -32,6 +32,7 @@ table last moved.
 
 | Emergency | Fix |
 | --- | --- |
+| **A player's screen shows nothing to do, but the game doesn't move** (seen after a server restart: Forge waits on a question the screen never got) | ⋯ → **Re-send asks**: Forge sends every question it is waiting on again, and the server sends each seat everything it holds for it. Nothing in the game changes. Open ⋯ again: a question Forge waited on that the seat had never been shown is named on that seat's row in the danger colour, so you can see that was the cause. Still stuck: **Restart turn** below. |
 | **Softlock** (a game will not move) | ⋯ → **Restart turn**: the game goes back to the start of the current turn on a new JVM, same match, nobody's clock rewound. Refused when that turn cannot be restored exactly (it names what, e.g. `token`): then **Reset game** (the same game again from its start, the series score stands) or, if the players agree who would have won, **Game to ‹player›**. The game before a restart is kept as its own replay, linked under the state rows (`#/replay/<matchId>-e1`). |
 | **No-show before the lock** (sat down, never readies, so the field never locks) | The seat chip's **Bot** (the AI takes the seat; the field is fixed once everyone left is ready) or **Remove** (seat freed for someone else). An empty seat: **Close** it. |
 | **A drafter stops picking mid-draft** (closed the tab; the pod waits on them) | Someone who **leaves the room** is picked for by the draft bot at once. Still in the room but gone: from the console below, `api('draft/pick-for', { memberId: ID })`: the draft bot picks for their seat now and at every pick until they reconnect to the draft (or `{ memberId: ID, on: false }`). Or turn the pick timer on for everyone: `api('draft/timer', { on: true, speed: 1 })` (speed 0.25–4; higher is faster), and a gone seat's pick falls to the bot when its time runs out. |
@@ -51,6 +52,7 @@ From the browser console on `hadoku.me/cardtable/`, signed in as an operator:
 ```js
 const api = (p, body) => fetch(`/cardtable/api/rooms/${ROOM}/${p}`, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json());
 await api('admin/live');                                  // every match of the round, as it stands
+await api(`tables/${TABLE}/unstick`, {});                 // Re-send asks: { seats: [{ seat, forge: [what Forge waits on], shown: [what the seat had] }] }
 await api(`tables/${TABLE}/restore`, {});                 // Restart turn
 await api(`tables/${TABLE}/reset`, {});                   // Reset game
 await api(`tables/${TABLE}/award`, { seat: 0 });          // Game to table seat 0

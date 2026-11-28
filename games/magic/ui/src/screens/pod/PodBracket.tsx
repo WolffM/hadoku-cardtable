@@ -205,6 +205,7 @@ function MatchCard({ roomId, match, x, y, h, focus, dim, myMemberId, leader, dro
     ...(live && leader
       ? {
           onReset: () => resolveTable('reset', roomId, tableId!),
+          onUnstick: () => resolveTable('unstick', roomId, tableId!),
           onRestore: () => resolveTable('restore', roomId, tableId!),
           onReplay: () => resolveTable('replay', roomId, tableId!),
           onAward: (k: 0 | 1, whole: boolean) => awardTable(roomId, tableId!, seatOfPlayer(k), whole),
@@ -273,7 +274,7 @@ async function tableState(roomId: string, tableId: string, seatOf: (k: 0 | 1) =>
     const s = m.seats[seatOf(k)];
     if (s === undefined) return null;
     const oldest = s.asks[0];
-    return { waitingOn: s.waitingOn ?? oldest?.method ?? null, askAgeMs: oldest?.ageMs ?? null, clockMs: s.clock?.ms ?? null, away: s.away, here: s.here || s.ai };
+    return { waitingOn: s.waitingOn ?? oldest?.method ?? null, askAgeMs: oldest?.ageMs ?? null, clockMs: s.clock?.ms ?? null, away: s.away, here: s.here || s.ai, unshown: s.unshown ?? [] };
   };
   const active = m.active === null ? null : seatOf(0) === m.active ? 0 : 1;
   return { turn: m.turn, active, now: live.now, lastActivityAt: m.lastActivityAt, seats: [seat(0), seat(1)], epochs: t.epochs };

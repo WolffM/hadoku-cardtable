@@ -44,7 +44,7 @@ import type { MatchInspection } from '../play/match.js';
 import { isAiEntrant } from '../room/pods.js';
 import { PICK_TIMER_SPEED_MAX, PICK_TIMER_SPEED_MIN, PickTimerSchema } from '@hadoku/shared';
 
-type TableMatch = Pick<Match, 'seatOf' | 'fromClient' | 'stop' | 'concedeFor' | 'concedeAi' | 'inspect'>;
+type TableMatch = Pick<Match, 'seatOf' | 'fromClient' | 'stop' | 'concedeFor' | 'concedeAi' | 'inspect' | 'unstick'>;
 
 export interface TableActionsDeps {
 	lobby: Pick<
@@ -342,6 +342,29 @@ export function attachTableActions(api: Router, deps: TableActionsDeps): void {
 	});
 
 	/** The match is played again from its first game, with no result (`Lobby.replayMatch`). */
+	/**
+	 * A game that does not move though no screen shows anything to do: every human seat is sent again what
+	 * Forge waits on and what the server holds for it (`Match.unstick`). Answers, per seat, what Forge waits
+	 * on beside what the seat had been shown, so the room can see which it was. Changes nothing in the game.
+	 */
+	router.post('/:roomId/tables/:tableId/unstick', async (req: Request, res: Response) => {
+		const roomId = String(req.params.roomId);
+		const tableId = String(req.params.tableId);
+		const who = authority(req, res, roomId);
+		if (who === null) return;
+		if (!who.override && magicView(deps.lobby.get(roomId))?.leader !== who.me) {
+			acted(req, 'asks-resent', roomId, { table: tableId, ok: false, reason: 'not-leader' });
+			return refuse(res, 'not-leader');
+		}
+		const table = tableOf(roomId, tableId);
+		if (table === undefined) return refuse(res, 'no-such-table');
+		const match = table.matchId === null ? undefined : deps.match(table.matchId);
+		if (match === undefined) return refuse(res, 'no-game');
+		const seats = await match.unstick();
+		acted(req, 'asks-resent', roomId, { table: tableId, matchId: table.matchId, ok: true, seats });
+		res.json({ ok: true, seats });
+	});
+
 	router.post('/:roomId/tables/:tableId/replay', (req: Request, res: Response) => {
 		const roomId = String(req.params.roomId);
 		const tableId = String(req.params.tableId);

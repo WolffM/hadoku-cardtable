@@ -1291,6 +1291,53 @@ describe('what Forge sends that forge-wire refuses', () => {
 
 });
 
+describe('unstick: an operator re-sends what Forge waits on (a restart left an ask no screen shows)', () => {
+	const ask = PROBE_ASK.frame as { callId: string; method: string };
+	const askFramesTo = (h: Harness, seat: number, from: number) =>
+		h.sent.slice(from).filter((x) => x.seat === seat && x.envelope.frame.kind === 'ask' && (x.envelope.frame as { callId?: string }).callId === ask.callId);
+	/** The bridge's own answer to `resend-pending` (`SeatGui.resendPending`): each pending frame again, then the callIds. */
+	const bridgeResends = (h: Harness, pending: boolean) => {
+		for (const seat of [0, 1]) {
+			if (pending && seat === PROBE_ASK.seat) h.host.push(PROBE_ASK);
+			h.host.push({ t: 'resent', seat, callIds: pending && seat === PROBE_ASK.seat ? [ask.callId] : [] } as BridgeLine);
+		}
+	};
+
+	it('an ask Forge holds that this server never forwarded reaches the seat, and is named as Forge’s and not shown', async () => {
+		const h = harness();
+		h.host.push(...OPENING);
+		const from = h.sent.length;
+		const done = h.match.unstick();
+		expect(h.host.commands.filter((c) => c.t === 'resend-pending')).toEqual([{ t: 'resend-pending', seat: 0 }, { t: 'resend-pending', seat: 1 }]);
+		bridgeResends(h, true);
+		const seats = await done;
+		expect(seats.find((x) => x.seat === PROBE_ASK.seat)).toEqual({ seat: PROBE_ASK.seat, forge: [ask.method], shown: [] });
+		expect(askFramesTo(h, PROBE_ASK.seat, from).length, 'the seat is shown it').toBeGreaterThanOrEqual(1);
+		expect(h.match.inspect().seats.find((x) => x.seat === PROBE_ASK.seat)?.unshown, 'the live view names what the seat was never shown').toEqual([ask.method]);
+	});
+
+	it('an ask the server holds but the screen lost is sent to the seat again', async () => {
+		const h = harness();
+		h.host.push(...OPENING, PROBE_ASK);
+		const from = h.sent.length;
+		const done = h.match.unstick();
+		bridgeResends(h, true);
+		const seats = await done;
+		expect(seats.find((x) => x.seat === PROBE_ASK.seat)).toEqual({ seat: PROBE_ASK.seat, forge: [ask.method], shown: [ask.method] });
+		expect(h.match.inspect().seats.find((x) => x.seat === PROBE_ASK.seat)?.unshown).toEqual([]);
+		expect(askFramesTo(h, PROBE_ASK.seat, from).length, 'shown again').toBeGreaterThanOrEqual(1);
+	});
+
+	it('a bridge that never answers is reported as unknown, not as nothing pending', async () => {
+		vi.useFakeTimers();
+		const h = harness();
+		h.host.push(...OPENING);
+		const done = h.match.unstick();
+		vi.advanceTimersByTime(5_000);
+		expect((await done).map((x) => x.forge)).toEqual([null, null]);
+	});
+});
+
 describe('a lost ask: an input act that gets nothing back', () => {
 	const ok = ClientFrameSchema.parse({ kind: 'act', method: 'selectButtonOk' });
 	const resends = (h: Harness) => h.host.commands.filter((c) => c.t === 'resend-pending');

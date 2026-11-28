@@ -111,6 +111,7 @@ async function open(opts: { refuse?: string; pod?: boolean; starting?: boolean; 
 				fromClient,
 				concedeFor: (seat) => (opts.starting === true ? false : fromClient(seat, { kind: 'act', method: 'concede' }).ok),
 				concedeAi: () => false,
+				unstick: async () => [{ seat: 0, forge: ['declareBlockers'], shown: [] }],
 				inspect: () => ({ status: 'running', startedAt: 0, turn: 7, active: 1, life: [20, 3], restoreTurn: 7, restoreLossy: opts.lossy ?? [], lastActivityAt: 0, seats: [] }),
 				stop: () => void stopped.push(MATCH),
 			};
@@ -490,5 +491,17 @@ describe('mid-draft: POST /api/rooms/:roomId/draft/timer and /draft/pick-for', (
 			{ roomId: h.roomId, memberId: BOB, on: false },
 		]);
 		expect(h.events.filter((e) => e.act === 'pick-for').map((e) => [e.by, e.ok])).toEqual([[CAROL, false], [ALICE, false], [OUTSIDER, true], [ALICE, true]]);
+	});
+});
+
+describe('POST /api/rooms/:roomId/tables/:tableId/unstick', () => {
+	it('an operator re-sends what Forge waits on and is told which seat showed nothing; a member may not; it is logged', async () => {
+		const h = await open({ pod: true });
+		expect((await leader(h, BOB, `tables/${h.tableId}/unstick`, {}, 'member')).status).toBe(403);
+		const res = await leader(h, OUTSIDER, `tables/${h.tableId}/unstick`, {}, 'wife');
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ ok: true, seats: [{ seat: 0, forge: ['declareBlockers'], shown: [] }] });
+		expect(h.events.map((e) => [e.act, e.by, e.ok])).toEqual([['asks-resent', BOB, false], ['asks-resent', OUTSIDER, true]]);
+		expect(h.stopped, 'the game goes on').toEqual([]);
 	});
 });

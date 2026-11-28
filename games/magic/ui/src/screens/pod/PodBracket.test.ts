@@ -163,6 +163,7 @@ describe('PodBracket', () => {
       'Concede game',
       'Drop match',
       'Reset game',
+      'Re-send asks',
       'Restart turn',
       'Replay match',
       'Game to Alice',
@@ -197,7 +198,7 @@ describe('PodBracket', () => {
                 matchId: 'm-000000000003',
                 epochs: ['m-000000000003-e1'],
                 // Carol sits at table seat 0 here, Alice at 1: the pairing's order is not the table's.
-                match: { status: 'running', turn: 9, active: 0, restoreTurn: 9, lastActivityAt: 300_000, seats: [seat({ waitingOn: 'declareBlockers', asks: [{ method: 'declareBlockers', ageMs: 245_000 }] }), seat({ seat: 1, away: true, clock: { ms: 754_000, running: false } })] },
+                match: { status: 'running', turn: 9, active: 0, restoreTurn: 9, lastActivityAt: 300_000, seats: [seat({ waitingOn: 'declareBlockers', asks: [{ method: 'declareBlockers', ageMs: 245_000 }] }), seat({ seat: 1, away: true, clock: { ms: 754_000, running: false }, unshown: ['chooseCards'] })] },
               },
             ],
           }),
@@ -212,7 +213,8 @@ describe('PodBracket', () => {
     });
     const state = screen.getByTestId('pod-tables-row-state');
     const rows = [...state.querySelectorAll('.table-card__state-seat')];
-    expect(rows.map((r) => r.textContent)).toEqual(['Alice⏱ 12:34', 'CaroldeclareBlockers4:05']);
+    expect(rows.map((r) => r.textContent)).toEqual(['AlicechooseCards⏱ 12:34', 'CaroldeclareBlockers4:05']);
+    expect(screen.getByTestId('pod-tables-row-unshown').textContent, 'what Forge waits on that Alice was never shown').toBe('chooseCards');
     expect(rows[0]!.hasAttribute('data-away'), 'Alice has left').toBe(true);
     expect(rows[1]!.hasAttribute('data-active'), 'Carol’s turn').toBe(true);
     expect(state.querySelector('.table-card__state-idle')?.textContent).toBe('↻ 5:00');
