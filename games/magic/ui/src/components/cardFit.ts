@@ -171,12 +171,17 @@ export function fitScale(content: number, fit: number, available: number): numbe
 
 /**
  * The scale a column settles on, in at most `FIT_SETTLE` measures: `contentAt(fit)` draws it at `fit`
- * and says how tall it is.
+ * and says how tall it is. It never rises back to a scale it has already drawn too tall: text that
+ * rewraps a few steps up (the draft's room bar) would take it there and back until the measures ran out.
  */
 export function settleFit(contentAt: (fit: number) => number, start: number, available: number): number {
   let fit = start;
+  let tooTall = Number.POSITIVE_INFINITY;
   for (let i = 0; i < FIT_SETTLE; i++) {
-    const next = fitScale(contentAt(fit), fit, available);
+    const content = contentAt(fit);
+    if (content > available) tooTall = Math.min(tooTall, fit);
+    const scaled = fitScale(content, fit, available);
+    const next = scaled > fit && scaled >= tooTall ? fit : scaled;
     if (next === fit) break;
     fit = next;
   }
