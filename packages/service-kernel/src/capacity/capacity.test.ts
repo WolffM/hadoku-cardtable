@@ -15,7 +15,7 @@ describe('capacitySampler', () => {
 			gauges: { rooms: () => rooms },
 			report: (e, c) => events.push([e, c]),
 			now: () => t,
-			memory: () => ({ rss: 300 * 1024 * 1024, heapUsed: 100 * 1024 * 1024 }),
+			memory: () => ({ rss: 300 * 1024 * 1024, heapUsed: 100 * 1024 * 1024, heapTotal: 140 * 1024 * 1024, external: 60 * 1024 * 1024, arrayBuffers: 40 * 1024 * 1024 }),
 		});
 		sampler.sample();
 		rooms = 9;
@@ -39,7 +39,8 @@ describe('capacitySampler', () => {
 		expect(events[0][1]).toMatchObject({
 			minutes: 5,
 			samples: 3,
-			peak: { rooms: 9, rssMb: 300, heapMb: 100 },
+			// RSS the heap does not explain is in the rest: what V8 reserved, Buffers and other native memory.
+			peak: { rooms: 9, rssMb: 300, heapMb: 100, heapTotalMb: 140, externalMb: 60, arrayBuffersMb: 40 },
 			now: { rooms: 4 },
 			requests: 3,
 			perMin: 1,
