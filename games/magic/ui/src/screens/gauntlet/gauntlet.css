@@ -202,9 +202,17 @@
   gap: 8px;
 }
 
+/* Under 600px the pool is two tiles across the room's content box, which keeps a 16px edge on both
+   sides (`chrome.css`): the gap and the name's inset are the room a long deck name needs to stay
+   whole (`w90d-gauntlet-board.phone.spec.ts`). */
 @media (max-width: 600px) {
   .gauntlet__pool {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .gauntlet__pool .deckpick__name {
+    margin-left: 4px;
   }
 }
 
