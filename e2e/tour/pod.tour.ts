@@ -21,6 +21,7 @@ import type { Friend } from '../play/browser.ts';
 import { forgeAvailability, startPlayStack, type PlayStack } from '../play/harness.ts';
 import { submitCreateRoom } from '../play/rooms.ts';
 import { readyPod } from '../podSeats.ts';
+import { inMenu } from '../play/phone.ts';
 import { attempt, CONTEXT, expect, openPhone, shotBoth, type ShotMeta } from './phone.ts';
 
 const forge = forgeAvailability();
@@ -365,12 +366,16 @@ async function playStep(
     return;
   }
   if ((await a.locator('[aria-label="Game board"]').count()) > 0) {
-    const concede = a.getByTestId('live-concede');
-    if (!(await concede.isEnabled().catch(() => false)) || (await a.getByTestId('live-says').textContent().catch(() => '')) === '') return;
+    // On a phone the desktop bar's Concede sits in the action menu (⋯, then Menu), and the bar says nothing
+    // in `live-says`: a wide table has the button out and a line said once the game is live.
+    const phone = await a.getByTestId('action-more').isVisible().catch(() => false);
+    if (!phone && (!(await a.getByTestId('live-concede').isEnabled().catch(() => false)) || (await a.getByTestId('live-says').textContent().catch(() => '')) === '')) return;
     await a.waitForTimeout(3_000);
     await once('match-player', [a], S('match', '#/match/<id>', 'the person’s own match, game 1, opening hand'));
     if (hold) return;
-    await concede.click({ timeout: 3_000 }).catch(() => undefined);
+    const concede = phone ? await inMenu(a, 'live-concede') : a.getByTestId('live-concede');
+    if (phone) await concede.tap({ timeout: 3_000 }).catch(() => undefined);
+    else await concede.click({ timeout: 3_000 }).catch(() => undefined);
     await once('match-concede', [a], S('match', '#/match/<id>', 'the Concede sheet'));
     await a.getByTestId('live-concede-yes').click({ timeout: 3_000 }).catch(() => undefined);
     return;
