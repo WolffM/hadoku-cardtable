@@ -212,6 +212,20 @@ describe('what a package ships', () => {
 		expect(silent).toEqual([]);
 	});
 
+	// hadoku-actions' publish-npmjs refuses a tarball that names a fleet host (its prepare.mjs, the
+	// same pattern), and the refusal only shows in the publish run: game-server sat at 0.1.136 on
+	// npmjs for two source comments. Name the role (the production host, a node) instead.
+	it.each(PUBLISHED.map((name) => [name]))('%s ships no fleet host name', (name) => {
+		const src = join(REPO, 'packages', name, 'src');
+		const leaveOut = (read(name).publishLeaveOut as string[] | undefined) ?? [];
+		const hits = plan(src, leaveOut).keep.flatMap((file) =>
+			readFileSync(join(src, file), 'utf8')
+				.split('\n')
+				.flatMap((line, i) => (/\bhokon\b|\bclaw-?\d+\b|\.ts\.net\b/i.test(line) ? [`${file}:${i + 1}`] : [])),
+		);
+		expect(hits).toEqual([]);
+	});
+
 	it('loses a path the newest version shipped, unless publishRemoved names it or its directory', () => {
 		const before = ['dist/app/GameAppShell.js', 'dist/app/GameAppShell.d.ts', 'dist/room/whoami.js', 'dist/http.js'];
 		expect(lost(before, ['dist/http.js', 'dist/new.js'])).toEqual(['dist/app/GameAppShell.d.ts', 'dist/app/GameAppShell.js', 'dist/room/whoami.js']);

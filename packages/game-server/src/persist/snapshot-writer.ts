@@ -4,7 +4,7 @@
  * ## Why
  *
  * A synchronous write on the event loop stops everything the server does until the disk answers:
- * the claws' heartbeats, every socket, every request. On hokon's btrfs root under another
+ * the claws' heartbeats, every socket, every request. On the production host's btrfs root under another
  * workload's writes, `fsyncSync` of a 10 kB room file can force a whole transaction commit and
  * take tens of seconds (2026-11-27 06:07–06:12Z: the process in D state with its CPU idle, a POST
  * that wrote three rooms 28.7 s, and every claw fencing its JVMs because this server said nothing
