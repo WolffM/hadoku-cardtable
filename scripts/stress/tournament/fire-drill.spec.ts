@@ -21,7 +21,15 @@
  * does not do what the runbook says it does fails the test. The server log after each injection is
  * printed (`openAsks`, refusals, the operator's acts). The table at the end is the drill's record.
  *
- * Needs a Forge build. Run it on the claw path: `CARDTABLE_E2E_CLAWS=1` (`play/harness.ts`), on a claw.
+ * Needs a Forge build. Kept out of `e2e/` so CI never runs it (about 7 min of four browsers and two scratch
+ * claws): copy it (and nothing else) into `e2e/` on a claw, never on hokon, and run it on the claw path:
+ *
+ *   cp scripts/stress/tournament/fire-drill.spec.ts e2e/ && \
+ *   CARDTABLE_E2E_CLAWS=1 CARDTABLE_FORGE_JAR=… CARDTABLE_FORGE_RES=… TMPDIR=… CARDTABLE_PLAY_WORK_DIR=… \
+ *     pnpm --dir e2e exec playwright test fire-drill.spec.ts
+ *
+ * Its scratch agents install the JDK and the jar cold each run, so a loaded claw can miss the harness's
+ * 60 s warm-JVM bound before the pod starts: pick a quiet claw. First green 2026-11-28 (claw-2, 6.2 min).
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
