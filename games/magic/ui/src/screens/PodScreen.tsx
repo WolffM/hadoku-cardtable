@@ -134,7 +134,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
     // The last payload rendered. A rejection or a reconnect notifies too, and
     // rebuilding the table on those would throw away the pending pick the
     // screen is showing.
-    let shown = '';
+    let shown = -1;
     let refused = 0;
     setTable(null);
     const live = startDraft({
@@ -143,19 +143,19 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
       onChange: (d) => {
         changed();
         if (d.view === null) {
-          shown = '';
+          shown = -1;
           setTable(null);
           return;
         }
-        // The watched seat too: a watcher switching seats is the same moment of the draft.
         // A refused pick is not in flight any more: its card is back to press.
         if (d.stats.rejected !== refused) {
           refused = d.stats.rejected;
           setTable((t) => (t === null ? t : initialState(t.view)));
         }
-        const stamp = `${d.view.epoch}:${d.view.seq}:${d.view.viewer.kind === 'watcher' ? d.view.viewer.seatId : ''}`;
-        if (stamp === shown) return;
-        shown = stamp;
+        // Redrawn for every payload the socket adopted, and only those: it alone decides what is new, the same
+        // moment seen anew included (a watcher switching seats, a pick timer turned on mid-draft).
+        if (d.stats.applied === shown) return;
+        shown = d.stats.applied;
         const view = d.view;
         setTable((t) => nextTable(t, view));
       },
