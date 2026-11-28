@@ -74,6 +74,24 @@ describe('signatureOf — what flag (b), stuck, counts as progress', () => {
   it('holds still when nothing at all changes, so a game that stopped is still flagged', () => {
     expect(signatureOf(waiting(201, 'MAIN1'))).toBe(signatureOf(waiting(201, 'MAIN1')));
   });
+
+  // The `stuck` of sweep match m-fce02d44b3e2: discarding 8 of 15 at cleanup, one answered click every
+  // 4 s, under one prompt and one selectable set — five picks in, it was flagged.
+  const discarding = (picked: number[]): LiveMatch =>
+    ({
+      asks: [],
+      forgeSeq: 412,
+      view: { turn: 3, phase: 'CLEANUP' },
+      prompt: 'Cleanup Phase\nSelect 8 card(s) to discard to bring your hand down to the maximum of 7 cards.',
+      buttons: { label1: 'OK', label2: 'Cancel', enable1: false, enable2: false },
+      selectables: { cards: new Set([104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118]), min: 8, max: 8 },
+      highlighted: new Set(picked),
+    }) as unknown as LiveMatch;
+
+  it('moves with each card picked into a selection that is not yet complete', () => {
+    expect(signatureOf(discarding([116]))).not.toBe(signatureOf(discarding([116, 107])));
+    expect(signatureOf(discarding([116, 107]))).toBe(signatureOf(discarding([107, 116])));
+  });
 });
 
 describe('isBlocked — who flag (b), stuck, waits on', () => {

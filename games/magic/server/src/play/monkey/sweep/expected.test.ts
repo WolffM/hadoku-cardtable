@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { differences, differenceText, expectedOf, RECORDED_SEED, signatureOf, sweepExit } from './expected.ts';
+import { differences, differenceText, expectedOf, RECORDED_SEED, signatureOf, sweepExit, sweepSeed } from './expected.ts';
 import type { CardResult } from './run-cards.ts';
 
 function result(over: Partial<CardResult>): CardResult {
@@ -80,5 +80,13 @@ describe('sweepExit — the recording is one seed\'s boards', () => {
 
   it('still fails a flag or a broken keyword promise on any seed', () => {
     for (const bad of [{ flagged: 1 }, { broken: 1 }]) expect(sweepExit({ ...clean, seed: 1129, ...bad }), JSON.stringify(bad)).toBe(1);
+  });
+});
+
+describe('sweepSeed — `--seed` names the seed a run printed', () => {
+  it('reads `--seed 1` as the recorded seed, as no `--seed` is, and digits as that number', () => {
+    expect(sweepSeed(undefined)).toBe(RECORDED_SEED);
+    expect(sweepSeed('1')).toBe(RECORDED_SEED);
+    expect(sweepSeed('1129')).toBe(1129);
   });
 });
