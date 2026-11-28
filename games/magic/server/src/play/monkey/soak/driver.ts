@@ -27,7 +27,7 @@ import { mintTabId } from '@wolffm/rooms-protocol';
 import { socketPath } from '@hadoku/game-ui/room/socket-options.ts';
 // The draft client's tab identity is keyed by the app, as the page's own entry configures it.
 import { configureShell } from '../../../../../../../packages/ui-shell/src/app-id/index.ts';
-import { closeMatch, startMatch, viewerPlayerIdOf, type LiveMatch } from '../../../../../ui/src/play/live/match.ts';
+import { closeMatch, concede, startMatch, viewerPlayerIdOf, type LiveMatch } from '../../../../../ui/src/play/live/match.ts';
 import { applyPick, closeDraft, isComplete, startDraft, type SocketDraft } from '../../../../../ui/src/draft/socket.ts';
 
 import { makeRng, type Rng } from '../rng.ts';
@@ -319,6 +319,14 @@ async function matchLane(a: Account, lane: number, decks: { id: string; era: str
         aiHoldsMs: aiHoldsMs.filter((ms) => ms >= 1000),
         minutes: (Date.now() - began) / 60_000,
       });
+      // A game walked away from (the turn cap, a stall, the run's end) is conceded, as a player leaving
+      // a casual game does: left running, its owner is online in the next one, so the server re-arms
+      // its rejoin grace for as long as the run lasts (`MatchShell.armRejoinGrace`'s online holder).
+      if (!match.over && match.ended === null && concede(match)) {
+        const until = Date.now() + 10_000;
+        while (!match.over && match.ended === null && Date.now() < until) await sleep(250);
+        log('match-conceded', { lane, matchId, over: match.over });
+      }
       closeMatch(match);
       closeSocketTransport(transport);
       await sleep(5_000 + Math.floor(rng.next() * 10_000));
