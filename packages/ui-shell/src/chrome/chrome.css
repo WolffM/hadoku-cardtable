@@ -221,20 +221,17 @@
   padding-left: 0;
 }
 
-/* A phone's edge is 16px, the bar's and the page's alike, and the chat is
-   below the screen rather than beside it, so the right needs no gutter of its
-   own: at 2rem plus that gutter a 390px room was 300px wide. */
+/* A phone's edge is 16px on both sides, the bar's and the page's alike, and
+   the chat is below the screen rather than beside it, so the screen needs no
+   gutter of its own on the right: at 2rem plus that gutter a 390px room was
+   300px wide. */
 @media (max-width: 600px) {
   .cardtable-chrome > .app-header {
     padding-inline: 16px;
   }
 
   :is(.cardtable-chrome[data-shell='match'], .cardtable-chrome[data-room-frame]) > .cardtable-chrome__content {
-    padding-left: 16px;
-  }
-
-  .cardtable-chrome[data-shell='match']:not([data-room-frame]) > .cardtable-chrome__content {
-    padding-right: 16px;
+    padding-inline: 16px;
   }
 
   .wp-room-chrome-frame__content > .shell.shell--fit,
