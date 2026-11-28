@@ -366,11 +366,12 @@ async function fire(pod: Pod, event: Event, phase: Phase): Promise<Pod> {
 				expect(r.ok, 'the leader disqualifies an entrant mid-rounds').toBe(true);
 				await settle();
 				expect(podOf(pod).dropped).toContain(who.id);
-				// Their match, if still under way, is conceded: the opponent has its majority.
-				if (r.ok && r.tableId !== null) {
-					const t = view(pod).tables.find((x) => x.id === r.tableId)!;
-					const result = podOf(pod).results.find((x) => x.round === before.round && (x.playerA === who.id || x.playerB === who.id));
-					if (result !== undefined && result.playerB !== null && t.series.games.length >= 0) {
+				// Their match, if still under way, is conceded: the opponent has its majority. One the round had already
+				// settled (they won it before the DQ) stands as it was: `#dropEntrant` forfeits nothing finished.
+				const involves = (x: { round: number; playerA: string; playerB: string | null }): boolean => x.round === before.round && (x.playerA === who.id || x.playerB === who.id);
+				if (r.ok && r.tableId !== null && !before.results.some(involves)) {
+					const result = podOf(pod).results.find(involves);
+					if (result !== undefined && result.playerB !== null) {
 						const theirs = result.playerA === who.id ? result.gamesA : result.gamesB;
 						const other = result.playerA === who.id ? result.gamesB : result.gamesA;
 						expect(other, 'the DQ concedes the match').toBeGreaterThan(theirs);
