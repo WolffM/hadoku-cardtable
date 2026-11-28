@@ -22,7 +22,8 @@
  * (`Lobby.stillPlaying`): a Bo3's game 1 is a hidden hand in games 2 and 3.
  */
 
-import { createReadStream, readdirSync, statSync } from 'node:fs';
+import { createReadStream } from 'node:fs';
+import { readdir, stat } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { createGunzip } from 'node:zlib';
@@ -239,11 +240,17 @@ interface Row {
 	hasActions: boolean;
 }
 
-function rowsOf(dir: string): Row[] {
+/**
+ * The recordings on disk, by match. Asynchronous, as every read of the directory here is: on a stalled
+ * disk a synchronous one holds the event loop, and every match on the server with it (PPE 2026-11-28,
+ * 6 s). No directory yet is no recordings; any other failure is logged and lists none.
+ */
+async function rowsOf(dir: string, log: JsonLog): Promise<Row[]> {
 	let names: string[];
 	try {
-		names = readdirSync(dir);
-	} catch {
+		names = await readdir(dir);
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code !== 'ENOENT') log({ evt: 'replay-dir-read-failed', dir, error: (err as Error).message });
 		return [];
 	}
 	const byMatch = new Map<string, Row>();
@@ -277,12 +284,13 @@ type Summary = { header: PublicHeaderLine; seatsKnown: boolean; endedAt: string 
 type Read = { kind: 'stream'; summary: Summary } | { kind: 'actions'; summary: Omit<Summary, 'source'>; actionsHeader: ActionsHeaderLine };
 
 /** A recording's files as a stat sees them (size, mtime, inode): any write or rename-over changes it. */
-function stamp(dir: string, row: Row): string {
-	const one = (suffix: string): string => {
-		const st = statSync(join(dir, `${row.matchId}${suffix}`));
+async function stamp(dir: string, row: Row): Promise<string> {
+	const one = async (suffix: string): Promise<string> => {
+		const st = await stat(join(dir, `${row.matchId}${suffix}`));
 		return `${st.size}:${st.mtimeMs}:${st.ino}`;
 	};
-	return `${row.hasPublic ? one(PUBLIC_SUFFIX) : '-'}|${row.hasActions ? one(ACTIONS_SUFFIX) : '-'}`;
+	const [pub, actions] = await Promise.all([row.hasPublic ? one(PUBLIC_SUFFIX) : '-', row.hasActions ? one(ACTIONS_SUFFIX) : '-']);
+	return `${pub}|${actions}`;
 }
 
 async function readRow(dir: string, row: Row): Promise<Read | null> {
@@ -344,13 +352,16 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 		const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(Math.floor(limitParam), MAX_LIST_LIMIT) : DEFAULT_LIST_LIMIT;
 		const humansOnly = req.query.humans === 'only';
 
-		const rows = rowsOf(deps.dir);
+		const rows = await rowsOf(deps.dir, log);
+		// Every recording's stat at once, on the threadpool: a list of hundreds must not wait on them one by one.
+		const stamps = await Promise.all(rows.map((row) => stamp(deps.dir, row).catch((err: unknown) => err as Error)));
 		// Named by the row's own id: an earlier epoch's header carries the match's id (`<id>-e<N>` is the file's).
 		const summaries: (Summary & { id: string })[] = [];
 		for (const id of [...listCache.keys()]) if (!rows.some((r) => r.matchId === id)) listCache.delete(id);
-		for (const row of rows) {
+		for (const [i, row] of rows.entries()) {
 			try {
-				const at = stamp(deps.dir, row);
+				const at = stamps[i]!;
+				if (at instanceof Error) throw at;
 				const cached = listCache.get(row.matchId);
 				let read: Read | null;
 				if (cached !== undefined && cached.at === at) read = cached.read;
@@ -417,7 +428,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 	 */
 	replays.get('/:matchId/people', async (req: Request, res: Response) => {
 		const matchId = String(req.params.matchId);
-		const row = MATCH_ID_RE.test(matchId) ? rowsOf(deps.dir).find((r) => r.matchId === matchId) : undefined;
+		const row = MATCH_ID_RE.test(matchId) ? (await rowsOf(deps.dir, log)).find((r) => r.matchId === matchId) : undefined;
 		if (row === undefined) {
 			res.status(404).json({ error: 'no such replay' });
 			return;
@@ -455,7 +466,7 @@ export function attachReplays(api: Router, deps: ReplaysDeps): void {
 			return;
 		}
 		const publicPath = join(deps.dir, `${matchId}${PUBLIC_SUFFIX}`);
-		const row = rowsOf(deps.dir).find((r) => r.matchId === matchId);
+		const row = (await rowsOf(deps.dir, log)).find((r) => r.matchId === matchId);
 		if (row === undefined) {
 			res.status(404).json({ error: 'no such replay' });
 			return;
