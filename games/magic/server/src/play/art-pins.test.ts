@@ -10,7 +10,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { gunzipSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { buildCardIndex, buildCatalog, normaliseName, type GameplayCard } from '@hadoku/carddata';
 
 import { loadCardCatalog, type CardCatalog } from '../pools/catalog.ts';
@@ -229,7 +229,8 @@ describe('the recording carries the pins', () => {
 		events!.exit('stopped');
 		const actions = join(dir, `m-pins${ACTIONS_SUFFIX}`);
 		const pub = join(dir, `m-pins${PUBLIC_SUFFIX}`);
-		await vi.waitFor(() => expect(existsSync(actions) && existsSync(pub)).toBe(true));
+		await recorder.idle();
+		expect(existsSync(actions) && existsSync(pub)).toBe(true);
 		const first = (path: string) => JSON.parse(gunzipSync(readFileSync(path)).toString('utf8').split('\n')[0]!) as { spec: ForgeMatchSpec; art: string[] };
 		expect(first(actions).spec.seats.map((s) => s.artPins)).toEqual([{ 'lightning bolt': BOLT_LEA.id }, undefined]);
 		expect(first(actions).spec.seats.map((s) => s.name), 'still anonymous').toEqual(['Player 1', 'Player 2']);

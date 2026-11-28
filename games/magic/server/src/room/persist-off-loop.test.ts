@@ -5,7 +5,9 @@
  * `fsyncSync`; prod sat in D state with its CPU idle, every request and heartbeat behind it, and the
  * claws fenced their JVMs (a lost bot game, three matches moved). Here the disk is that slow on
  * purpose: each synchronous write call the stores could make takes {@link STALL_MS}, and the
- * mutation has to return well inside it, with the bytes on disk soon after.
+ * mutation has to return well inside it, with the bytes on disk once the writer says so. "Soon" is the
+ * writer's own word (`idle()`), never a wall-clock wait: on a stalled host the off-loop write itself is
+ * slow, which is exactly what it is for.
  */
 
 import fs from 'node:fs';
@@ -15,8 +17,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { snapshotWriter } from '@hadoku/game-server/persist/snapshot-writer';
 import { FileRoomStore } from '@wolffm/rooms-server/store';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDraftRooms, singlePoolResolver } from './draftRooms.ts';
 import { openLobby } from './lobby.ts';
@@ -69,21 +72,23 @@ beforeAll(() => {
 });
 
 describe('a write on a stalled disk', () => {
-	it('a room made in the lobby returns before its file is on disk, and lands there soon after', async () => {
+	it('a room made in the lobby returns before its file is on disk, and is there once the writer is idle', async () => {
 		const dir = await tempDir();
 		const lobby = await openLobby({ dir });
 		const { value: made, ms } = withStalledDisk(() => lobby.create(ALICE, { name: 'Cube night', gameType: 'draft', clientMode: 'builtin' }));
 		if (!made.ok) throw new Error('not made');
 		expect(ms).toBeLessThan(STALL_MS / 2);
-		await vi.waitFor(async () => expect((await new FileRoomStore(dir).load(made.room.id))?.app).toMatchObject({ name: 'Cube night' }));
+		await snapshotWriter().idle();
+		expect((await new FileRoomStore(dir).load(made.room.id))?.app).toMatchObject({ name: 'Cube night' });
 	});
 
-	it('a dealt draft returns before its snapshot is on disk, and a restart finds it soon after', async () => {
+	it('a dealt draft returns before its snapshot is on disk, and a restart finds it once the writer is idle', async () => {
 		const dir = await tempDir();
 		const presence = createSeatPresence({ seatReleaseMs: SEAT_RELEASE_MS, draftGraceOf: () => 0 });
 		const first = createDraftRooms({ presence, ...singlePoolResolver(cube), storeDir: dir });
 		const { ms } = withStalledDisk(() => first.open('pod-stall'));
 		expect(ms).toBeLessThan(STALL_MS / 2);
-		await vi.waitFor(() => expect(createDraftRooms({ presence, ...singlePoolResolver(cube), storeDir: dir }).find('pod-stall')).toBeDefined());
+		await snapshotWriter().idle();
+		expect(createDraftRooms({ presence, ...singlePoolResolver(cube), storeDir: dir }).find('pod-stall')).toBeDefined();
 	});
 });

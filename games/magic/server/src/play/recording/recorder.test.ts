@@ -164,10 +164,12 @@ describe('createRecorder', () => {
 			if (order === 'start-then-exit') inner.calls[0]!.events.exit('stopped');
 			applied(1, 'after');
 			const cmds = (id: string) => linesOf(join(dir, `${id}.actions.jsonl.gz`)).filter((l) => l.t === 'cmd').map((l) => (l.cmd as { frame: { method: string } }).frame.method);
-			await vi.waitFor(() => expect(existsSync(join(dir, 'm-5-e1.actions.jsonl.gz')), `${order}: the game before, while the new one plays`).toBe(true));
+			await recorder.idle();
+		expect(existsSync(join(dir, 'm-5-e1.actions.jsonl.gz')), `${order}: the game before, while the new one plays`).toBe(true);
 			expect(cmds('m-5-e1')).toEqual(['before']);
 			recorder.onGameOver({ id: 'm-5', endedAt: Date.now(), winner: null, winnerSeat: null, concededBy: null, spec: spec(1) });
-			await vi.waitFor(() => expect(existsSync(join(dir, 'm-5.actions.jsonl.gz'))).toBe(true));
+			await recorder.idle();
+		expect(existsSync(join(dir, 'm-5.actions.jsonl.gz'))).toBe(true);
 			expect(cmds('m-5'), order).toEqual(['after']);
 			expect(cmds('m-5-e1'), order).toEqual(['before']);
 			expect(existsSync(join(dir, 'm-5-e2.actions.jsonl.gz')), `${order}: no third recording`).toBe(false);
@@ -188,7 +190,8 @@ describe('createRecorder', () => {
 		// Applied: this is what actually makes the log, regardless of what was sent through this host.
 		events.line({ t: 'applied', seat: 0, seq: 1, input: 'InputPassPriority', act: { kind: 'act', method: 'selectButtonOk' } } as unknown as BridgeLine);
 		recorder.onGameOver({ id: 'm-4', endedAt: Date.now(), winner: null, winnerSeat: null, concededBy: null, spec: spec(1) });
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-4.actions.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-4.actions.jsonl.gz'))).toBe(true);
 		const cmds = linesOf(join(dir, 'm-4.actions.jsonl.gz')).filter((l) => l.t === 'cmd');
 		expect(cmds).toEqual([{ t: 'cmd', seat: 0, cmd: { t: 'act', seat: 0, frame: { kind: 'act', method: 'selectButtonOk' } } }]);
 	});
@@ -207,7 +210,8 @@ describe('createRecorder', () => {
 		// An applied act: logged with no `ask` property at all, unlike a reply/abort.
 		events.line({ t: 'applied', seat: 1, seq: 1, input: 'InputConfirm', act: { kind: 'act', method: 'selectButtonOk' } } as unknown as BridgeLine);
 		recorder.onGameOver({ id: 'm-3', endedAt: Date.now(), winner: null, winnerSeat: null, concededBy: null, spec: spec(1) });
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-3.actions.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-3.actions.jsonl.gz'))).toBe(true);
 		const cmds = linesOf(join(dir, 'm-3.actions.jsonl.gz')).filter((l) => l.t === 'cmd');
 		expect(cmds[0]).toMatchObject({ ask: 1, cmd: { t: 'reply', callId: 's1-2' } });
 		expect(cmds[1]).not.toHaveProperty('ask');
@@ -243,10 +247,9 @@ describe('createRecorder', () => {
 		recorder.onGameOver({ id: 'm-1', endedAt: Date.now(), winner: 'A', winnerSeat: 0, concededBy: null, spec: spec(1) });
 
 		expect(inner.sends).toEqual([{ t: 'reply', seat: 1, callId: 'c1', result: true }, { t: 'stop' }]);
-		await vi.waitFor(() => {
-			expect(existsSync(join(dir, 'm-1.actions.jsonl.gz'))).toBe(true);
-			expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
-		});
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.actions.jsonl.gz'))).toBe(true);
+		expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 
 		const actions = linesOf(join(dir, 'm-1.actions.jsonl.gz'));
 		expect(actions[0]).toMatchObject({ t: 'header', v: 2, matchId: 'm-1', roomId: 'r-1', pin: 'pin-1', bridge: 'bridge-1', server: 'server-1' });
@@ -276,7 +279,8 @@ describe('createRecorder', () => {
 		recorder.onEnvelope('m-1', -1, { matchId: 'm-1', cursor: { epoch: 'e', seq: 2 }, frame: { kind: 'notify', method: 'openView' } } as never);
 
 		(events.exit as (r: string) => void)('stopped');
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 		const pub = linesOf(join(dir, 'm-1.public.jsonl.gz'));
 		// header + exactly the one WATCHER_SEAT envelope + end
 		expect(pub.filter((l) => l.t === 'env')).toHaveLength(1);
@@ -313,7 +317,8 @@ describe('createRecorder', () => {
 		recorder.onPresence('m-unknown', 0, 1, at(0.5)); // no session: nothing
 
 		(events.exit as (r: string) => void)('stopped');
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 		const kept = linesOf(join(dir, 'm-1.public.jsonl.gz')).filter((l) => l.t === 'presence');
 		expect(kept.map((l) => [l.at, l.seat, l.playerId, (l.presence as PresenceMessage).pointer?.x, (l.presence as PresenceMessage).held])).toEqual([
 			[0, 0, 1, 0.1, false],
@@ -363,7 +368,8 @@ describe('createRecorder', () => {
 		vi.useRealTimers();
 
 		(events.exit as (r: string) => void)('stopped');
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 		const kept = linesOf(join(dir, 'm-1.public.jsonl.gz')).filter((l) => l.t === 'presence');
 		expect(kept.map((l) => [l.at, l.seat, (l.presence as PresenceMessage).pointer?.x, (l.presence as PresenceMessage).held])).toEqual([
 			[0, 0, 0.1, false],
@@ -397,7 +403,8 @@ describe('createRecorder', () => {
 		vi.useRealTimers();
 
 		(events.exit as (r: string) => void)('stopped');
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 		const lines = linesOf(join(dir, 'm-1.public.jsonl.gz'));
 		expect(lines.filter((l) => l.t === 'env').map((l) => l.at)).toEqual([70]);
 		expect(lines.filter((l) => l.t === 'presence').map((l) => [l.at, l.seat, (l.presence as PresenceMessage).pointer?.x])).toEqual([
@@ -433,7 +440,8 @@ describe('createRecorder', () => {
 		vi.advanceTimersByTime(500);
 		vi.useRealTimers();
 		(events.exit as (r: string) => void)('stopped');
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 		return linesOf(join(dir, 'm-1.public.jsonl.gz'))
 			.filter((l) => l.t === 'presence')
 			.map((l) => ({ at: l.at as number, seat: l.seat as number, x: (l.presence as PresenceMessage).pointer?.x }));
@@ -481,7 +489,8 @@ describe('createRecorder', () => {
 		recorder.onRelay('m-unknown', 'forge:placement', placement); // no session: nothing
 
 		(events.exit as (r: string) => void)('stopped');
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 		const kept = linesOf(join(dir, 'm-1.public.jsonl.gz')).filter((l) => l.t === 'relay');
 		expect(kept).toEqual([
 			{ t: 'relay', at: 250, event: 'forge:placement', echo: placement },
@@ -500,7 +509,8 @@ describe('createRecorder', () => {
 		const recorder = createRecorder({ dir, identity: { pin: null, bridge: 'b', server: 's' }, roomOf: () => null, deckCosts: NO_COSTS, seatsOf: () => roster, usersOf: () => ['uid-ari', null] });
 		recorder.host(inner)('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
 		(inner.calls[0]!.events.exit as (r: string) => void)('stopped');
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 		const pub = linesOf(join(dir, 'm-1.public.jsonl.gz'));
 		expect(pub[pub.length - 1]?.seats).toEqual([
 			{ seat: 0, claimed: true, playerId: 0, avatarId: 'sage', userId: 'uid-ari' },
@@ -521,7 +531,8 @@ describe('createRecorder', () => {
 		expect(inner.calls[0]!.spec.seats.map((s) => s.name), 'Forge still plays the people by name').toEqual(['Ari Realname', 'Bo Realname']);
 		(inner.calls[0]!.events.exit as (r: string) => void)('stopped');
 		const file = join(dir, 'm-1.actions.jsonl.gz');
-		await vi.waitFor(() => expect(existsSync(file)).toBe(true));
+		await recorder.idle();
+		expect(existsSync(file)).toBe(true);
 		const lines = linesOf(file);
 		expect(JSON.stringify(lines)).not.toContain('Realname');
 		expect((lines[0]!.spec as MatchSpec).seats.map((s) => s.name)).toEqual(['Player 1', 'Player 2']);
@@ -554,7 +565,8 @@ describe('createRecorder', () => {
 		roster = undefined;
 		(inner.calls[0]!.events.exit as (r: string) => void)('stopped');
 
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 		const pub = linesOf(join(dir, 'm-1.public.jsonl.gz'));
 		expect(pub[pub.length - 1]).toEqual({
 			t: 'end',
@@ -580,7 +592,8 @@ describe('createRecorder', () => {
 		linked = null;
 		(inner.calls[0]!.events.exit as (r: string) => void)('stopped');
 
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.public.jsonl.gz'))).toBe(true);
 		expect(linesOf(join(dir, 'm-1.public.jsonl.gz'))[0]).toMatchObject({ t: 'header', roomId: 'r-1' });
 		expect(linesOf(join(dir, 'm-1.actions.jsonl.gz'))[0]).toMatchObject({ t: 'header', roomId: 'r-1' });
 	});
@@ -593,7 +606,8 @@ describe('createRecorder', () => {
 		hosted('m-1', spec(1), { line: () => undefined, exit: () => undefined, log: () => undefined });
 		const events = inner.calls[0]!.events;
 		(events.exit as (r: string) => void)('clean');
-		await vi.waitFor(() => expect(existsSync(join(dir, 'm-1.actions.jsonl.gz'))).toBe(true));
+		await recorder.idle();
+		expect(existsSync(join(dir, 'm-1.actions.jsonl.gz'))).toBe(true);
 		expect(() => recorder.onGameOver({ id: 'm-1', endedAt: Date.now(), winner: 'A', winnerSeat: 0, concededBy: null, spec: spec(1) })).not.toThrow();
 		expect(() => recorder.onEnvelope('m-1', -1, { matchId: 'm-1', cursor: { epoch: 'e', seq: 1 }, frame: { kind: 'notify' } } as never)).not.toThrow();
 		expect(existsSync(join(dir, 'm-1.actions.jsonl.gz'))).toBe(true);

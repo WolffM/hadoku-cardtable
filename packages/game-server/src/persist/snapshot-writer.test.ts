@@ -20,13 +20,20 @@ afterAll(async () => {
 	for (const dir of dirs) await rm(dir, { recursive: true, force: true });
 });
 
+/**
+ * The writer's clock for a test that asserts its whole log: time stands still, so no write is "slow" whatever the
+ * host's disk does (a stalled claw took 2.3 s for one, run 46155656374). Whether a slow write IS logged is its own
+ * test below, on a clock that test drives.
+ */
+const still = (): number => 0;
+
 const text = (file: string): string | null => (existsSync(file) ? readFileSync(file, 'utf8') : null);
 
 describe('SnapshotWriter', () => {
 	it('writes off the call, keeps only the newest text of a file not yet started, and leaves no temp file', async () => {
 		const dir = await tempDir();
 		const log: Record<string, unknown>[] = [];
-		const writer = new SnapshotWriter({ log: (e) => log.push(e) });
+		const writer = new SnapshotWriter({ log: (e) => log.push(e), now: still });
 		const a = join(dir, 'a.json');
 		const b = join(dir, 'b.json');
 		writer.write(a, '1');
@@ -75,7 +82,7 @@ describe('SnapshotWriter', () => {
 	it('logs a write that fails and goes on to the next', async () => {
 		const dir = await tempDir();
 		const log: Record<string, unknown>[] = [];
-		const writer = new SnapshotWriter({ log: (e) => log.push(e) });
+		const writer = new SnapshotWriter({ log: (e) => log.push(e), now: still });
 		const blocked = join(dir, 'file');
 		writer.write(blocked, 'a file');
 		await writer.idle();

@@ -137,6 +137,11 @@ export interface Recorder {
 	onRelay(matchId: string, event: RelayedEvent, echo: unknown): void;
 	/** Wire to `PlayDeps.onGameOver`: remembers the seat that won, for the public stream's `end` line. */
 	onGameOver(match: OutcomeFacts & { id: string }): void;
+	/**
+	 * Resolves once every recording write under way has landed: each finish, and an earlier epoch's move
+	 * aside. What "on disk now" means to a caller, never a wall-clock wait (a stalled disk takes seconds).
+	 */
+	idle(): Promise<void>;
 }
 
 /** The recorded pointer's rate: 10 a second, a sixth of what the seats send each other (`PRESENCE_SEND_MS`). */
@@ -260,6 +265,16 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 	const sessions = new Map<string, Session>();
 	/** Each match's last finish still being written, so a restore's start moves it aside only once it is on disk. */
 	const finishing = new Map<string, Promise<void>>();
+	/** Every write still under way, for {@link Recorder.idle}. */
+	const inFlight = new Set<Promise<unknown>>();
+	const track = <T>(write: Promise<T>): Promise<T> => {
+		inFlight.add(write);
+		void write.then(
+			() => inFlight.delete(write),
+			() => inFlight.delete(write),
+		);
+		return write;
+	};
 
 	/** A match that ended without a game over (stopped, crashed, restored past) finished winnerless; `aside` for an earlier epoch. */
 	const finishSession = (matchId: string, session: Session, reason: string, aside: boolean): void => {
@@ -268,7 +283,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 		const boards = finalBoards(session);
 		const ended = endSeats(matchId, session);
 		session.carryArtPins();
-		const done = session.writer.finish({ endedAt, reason, ...(boards === undefined ? {} : { boards }), ...usersOfSeats(ended.seats) }, { endedAt, winner: null, ...ended }, { aside });
+		const done = track(session.writer.finish({ endedAt, reason, ...(boards === undefined ? {} : { boards }), ...usersOfSeats(ended.seats) }, { endedAt, winner: null, ...ended }, { aside }));
 		finishing.set(matchId, done);
 		void done.finally(() => {
 			if (finishing.get(matchId) === done) finishing.delete(matchId);
@@ -324,7 +339,7 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 					sessions.delete(matchId);
 					finishSession(matchId, earlier, 'restored', true);
 				} else {
-					void (finishing.get(matchId) ?? Promise.resolve()).then(() => keepEarlierEpoch(deps.dir, matchId, log));
+					void track((finishing.get(matchId) ?? Promise.resolve()).then(() => keepEarlierEpoch(deps.dir, matchId, log)));
 				}
 				sessions.set(matchId, session);
 
@@ -442,7 +457,11 @@ export function createRecorder(deps: RecorderDeps): Recorder {
 			const boards = finalBoards(session);
 			const ended = endSeats(match.id, session);
 			session.carryArtPins();
-			void session.writer.finish({ endedAt, reason: 'game-over', ...(boards === undefined ? {} : { boards }), ...usersOfSeats(ended.seats) }, { endedAt, winner: outcome?.kind === 'won' ? outcome.winner : null, ...ended });
+			void track(session.writer.finish({ endedAt, reason: 'game-over', ...(boards === undefined ? {} : { boards }), ...usersOfSeats(ended.seats) }, { endedAt, winner: outcome?.kind === 'won' ? outcome.winner : null, ...ended }));
+		},
+		async idle() {
+			// A finish can queue another (an epoch moved aside once the write before it lands): wait until none is left.
+			while (inFlight.size > 0) await Promise.allSettled([...inFlight]);
 		},
 	};
 }
