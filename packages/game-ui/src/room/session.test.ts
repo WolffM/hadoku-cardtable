@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SESSION_EVENTS } from '@wolffm/rooms-protocol';
 
-import { roomSession, type SessionSocket } from './session.ts';
+import { HELD_RECLAIM_MS, roomSession, type SessionSocket } from './session.ts';
 
 const ROOM = 'r-0123456789ab';
 const TAB = 'tab-aaaaaaaa';
@@ -45,6 +45,10 @@ async function opened() {
 }
 
 describe('roomSession', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('claims on connect with the settled tab id, and plays on once granted', async () => {
     const { fake, session } = await opened();
     expect(session.state()).toBe('pending');
@@ -65,6 +69,41 @@ describe('roomSession', () => {
     fake.fire('disconnect', 'transport close');
     fake.fire('connect');
     expect(fake.claims[2]!.payload).toEqual({ room: ROOM, tabId: TAB });
+  });
+
+  // A holder that has gone quiet (a socket a reload or a server restart left behind) is replaced by the
+  // server without asking once it is stale, but only if this tab asks again: the question must not
+  // stand for good on a tab whose rival is already gone (pre-pod-state, run 46144699464).
+  it('held asks again on its own while unanswered, and plays on once the server grants it', async () => {
+    vi.useFakeTimers();
+    const { fake, session } = await opened();
+    fake.claims[0]!.answer({ room: ROOM, status: 'held' });
+    expect(session.state()).toBe('held');
+    vi.advanceTimersByTime(HELD_RECLAIM_MS);
+    expect(fake.claims.map((c) => c.payload)).toEqual([{ room: ROOM, tabId: TAB }, { room: ROOM, tabId: TAB }]);
+    fake.claims[1]!.answer({ room: ROOM, status: 'held' });
+    vi.advanceTimersByTime(HELD_RECLAIM_MS);
+    expect(fake.claims).toHaveLength(3);
+    fake.claims[2]!.answer({ room: ROOM, status: 'granted' });
+    expect(session.state()).toBe('granted');
+    // Granted, it asks nothing more by itself.
+    vi.advanceTimersByTime(HELD_RECLAIM_MS * 4);
+    expect(fake.claims).toHaveLength(3);
+  });
+
+  it('stops asking again once closed, and never asks again by itself after a take', async () => {
+    vi.useFakeTimers();
+    const closed = await opened();
+    closed.fake.claims[0]!.answer({ room: ROOM, status: 'held' });
+    closed.session.close();
+    vi.advanceTimersByTime(HELD_RECLAIM_MS * 4);
+    expect(closed.fake.claims).toHaveLength(1);
+
+    const taken = await opened();
+    taken.fake.claims[0]!.answer({ room: ROOM, status: 'granted' });
+    taken.fake.fire(SESSION_EVENTS.taken, { room: ROOM });
+    vi.advanceTimersByTime(HELD_RECLAIM_MS * 4);
+    expect(taken.fake.claims).toHaveLength(1);
   });
 
   it('is taken when told, and when the server closes it; a transport drop is not a take', async () => {
