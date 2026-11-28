@@ -66,8 +66,11 @@ test(titled('a table page at 390px: the face-off keeps both avatars whole, and t
     // A deck and the table's Ready: the match exists, and the page offers the way in. It is a link drawn as the
     // primary button, and reads as one, as the hub's and the table card's do.
     await page.getByTestId('deck-option').first().click({ timeout: UI_TIMEOUT });
-    await page.locator('[data-testid="ready-toggle"]:enabled').click({ timeout: UI_TIMEOUT });
+    const ready = page.locator('[data-testid="ready-toggle"]:enabled');
     const go = page.getByTestId('table-way').locator('a[data-door]');
+    await expect(ready.or(go).first()).toBeVisible({ timeout: UI_TIMEOUT });
+    console.log(`[face-off-fit] after the deck: ${page.url()}, ready ${await ready.count()}, way ${await go.count()}`);
+    if ((await go.count()) === 0) await ready.click({ timeout: UI_TIMEOUT });
     await expect(go).toBeVisible({ timeout: UI_TIMEOUT });
     expect(await go.evaluate((el) => getComputedStyle(el).textDecorationLine), 'Enter game is not underlined').toBe('none');
   } finally {
