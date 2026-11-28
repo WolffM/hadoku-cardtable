@@ -77,17 +77,33 @@ test('the finished room: podium, a Swiss bracket that never squishes, the path o
       await openSeeded(admin.page, DONE);
       await expect(admin.page.getByTestId('pod-podium'), `${width}: the podium`).toBeVisible({ timeout: UI_TIMEOUT });
       await expect(admin.page.getByTestId('pod-podium-1')).toContainText('3–0');
-      // Each stand holds its own face and name: a face wider than its stand leaves a name, any longer than
-      // the seed's, cut at once (the 11-28 tour: "Phantom" cut by 19 px at 768).
-      const overStand = await admin.page.locator('.podium__stand').evaluateAll((stands) =>
-        stands.flatMap((stand) => {
+      // Each stand holds its own face and its whole name: the narrow sizes are the column's, so at 768 beside the
+      // chat the winner's face stays on its stand (the 11-28 tour: 116 px in 102 px), and a name wraps rather than
+      // ending in an ellipsis. The seed's names vary run to run, so every stand is given one 20-character name.
+      await admin.page.waitForTimeout(2_600); // the stands' drop and the winner's first bob
+      const podium = await admin.page.getByTestId('pod-podium').evaluate((root) => {
+        for (const name of root.querySelectorAll<HTMLElement>('.podium__name')) name.textContent = 'Bartholomew Whitlock';
+        const box = root.getBoundingClientRect();
+        return [...root.querySelectorAll<HTMLElement>('.podium__stand')].flatMap((stand) => {
+          const place = stand.getAttribute('data-place');
           const room = stand.getBoundingClientRect().width;
-          return [...stand.querySelectorAll<HTMLElement>('.podium__face, .podium__name')]
-            .filter((el) => el.offsetWidth > room + 0.5 || el.scrollWidth > el.clientWidth + 0.5)
-            .map((el) => `${stand.getAttribute('data-place')}: ${el.className} ${Math.max(el.offsetWidth, el.scrollWidth)}px in ${Math.round(room)}px`);
-        }),
-      );
-      expect(overStand, `${width}: every face and name on the podium fits its stand`).toEqual([]);
+          const faults: string[] = [];
+          const face = stand.querySelector<HTMLElement>('.podium__face');
+          if (face !== null && face.offsetWidth > room + 0.5) faults.push(`${place}: face ${face.offsetWidth}px in ${Math.round(room)}px`);
+          const name = stand.querySelector<HTMLElement>('.podium__name');
+          if (name !== null) {
+            const r = name.getBoundingClientRect();
+            if (name.scrollWidth > name.clientWidth + 0.5 || name.scrollHeight > name.clientHeight + 0.5) faults.push(`${place}: name cut (${name.scrollWidth}×${name.scrollHeight} in ${name.clientWidth}×${name.clientHeight})`);
+            if (r.width > room + 0.5) faults.push(`${place}: name ${Math.round(r.width)}px in ${Math.round(room)}px`);
+          }
+          for (const top of stand.querySelectorAll<HTMLElement>('.podium__crown, .podium__face')) {
+            const t = top.getBoundingClientRect().top;
+            if (t < box.top - 0.5) faults.push(`${place}: ${top.getAttribute('class')} ${Math.round(box.top - t)}px above the podium`);
+          }
+          return faults;
+        });
+      });
+      expect(podium, `${width}: a 20-character name is whole on every stand, and every face and crown inside the podium`).toEqual([]);
       await expect(admin.page.getByTestId('pod-bracket-round')).toHaveCount(3);
       await expect(admin.page.getByTestId('pod-bracket-final')).toHaveCount(1);
       await expect(admin.page.getByTestId('pod-final-row')).toHaveCount(8);
