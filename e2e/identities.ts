@@ -55,6 +55,8 @@ export const FRIENDS: Readonly<Record<string, Friend>> = {
     name: 'e2e-admin',
     tier: 'admin',
   },
+  // An operator who is not an admin: the leader's tools in every room (`e2e/admin-tools.spec.ts`).
+  wife: { key: 'e2e-friend-key-wife-2d7b', userId: 'e2e-wife-id', name: 'e2e-wife', tier: 'wife' },
   // Rooms past one pod: w84b's nine drafters (seven join over HTTP alone), and tourney-blb's fields of up to fourteen.
   ...Object.fromEntries(
     Array.from({ length: 14 }, (_, i) => [`drafter${i + 3}`, { key: `e2e-friend-key-drafter-${i + 3}`, userId: `e2e-drafter${i + 3}-id`, name: `e2e-drafter${i + 3}` }]),
