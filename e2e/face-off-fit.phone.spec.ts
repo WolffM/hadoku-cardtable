@@ -3,6 +3,9 @@
  * arena about 290px, and two 112px avatars resting 34% of it either side of the middle ran past its
  * edges, where the arena clips (the pre-tournament tour, a Bloomburrow pod's round-1 table).
  *
+ * Its way on (`GoLink`, an anchor in the primary button's paint) drew its label underlined, beside the
+ * Concede and Drop buttons that are not.
+ *
  * One browser and one AI: a one-round Gauntlet tournament, as `tournament-table-page.spec.ts` builds
  * it. Needs a Forge build; without one the test SKIPS with a title that says why.
  */
@@ -20,7 +23,7 @@ const UI_TIMEOUT = 30_000;
 
 test.use(PHONE);
 
-test(titled('a table page’s face-off keeps both avatars whole at 390px'), async ({ browser }) => {
+test(titled('a table page at 390px: the face-off keeps both avatars whole, and the way on is a button, not underlined link text'), async ({ browser }) => {
   test.skip(!forge.ok, forge.ok ? '' : forge.reason);
   if (!forge.ok) return;
   test.setTimeout(3 * 60_000);
@@ -57,6 +60,11 @@ test(titled('a table page’s face-off keeps both avatars whole at 390px'), asyn
       expect(f.left, `avatar ${i}: inside the arena's left edge (${JSON.stringify(f)})`).toBeGreaterThanOrEqual(0);
       expect(f.right, `avatar ${i}: inside the arena's right edge (${JSON.stringify(f)})`).toBeGreaterThanOrEqual(0);
     }
+
+    // The way on is a link drawn as the primary button: it reads as one, as the hub's and the table card's do.
+    const go = page.getByTestId('table-way').locator('a[data-door]');
+    await expect(go).toBeVisible();
+    expect(await go.evaluate((el) => getComputedStyle(el).textDecorationLine), 'Enter game is not underlined').toBe('none');
   } finally {
     await alice.context.close();
     await stack.stop();
