@@ -88,6 +88,7 @@ it, read off `GameState.initFromGame`/`applyToGame`):
 | control | `Card`'s base controller and timestamped temporary controllers | **carried in layers** (slice 2), with conditions on the source card (slice 3); `control-condition` names only UntilTheEndOfYourNextTurn, UntilSourceUnattached, StaticCommandCheck |
 | delayed triggers | `TriggerHandler` delayed triggers | **carried** (slice 4) when the host is in a written zone with its SVar and what it remembers is cards, players or numbers |
 | a player's turn history (spells cast, life lost, creatures died) | `Player` counters | medium; the snapshot is taken at the turn's start, so only "last turn" history matters |
+| a token's own abilities (a Treasure's mana, a Saproling Burst token's size) | the token script, which `t:` does not name | **carried** (slice 9) when its image names its script; a token no script makes is `token` |
 | commands waiting to end something ("until it leaves", "until your next turn"), in a phase or on a card | `Phase` buckets, `Card` command lists | **named** (slice 7): every one no line writes is `command:<ApiType or class>`; **carried** (slice 8): an effect card's end, and a return (Banisher Priest) |
 
 Steps:
@@ -247,3 +248,18 @@ Nothing is replaced: restart is new. `perCallerLimit`'s bucket becomes a shared
   Bears back; Leyline of Sanctity's keyword card is back in the command zone after a restart; a pump
   until your next turn is named `command:Pump` and refuses the restart; no other
   case in the suite picked up a `command:` kind (the spent copies are not named).
+
+### Slice 9 (fork 70650710): a token comes back from its script
+
+- **A silent loss, from a player's game** (m-d908b5de0dc2, 2026-11-27): Saproling Burst made two Saprolings,
+  and three restarts of the next turn each opened without them. A token's `t:` line is its body and
+  keywords, and the apply built only that: the Saprolings came back 0/0 without the static that sizes them
+  and died to state-based actions; a Treasure came back unable to make mana. The text before and after
+  was the same, so the suite's round trips could not see it, and `unwritten` named nothing.
+- The apply now makes a token from the script its image names (`TokenInfo.makeFromScript`), when that
+  script's token has the written name, and puts the printing back; the text is unchanged, so snapshots
+  written before the fix come back right too. A token no script makes that holds an ability no keyword
+  gives (a token copy of a card) is named `token` and refuses the restart.
+- Proof: `restore.jvm.test.ts`, Saproling Burst's two tokens through a restart at 4/4; a Treasure sacrificed
+  for mana after a restart (its control case, no restart, passes on both pins); a token copy of Prodigal
+  Sorcerer named `token`. The three fail on fd5eb2fb.

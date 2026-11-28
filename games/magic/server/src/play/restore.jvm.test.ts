@@ -15,6 +15,7 @@
  *     --pool=forks --poolOptions.forks.singleFork=true
  */
 
+import { DELTA_TYPE, deltaKey } from '@hadoku/forge-wire';
 import { describe, expect, it } from 'vitest';
 
 import type { BridgeLine } from './bridge-protocol.js';
@@ -287,6 +288,130 @@ describe.skipIf(!available.ok)(title, () => {
 	);
 
 	it(
+		"Saproling Burst's tokens come through a restart, still as big as its fade counters",
+		async () => {
+			if (!available.ok) return;
+			// 2026-11-27 (m-d908b5de0dc2): Saproling Burst made two Saprolings, and every restart of the next turn
+			// opened with no Saprolings. A t: line made each one a bare 0/0 without the static that sizes it.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Saproling Burst|Counters:FADE=7;Forest',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const decks: [string, string] = [deck('Burst', ['40 Forest']), deck('Any B', ['40 Mountain'])];
+			const s = await startScenario(available.config, { seed: 7, decks, scenario, skipOpening: true });
+			try {
+				const saprolings = () => s.zone(0, 'Battlefield').filter((c) => c.name === 'Saproling Token');
+				const power = (id: number): number => {
+					const state = s.state(0);
+					const current = (state.get(deltaKey(DELTA_TYPE.card, id))?.CurrentState as { v?: number } | undefined)?.v ?? 0;
+					return ((state.get(deltaKey(DELTA_TYPE.cardState, id * 16 + current))?.Power as { v?: number } | undefined)?.v) ?? -1;
+				};
+				await waitUntil(() => {
+					s.answerAsks();
+					return s.zone(0, 'Battlefield').some((c) => c.name === 'Saproling Burst') && inOwnMain(s, 0, 3);
+				}, "seat 0's main with Saproling Burst out", 30_000, s);
+				const burst = s.zone(0, 'Battlefield').find((c) => c.name === 'Saproling Burst')!;
+				for (const want of [1, 2]) {
+					let clickedAt = 0;
+					await waitUntil(
+						() => {
+							s.answerAsks();
+							if (saprolings().length >= want) return true;
+							if (/Stack: \d+ to Resolve/.test(s.prompt(0)) && s.buttons(0)?.enable1 === true) s.ok(0);
+							else if (Date.now() - clickedAt > 3000) {
+								clickedAt = Date.now();
+								s.select(0, burst.id);
+							}
+							return false;
+						},
+						`Saproling ${want} from Saproling Burst`,
+						30_000,
+						s,
+					);
+				}
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 5) && inOwnMain(s, 0, 5)), "turn 5, seat 0's first main", 180_000);
+				// Seven fade counters, less the two the tokens cost, less turn 5's fading: four, before the restore and after.
+				expect(saprolings().map((c) => power(c.id))).toEqual([4, 4]);
+				const { from, again } = await killAndRestore(s, 5);
+				expect(zoneNames(from.state, 'p0battlefield').filter((n) => n.startsWith('Saproling Token,'))).toHaveLength(2);
+				expect(from.lossy).toBeUndefined();
+				expect(normalized(again.state)).toEqual(normalized(from.state));
+				await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, 5)), "the restored turn 5, seat 0's first main", 120_000);
+				expect(saprolings()).toHaveLength(2);
+				await waitUntil(() => saprolings().every((c) => power(c.id) === 4), 'each restored Saproling as big as the four fade counters left', 20_000, s);
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	for (const restore of [false, true]) {
+		it(
+			`a Treasure ${restore ? 'comes through a restart and' : 'on a turn not restarted'} sacrifices itself for mana`,
+			async () => {
+				if (!available.ok) return;
+				// The control case proves the click; the restored one failed on fd5eb2fb, its t: line rebuilt with no ability.
+				const scenario = [
+					'turn=3',
+					'activeplayer=human',
+					'activephase=MAIN1',
+					'humanlife=20',
+					'ailife=20',
+					'humanbattlefield=T:c_a_treasure_sac;Forest',
+					'humanlibrary=' + Array.from({ length: 20 }, () => 'Grizzly Bears').join(';'),
+					'aibattlefield=Mountain',
+					'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+				].join('\n');
+				const decks: [string, string] = [deck('Treasure', ['40 Forest']), deck('Any B', ['40 Mountain'])];
+				const s = await startScenario(available.config, {
+					seed: 7,
+					decks,
+					scenario,
+					skipOpening: true,
+					reply: (f) => (f.method === 'getChoices' ? [((f.choices as { key: string }[])[0]!).key] : undefined),
+				});
+				try {
+					const treasure = () => s.zone(0, 'Battlefield').find((c) => c.name === 'Treasure Token');
+					await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 5) && inOwnMain(s, 0, 5)), "turn 5, seat 0's first main", 180_000);
+					if (restore) {
+						const { from } = await killAndRestore(s, 5);
+						expect(from.lossy).toBeUndefined();
+						await passUntil(s, noAttacks(s, () => inOwnMain(s, 0, 5)), "the restored turn 5, seat 0's first main", 120_000);
+					}
+					await waitUntil(() => treasure() !== undefined, 'the Treasure on the battlefield', 20_000, s);
+					const id = treasure()!.id;
+					let clickedAt = 0;
+					await waitUntil(
+						() => {
+							s.answerAsks();
+							if (!s.zone(0, 'Battlefield').some((c) => c.id === id)) return true;
+							if (Date.now() - clickedAt > 3000) {
+								clickedAt = Date.now();
+								s.select(0, id);
+							}
+							return false;
+						},
+						'the Treasure sacrificed for mana',
+						20_000,
+						s,
+					);
+				} finally {
+					await s.stop();
+				}
+			},
+			300_000,
+		);
+	}
+
+	it(
 		"a turn that shuffles before its draw draws the same card when restored: the snapshot carries the game's random",
 		async () => {
 			if (!available.ok) return;
@@ -489,6 +614,37 @@ describe.skipIf(!available.ok)(`${title}: restart turn`, () => {
 				expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: false });
 				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
 				expect(s.logs.find((l) => l.evt === 'snapshot-lossy')).toMatchObject({ turn: 4, kinds: ['control-condition'] });
+			} finally {
+				await s.stop();
+			}
+		},
+		300_000,
+	);
+
+	it(
+		'a token no script makes, holding an ability of its own, is named and not restarted: a token copy of Prodigal Sorcerer',
+		async () => {
+			if (!available.ok) return;
+			// A t: line rebuilds a token with no script as a body and keywords: the copy's tap ability would be lost.
+			const scenario = [
+				'turn=3',
+				'activeplayer=human',
+				'activephase=MAIN1',
+				'humanlife=20',
+				'ailife=20',
+				'humanbattlefield=Prodigal Sorcerer|Id:501',
+				'humanprecast=501:CustomScript:DB$ CopyPermanent | Defined$ Self',
+				'humanlibrary=' + Array.from({ length: 20 }, () => 'Forest').join(';'),
+				'aibattlefield=Mountain',
+				'ailibrary=' + Array.from({ length: 20 }, () => 'Mountain').join(';'),
+			].join('\n');
+			const s = await startScenario(available.config, { seed: 3, decks: decks(), scenario, skipOpening: true });
+			try {
+				await passUntil(s, noAttacks(s, () => snapshots(s).some((l) => l.turn === 4) && inOwnMain(s, 1, 4)), 'turn 4, its first main', 120_000);
+				expect(s.zone(0, 'Battlefield').filter((c) => c.name === 'Prodigal Sorcerer'), 'the Sorcerer and its token copy').toHaveLength(2);
+				expect(snapshots(s).find((l) => l.turn === 4)?.lossy).toEqual(['token']);
+				expect(s.match.restartState()).toMatchObject({ turn: 4, restorable: false });
+				expect(s.match.restartAct(1, 'ask')).toEqual({ ok: false, error: 'not-restorable' });
 			} finally {
 				await s.stop();
 			}

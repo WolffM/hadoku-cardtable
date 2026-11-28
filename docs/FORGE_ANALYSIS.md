@@ -460,6 +460,25 @@ them, and re-derivations by the Wave 7 manager are marked.
   The hand is now read only in `getActionableCards`, where the game is parked
   on the input.
 
+### A token's `t:` line is a body and its keywords
+
+- **VERIFIED (2026-11-27, fork pin 70650710)** — `GameState` writes a token as
+  `t:` + `TokenInfo.toString()`: name, base power and toughness, cost, colour,
+  types, keywords and image (`GameState.addCard`), and reads it back with
+  `TokenInfo.makeOneToken`, which builds that body and adds those keywords only
+  (`TokenInfo.java`). A token script's other abilities (`A:`, `S:`, `T:`, `R:`) were
+  lost: a restored Treasure could not be sacrificed for mana, and a Saproling
+  Burst token, `PT:*/*` with a characteristic-defining static, came back a 0/0 that
+  state-based actions put in the graveyard at once (m-d908b5de0dc2). The texts
+  before and after compare equal, so a text round trip cannot see it. A
+  scripted token's image key starts with its script (`PaperToken`'s
+  `imageFileName`, `c_a_treasure_sac|2X2|22|1`), so `TokenInfo.makeFromScript`
+  makes the token from that script when the script's token has the written name,
+  and puts the image key back. 183 of the 864 token scripts at the pin hold such
+  an ability. A token no script makes (a copy of a card, whose image key is the
+  card's) and that holds an ability of its own is named `token` by
+  `GameState.unwritten`.
+
 ### `ReplyPool`'s future is neither of the two things it looks like
 
 - **VERIFIED (W7 manager, correcting both spikes)** — `ReplyPool`'s pool is
