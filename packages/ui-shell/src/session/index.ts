@@ -20,6 +20,16 @@
  * reloads. The edge answers that load with its sign-in wall, which gives a signed-out visitor an
  * account and sends them on. A second loss within {@link RELOAD_GUARD_MS} of one this tab already
  * reloaded for does not reload again: the page stays stopped rather than loop.
+ *
+ * A session the page changes ITSELF is not a lost one. Delete account, a sign-in with a key or a
+ * passkey: each is a write to the fleet's session service ({@link SESSION_SERVICE_PATHS}) that ends
+ * or replaces this browser's session, and the page goes somewhere of its own choosing once it
+ * answers. Until then the edge refuses everything under `scope`, and a reload would cut the write
+ * off and send the browser through the wall as a new guest (2026-11-27, Delete account on
+ * cardtable-ppe). So the same `fetch` wrapper watches for those writes (any caller's: the fleet
+ * header posts them with the page's own `fetch`), and while one is in flight, and for
+ * {@link SESSION_WRITE_HOLD_MS} after one succeeds, no suspicion is probed and no probe's 401
+ * stops the page. A write that fails holds nothing past its answer.
  */
 
 /** The least time between two probes. */
@@ -28,6 +38,10 @@ export const PROBE_GAP_MS = 10_000;
 export const RELOAD_GUARD_MS = 60_000;
 /** Where this tab notes when it last reloaded for a lost session. */
 export const RELOADED_KEY = 'hadoku:session-lost-reload';
+/** The fleet's session service on the page's origin: a write under one of these changes who this browser is. */
+export const SESSION_SERVICE_PATHS = ['/session/', '/auth/'] as const;
+/** How long after a session write succeeds the page is left to its own navigation. */
+export const SESSION_WRITE_HOLD_MS = PROBE_GAP_MS;
 
 /** What the watch needs of a socket (socket.io's `Socket` is one): its connect errors and its end, and a way to end it. */
 export interface WatchedSocket {
@@ -85,6 +99,10 @@ function urlOf(input: RequestInfo | URL): string {
   return input.url;
 }
 
+function methodOf(input: RequestInfo | URL, init: RequestInit | undefined): string {
+  return (init?.method ?? (typeof input === 'object' && 'method' in input ? input.method : 'GET')).toUpperCase();
+}
+
 /** Start the page's one watch. A second start replaces the first. */
 export function startSessionWatch(options: SessionWatchOptions): SessionWatch {
   current?.stop();
@@ -104,13 +122,36 @@ export function startSessionWatch(options: SessionWatchOptions): SessionWatch {
   let isLost = false;
   let probing = false;
   let lastProbe = -Infinity;
+  /** Session writes in flight, and when the last one that succeeded stops holding the watch. */
+  let sessionWrites = 0;
+  let heldUntil = -Infinity;
+  const held = (): boolean => sessionWrites > 0 || now() < heldUntil;
 
-  const inScope = (input: RequestInfo | URL): boolean => {
+  const pathOf = (input: RequestInfo | URL): string | null => {
     try {
       const url = new URL(urlOf(input), host.location.origin);
-      return url.origin === scopeUrl.origin && url.pathname.startsWith(scopeUrl.pathname);
+      return url.origin === scopeUrl.origin ? url.pathname : null;
     } catch {
-      return false;
+      return null;
+    }
+  };
+  const inScope = (input: RequestInfo | URL): boolean => pathOf(input)?.startsWith(scopeUrl.pathname) ?? false;
+  const isSessionWrite = (input: RequestInfo | URL, init: RequestInit | undefined): boolean => {
+    const method = methodOf(input, init);
+    if (method === 'GET' || method === 'HEAD') return false;
+    const path = pathOf(input);
+    return path !== null && SESSION_SERVICE_PATHS.some((prefix) => path.startsWith(prefix));
+  };
+
+  /** The page's own write to its session: held while it is in flight, and a while after it succeeds. */
+  const sessionWrite = async (input: RequestInfo | URL, init: RequestInit | undefined): Promise<Response> => {
+    sessionWrites += 1;
+    try {
+      const res = await pageFetch.call(undefined, input, init);
+      if (res.ok) heldUntil = now() + SESSION_WRITE_HOLD_MS;
+      return res;
+    } finally {
+      sessionWrites -= 1;
     }
   };
 
@@ -134,7 +175,7 @@ export function startSessionWatch(options: SessionWatchOptions): SessionWatch {
   };
 
   const lose = (): void => {
-    if (isLost) return;
+    if (isLost || held()) return;
     isLost = true;
     for (const socket of [...sockets.keys()]) {
       release(socket);
@@ -158,11 +199,12 @@ export function startSessionWatch(options: SessionWatchOptions): SessionWatch {
   };
 
   const suspect = (): void => {
-    if (isLost || probing || now() - lastProbe < PROBE_GAP_MS) return;
+    if (isLost || probing || held() || now() - lastProbe < PROBE_GAP_MS) return;
     void probe();
   };
 
   const watched: typeof fetch = async (input, init) => {
+    if (isSessionWrite(input, init)) return sessionWrite(input, init);
     if (!inScope(input)) return pageFetch.call(undefined, input, init);
     if (isLost) throw new SessionLostError();
     const res = await pageFetch.call(undefined, input, init);
