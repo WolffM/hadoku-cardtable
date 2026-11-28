@@ -214,6 +214,12 @@ export interface BoardCard {
   /** `AttachedCards`: what Forge says is attached TO this card. The stack's authority. */
   attachedCardIds?: readonly number[];
   /**
+   * A face-down card in exile that is exiled with a permanent on its owner's battlefield (Hideaway's
+   * card): that permanent's id. The board draws it under that permanent, in its pile, rather than in
+   * the exile pile, until it is played ({@link tuckHidden}). Absent for every other card.
+   */
+  tuckedUnder?: number;
+  /**
    * `EntityAttachedTo`: what this card is attached to, as the bare int the
    * server flattens a `GameEntityView` to. A CARD or a PLAYER — the id spaces
    * overlap — so nothing may build a stack from it. See the header.
@@ -1312,6 +1318,31 @@ function countersOf(obj: WireObject | undefined): { name: string; count: number 
   return (v.v as [string, number][]).map(([name, count]) => ({ name, count }));
 }
 
+// ── hidden cards under their keeper ──────────────────────────────────────
+
+/**
+ * Every face-down card in a seat's exile that Forge says is exiled with a permanent on that seat's
+ * battlefield (`ExiledWith`: Hideaway's card, under its land) names that permanent in `tuckedUnder`
+ * (the operator, 2026-11-27). It stays in `exile`, where it is, so every reader of zones (sounds,
+ * flights, counts) sees what Forge did; only the board's drawing puts it under its keeper
+ * (`Board.tsx`'s `withTucked`). A face-up one is not tucked, nor one whose keeper is gone: Forge
+ * leaves `ExiledWith` on a card after the fact (`Card.cleanupExiledWith` never updates the view).
+ */
+function tuckHidden(state: WireState, players: BoardPlayer[]): void {
+  for (const p of players) {
+    const field = new Set(p.battlefield.map((c) => c.id));
+    let changed = false;
+    const exile = p.exile.map((card) => {
+      const view = state.get(deltaKey(DELTA_TYPE.card, card.id));
+      const keeper = boolOf(view, 'Facedown') ? readEntityId(view, 'ExiledWith') : null;
+      if (keeper === null || !field.has(keeper)) return card;
+      changed = true;
+      return { ...card, tuckedUnder: keeper };
+    });
+    if (changed) p.exile = exile;
+  }
+}
+
 // ── relations ────────────────────────────────────────────────────────────
 
 /**
@@ -2065,6 +2096,7 @@ export function toBoardView(
       ...(clock === undefined ? {} : { clock }),
     };
   });
+  tuckHidden(state, players);
   players.sort((a, b) => Number(b.isViewer) - Number(a.isViewer));
 
   // T8: the stack names a target, and whose an item is, by the same seat-identity-aware

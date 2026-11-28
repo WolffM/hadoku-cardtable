@@ -2868,7 +2868,8 @@ const CardOnBoard = memo(function CardOnBoard({
    * declaration. Forge publishes no open selection for it, so `selectionOpen`
    * cannot cover this and the fact is carried separately — see the field.
    */
-  const onBattlefield = slot !== undefined && slot !== 'hand';
+  /** A card drawn under its keeper (`withTucked`) is in exile, not a permanent: no battlefield marks. */
+  const onBattlefield = slot !== undefined && slot !== 'hand' && entry.tuckedUnder === undefined;
   /** What continuous effects change about this card while it is held (`BoardInteraction.held`). */
   const held = slot === 'hand' ? interaction?.held?.get(entry.id) : undefined;
   /** The one piece of the state layer that also reads off the battlefield — see `inExile`. */
@@ -2953,6 +2954,7 @@ const CardOnBoard = memo(function CardOnBoard({
       data-refused={interaction?.refused?.card === entry.id ? (interaction.refused.seq % 2 === 0 ? 'even' : 'odd') : undefined}
       /* Forge says this card is attached to something: not the player's doing. */
       data-attached={(entry.attachedToId ?? null) !== null || undefined}
+      data-tucked={entry.tuckedUnder}
       data-pile-size={above.length > 0 ? pile!.length : undefined}
       data-pile-depth={depth > 0 ? depth : undefined}
       /*
@@ -3349,6 +3351,29 @@ const NOTHING_HELD: ReadonlySet<number> = new Set();
 const NOTHING_FOREIGN: readonly BoardCard[] = [];
 
 /** A pile less the cards still on their way to it. */
+/**
+ * The battlefield as drawn: each face-down card exiled with a permanent here (`BoardCard.tuckedUnder`,
+ * Hideaway's card) put in that permanent's pile as gear is, so it draws behind and under it. A drawing
+ * rule only: the card stays in `exile` for every other reader, and the exile pile leaves it out
+ * ({@link untucked}). With nothing tucked it returns the cards it was given.
+ */
+function withTucked(battlefield: readonly BoardCard[], exile: readonly BoardCard[]): readonly BoardCard[] {
+  const tucked = exile.filter((c) => c.tuckedUnder !== undefined);
+  if (tucked.length === 0) return battlefield;
+  return [
+    ...battlefield.map((c) => {
+      const under = tucked.filter((t) => t.tuckedUnder === c.id).map((t) => t.id);
+      return under.length === 0 ? c : { ...c, attachedCardIds: [...(c.attachedCardIds ?? []), ...under] };
+    }),
+    ...tucked,
+  ];
+}
+
+/** The exile pile as drawn: without the cards drawn under their keeper ({@link withTucked}). */
+function untucked(exile: readonly BoardCard[]): readonly BoardCard[] {
+  return exile.some((c) => c.tuckedUnder !== undefined) ? exile.filter((c) => c.tuckedUnder === undefined) : exile;
+}
+
 function unheld(cards: readonly BoardCard[], held: ReadonlySet<number>): readonly BoardCard[] {
   return held.size === 0 || !cards.some((c) => held.has(c.id)) ? cards : cards.filter((c) => !held.has(c.id));
 }
@@ -3387,7 +3412,7 @@ function Battlefield({
   portrait?: boolean;
 }) {
   const leavingIds = new Set(leaving.map((d) => d.cardId));
-  const present = withLeaving(player.battlefield, leaving);
+  const present = withLeaving(withTucked(player.battlefield, player.exile), leaving);
   const grouped = drawnRows(portrait === true ? portraitGroup(present, foreign) : group(present, player.id, arranged, layout, foreign), layout);
   const expected = PENDING_PLACEMENTS.get(player.id);
   const reserved =
@@ -4112,7 +4137,7 @@ function PlayerArea({
               ownerSide={side}
               zone="exile"
               label="Exile"
-              cards={unheld(player.exile, held)}
+              cards={unheld(untucked(player.exile), held)}
               interaction={interaction}
               onOpen={() => onOpenPile('exile')}
             />
@@ -4803,7 +4828,7 @@ function SeatChip({
       </span>
       <span className="seat-chip__zones">
         {pile('graveyard', player.graveyard.length, <GraveyardArt className="seat-chip__zone-art" />)}
-        {pile('exile', player.exile.length, <ExileArt className="seat-chip__zone-art" />)}
+        {pile('exile', untucked(player.exile).length, <ExileArt className="seat-chip__zone-art" />)}
         {player.isViewer && onOpenDeck !== undefined ? (
           <button
             type="button"
