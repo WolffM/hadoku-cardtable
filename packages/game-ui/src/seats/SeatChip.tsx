@@ -14,7 +14,10 @@
  * (bomberman's overlay, over its board) sets that file's custom properties, never a copy of it.
  */
 
+import { useRef } from 'react';
+
 import { ActionButton } from '../components/ActionButton.tsx';
+import { useEdgeCue } from '../components/edgeCue.ts';
 import { Avatar } from '../components/Avatar.tsx';
 import { PlayerName } from '../room/look.tsx';
 import { StatusPill } from '../components/StatusPill.tsx';
@@ -88,8 +91,11 @@ export interface SeatListProps {
 
 /** A strip of seats, one `<li>` each: dashed-open / "×"-closed / the bot's own look / a member's avatar, a label underneath, every action its own always-visible button. */
 export function SeatList({ slots, iLead, shut = false, readiness = true, fieldFixed = false, realSeatCount, mySeat, onSit, onBotOn, onBotOff, onCloseSeat, onOpenSeat, onRemoveMember, onBotReplace, onMakeLeader }: SeatListProps) {
+  // Below 560px the strip scrolls sideways: its edges say which way more seats are.
+  const strip = useRef<HTMLUListElement>(null);
+  useEdgeCue(strip);
   return (
-    <ul className="pod-seats" data-testid="pod-seats">
+    <ul className="pod-seats edge-cue" data-testid="pod-seats" ref={strip}>
       {slots.map(({ seat, occupant }) => {
         if (occupant.kind === 'open') {
           return (

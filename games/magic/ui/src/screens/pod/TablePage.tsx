@@ -93,12 +93,16 @@ interface TableWayProps extends TableResolveHandlers {
   game: TableGame | undefined;
 }
 
-/** A player's own way on at their table, and beside it their ways to resolve the match (`tableResolve.tsx`), laid out as a table card's foot is. */
+/**
+ * A player's own way on at their table, and beside it their ways to resolve the match (`tableResolve.tsx`):
+ * a table card's foot, its buttons one group with the way on first, at every width (a card's foot pushes its
+ * one `…` to the far end; here Concede and Drop are buttons of their own, and spread across a desktop page).
+ */
 function TableWay({ go, game, ...table }: TableWayProps) {
   const resolve = useTableResolve({ testId: 'table-page', phase: tablePhase(table.series.phase, table.matchId, game), menu: false, ...table });
   return (
     <>
-      <footer className="table-card__foot" data-testid="table-way">
+      <footer className="table-card__foot table-card__foot--grouped" data-testid="table-way">
         <GoLink go={go} className="lobby__go" />
         {resolve.offers}
       </footer>

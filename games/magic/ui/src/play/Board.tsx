@@ -397,6 +397,7 @@ import type { TileCard } from '../components/faceCrop.ts';
 import { colorWordToken, ManaPip } from '../components/ManaPip.tsx';
 import { cardImageUrl } from '../draft/cardImage.ts';
 import { Avatar } from '@hadoku/game-ui/components/Avatar.tsx';
+import { measureEdgeCue } from '@hadoku/game-ui/components/edgeCue.ts';
 import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import {
   boardPT,
@@ -3231,7 +3232,7 @@ function Zone({
       }
     >
       <ul
-        className="zone__cards"
+        className={portrait && zone === 'hand' ? 'zone__cards edge-cue' : 'zone__cards'}
         /*
          * The count `board.css` sizes this list from — see `Battlefield` below.
          * A HAND only: a graveyard and an exile are piles, sized by their own box
@@ -3463,7 +3464,7 @@ function Battlefield({
           {tiers.map((tier) => (
             <ul
               key={tier}
-              className="zone__cards"
+              className={portrait ? 'zone__cards edge-cue' : 'zone__cards'}
               data-tier={tier}
               data-testid={portrait ? laneTestId(ownerSide, tier) : undefined}
               /* Portrait folds an empty lane and sizes a sparse or crowded one by it (`portrait.css`, `measurePortraitLane`). */
@@ -4246,11 +4247,9 @@ function PlayerArea({
  * Portrait's lanes (Settled 3): a sliver of the next card and an edge cue show there is more. The
  * cue is the edge fade with a chevron in it, `‹` or `›`, pointing the way the lane scrolls (the
  * operator, 2026-11-02: "i would prefer if there was a '>' or '<' for which direction the extra cards
- * are so i know what direction to scroll in"). It is drawn by `portrait.css` off two classes on the
- * lane, `lane--fade-l` and `lane--fade-r`, so a lane has no child of its own for it and no count:
- * the direction is the information. Imperative, the same reasoning as `zone-box.ts`'s own doc: a
- * scroll fires every frame while a finger drags a lane, and toggling two classes costs far less
- * than a React re-render for the same frame.
+ * are so i know what direction to scroll in"). It is the platform's edge cue (`edgeCue.ts`, which the
+ * pod's seats and bracket draw too): a lane has the class `edge-cue` in portrait only, and
+ * `measureEdgeCue` toggles its two edges; `portrait.css` gives it the lane's padding and gap.
  */
 /** `portrait.css`'s `--portrait-peek`, and the rise a permanents lane reserves (`--portrait-rise`: 6% of the card's height plus 10px). */
 const PORTRAIT_PEEK_PX = 22;
@@ -4295,10 +4294,7 @@ function measurePortraitLane(lane: HTMLUListElement): void {
     const upH = `${Math.round((cw0 * 88) / 63 + uiPx(PORTRAIT_HAND_UP_PAD_PX, lane))}px`;
     if (document.documentElement.style.getPropertyValue('--portrait-hand-up-h') !== upH) document.documentElement.style.setProperty('--portrait-hand-up-h', upH);
   }
-  // Room to scroll either way, with a pixel of slack for a fractional `scrollLeft`.
-  const room = lane.scrollWidth - lane.clientWidth;
-  lane.classList.toggle('lane--fade-l', lane.scrollLeft > 1);
-  lane.classList.toggle('lane--fade-r', lane.scrollLeft < room - 1);
+  measureEdgeCue(lane);
 }
 
 /**

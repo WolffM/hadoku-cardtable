@@ -212,12 +212,15 @@
   padding-right: 2rem;
 }
 
-/* A fitted screen beside the chat starts on the bar's left edge, not 24px in
-   from it: `__content`'s inset above is the page's edge now, and `.shell`'s own
-   padding would put a second one inside it. The right side keeps its padding
-   as the gutter against the chat's separator. */
-.wp-room-chrome-frame__content > .shell.shell--fit,
-.wp-room-chrome-frame__content > .chrome-slot > .chrome-slot > .shell.shell--fit {
+/* A screen beside the chat starts on the bar's left edge, not 24px in from it:
+   `__content`'s inset above is the page's edge now, and `.shell`'s own padding
+   would put a second one inside it. The right side keeps its padding as the
+   gutter against the chat's separator. Every screen in the room's frame, fitted
+   or not: a dealt pod's own screen (the hub, the table page, the podium) is a
+   plain `.shell`, and sat 24px further in than its own lobby
+   (`room-look.spec.ts`). */
+.wp-room-chrome-frame__content > .shell,
+.wp-room-chrome-frame__content > .chrome-slot > .chrome-slot > .shell {
   padding-left: 0;
 }
 
@@ -241,8 +244,8 @@
     padding-right: 16px;
   }
 
-  .wp-room-chrome-frame__content > .shell.shell--fit,
-  .wp-room-chrome-frame__content > .chrome-slot > .chrome-slot > .shell.shell--fit {
+  .wp-room-chrome-frame__content > .shell,
+  .wp-room-chrome-frame__content > .chrome-slot > .chrome-slot > .shell {
     padding-right: 0;
   }
 }

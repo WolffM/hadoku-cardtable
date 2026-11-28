@@ -19,10 +19,11 @@
  * open from the ⋯ there, in a modal.
  */
 
-import { useState, type CSSProperties, type FocusEvent } from 'react';
+import { useRef, useState, type CSSProperties, type FocusEvent } from 'react';
 import type { RoomTable, TableGame } from '@hadoku/shared';
 
 import { Avatar, type Face as AvatarFace } from '@hadoku/game-ui/components/Avatar.tsx';
+import { useEdgeCue } from '@hadoku/game-ui/components/edgeCue.ts';
 import { PlayerName } from '@hadoku/game-ui/room/look.tsx';
 import { routeHash } from '@hadoku/game-ui/screens/route.ts';
 import { awardTable, dqPlayer, liveTables, resolveTable } from '../tableActions.ts';
@@ -62,6 +63,9 @@ const at = (x: number, y: number, extra: CSSProperties = {}): CSSProperties => (
 
 export function PodBracket({ roomId, pod, tables, myMemberId, leader = false, nameOf, avatarOf, games }: PodBracketProps) {
   const [picked, setPicked] = useState<string | null>(null);
+  // The field scrolls sideways where the page is narrower than its rounds: its edges say which way more is.
+  const scroller = useRef<HTMLDivElement>(null);
+  useEdgeCue(scroller);
   const layout = swissLayout(pod, tables, leader);
   const entrants = new Set(pod.standings.map((r) => r.id));
   const focus = picked ?? (myMemberId !== null && entrants.has(myMemberId) ? myMemberId : null);
@@ -77,7 +81,7 @@ export function PodBracket({ roomId, pod, tables, myMemberId, leader = false, na
     onBlur: () => setPicked(null),
   });
   return (
-    <div className="swiss" data-testid="pod-tables" data-picked={picked ?? undefined}>
+    <div className="swiss edge-cue" data-testid="pod-tables" data-picked={picked ?? undefined} ref={scroller}>
       <div className="swiss__field" style={{ width: layout.width, height: layout.height }}>
         {layout.columns.map((c) => (
           <section

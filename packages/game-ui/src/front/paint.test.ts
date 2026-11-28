@@ -114,7 +114,7 @@ function packageSheets(): { rel: string; css: string }[] {
  * The hooks a platform sheet offers a game: read with a default of the sheet's own, never required.
  * `--z-*` is the host's stacking scale, read with its number.
  */
-const HOOKS = ['--room-front-', '--lobby-shell-', '--seat-', '--conn-', '--bundle-slot-', '--z-'];
+const HOOKS = ['--room-front-', '--lobby-shell-', '--seat-', '--conn-', '--bundle-slot-', '--edge-cue-', '--z-'];
 
 describe('every platform stylesheet', () => {
   // Any game draws these, and a game has the theme's tokens (`@wolffm/themes`) and nothing else:

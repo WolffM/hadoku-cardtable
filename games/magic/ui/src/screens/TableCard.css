@@ -260,6 +260,15 @@
   color: var(--danger);
 }
 
+/* The table page's foot (`TablePage.tsx`'s `TableWay`): the way on and the ways to resolve, one group. */
+.table-card__foot--grouped {
+  gap: 8px;
+}
+
+.table-card__foot--grouped > .table-card__resolve {
+  margin-left: 0;
+}
+
 /* The confirm: the score now and the score it leaves, then the two answers. */
 .table-card__confirm {
   position: relative;

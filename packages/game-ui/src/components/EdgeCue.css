@@ -1,0 +1,58 @@
+/*
+ * The edge cue (the operator, 2026-11-02: "i would prefer if there was a '>' or '<' for which
+ * direction the extra cards are"): a fade with a small chevron in it, on each edge a sideways
+ * scroller can still scroll toward. `./edgeCue.ts` toggles the two classes; this draws them on the
+ * scroller's own `::before` (`‹`) and `::after` (`›`), so the scroller has no child of its own for
+ * them. Drawn first for portrait's lanes (`portrait.css`); the pod's seats and its bracket draw the
+ * same one.
+ *
+ * The scroller is a flex row. Each cue sits in it, sticky to its edge, and takes no room: its
+ * negative margin cancels its own width and the gap before it, so nothing moves when a cue appears.
+ * Sticky insets count from inside the scroller's padding, hence the negative padding that puts the
+ * cue flush with its visible edge. Vertically centred, over what peeks out from under it.
+ *
+ * A scroller sets, where they are not 0:
+ *   --edge-cue-gap    its own column gap
+ *   --edge-cue-pad-l  its left padding
+ *   --edge-cue-pad-r  its right padding
+ *   --edge-cue-tail   the room it keeps after its last item with its own `::after` (the cue keeps it too)
+ *   --edge-cue-bg     what it stands on, when that is not the page (a card): the colour the fade ends in
+ */
+.edge-cue.edge-cue--r::after,
+.edge-cue.edge-cue--l::before {
+  --cue-w: 24px;
+
+  position: sticky;
+  align-self: stretch;
+  flex: none;
+  width: var(--cue-w);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding-inline: 3px;
+  color: var(--color-text);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: 0 0 4px var(--edge-cue-bg, var(--color-bg));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.edge-cue.edge-cue--r::after {
+  content: '›';
+  right: calc(-1 * var(--edge-cue-pad-r, 0px));
+  order: 999;
+  justify-content: flex-end;
+  margin-left: calc(var(--edge-cue-tail, 0px) - var(--cue-w) - var(--edge-cue-gap, 0px));
+  background: linear-gradient(90deg, transparent, var(--edge-cue-bg, var(--color-bg)));
+}
+
+.edge-cue.edge-cue--l::before {
+  content: '‹';
+  left: calc(-1 * var(--edge-cue-pad-l, 0px));
+  order: -999;
+  justify-content: flex-start;
+  margin-right: calc(-1 * (var(--cue-w) + var(--edge-cue-gap, 0px)));
+  background: linear-gradient(-90deg, transparent, var(--edge-cue-bg, var(--color-bg)));
+}

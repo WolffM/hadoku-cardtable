@@ -1,10 +1,13 @@
 /*
  * The Swiss bracket (`PodBracket.tsx`), placed by `swiss.ts`: every card and line absolutely
- * positioned inside one field that scrolls sideways in its own box, never the page. Colour from
- * `@wolffm/themes` only, one discipline across the pod screens.
+ * positioned inside one field that scrolls sideways in its own box, never the page, with the edge
+ * cue on each edge it can still scroll toward (`EdgeCue.css`, which draws in a flex row: the field
+ * is its one item, at its own size). Colour from `@wolffm/themes` only, one discipline across the
+ * pod screens.
  */
 
 .swiss {
+  display: flex;
   max-width: 100%;
   overflow-x: auto;
   padding-bottom: 6px;
@@ -12,6 +15,7 @@
 
 .swiss__field {
   position: relative;
+  flex: none;
 }
 
 .swiss__column {

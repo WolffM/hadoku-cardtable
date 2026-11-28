@@ -10,7 +10,8 @@
  *
  *   strip    --seat-list-gap, -list-justify, -list-align, -list-min-width, -list-margin,
  *            --seat-list-narrow-wrap, -narrow-overflow-x, -narrow-overflow-y, -narrow-padding,
- *            -narrow-tail (the trailing spacer's `content`)
+ *            -narrow-tail (the trailing spacer's `content`), -narrow-bg (what the strip stands on,
+ *            where its edge cue's fade ends)
  *   seat     --seat-position, -gap, -width, -min-width, -flex, -wrap-position, -wrap-display
  *   avatar   --seat-avatar-display, -size, -border, -edge, -radius, -bg, -ink, -text, -weight,
  *            -overflow, -flex, -fit, -rendering, --seat-ready-ring, --seat-unready-edge
@@ -40,9 +41,11 @@
 
 /*
  * Below 560px, eight wrapped seats (each with its buttons under it) filled a phone's whole first
- * screen, so the strip becomes one row that scrolls sideways. The scroller clips at its padding
- * edge, so 6px clears the ready ring's 3px and a focus outline; the trailing spacer is a real flex
- * item because Chromium does not count a scroller's own trailing padding toward its extent.
+ * screen, so the strip becomes one row that scrolls sideways, with the edge cue on each edge it can
+ * still scroll toward (`../components/EdgeCue.css`). The scroller clips at its padding edge, so 6px
+ * clears the ready ring's 3px and a focus outline; the trailing spacer is a real flex item because
+ * Chromium does not count a scroller's own trailing padding toward its extent, and the right cue,
+ * drawn on that same `::after`, keeps its room.
  */
 @media (max-width: 560px) {
   .pod-seats {
@@ -50,6 +53,10 @@
     overflow-x: var(--seat-list-narrow-overflow-x, auto);
     overflow-y: var(--seat-list-narrow-overflow-y, hidden);
     padding: var(--seat-list-narrow-padding, 6px 0 6px 6px);
+    --edge-cue-gap: var(--seat-list-gap, 14px);
+    --edge-cue-pad-l: 6px;
+    --edge-cue-tail: calc(var(--seat-list-gap, 14px) + 6px);
+    --edge-cue-bg: var(--seat-list-narrow-bg, var(--color-bg-card));
   }
 
   .pod-seats::after {

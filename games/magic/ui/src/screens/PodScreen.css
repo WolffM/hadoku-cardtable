@@ -27,7 +27,7 @@
   align-items: center;
   gap: 6px 8px;
   padding: 10px 12px;
-  /* One height for every control in the controls' row: (i), fan|grid and Close. */
+  /* One height for every control in the controls' row: (i), fan|grid and Close (the room header's own Close, at the row's height). */
   --pod-control-h: 30px;
 }
 
@@ -39,8 +39,7 @@
   height: var(--pod-control-h);
 }
 
-.pod__bar--side > .pack__tools > .segmented button,
-.pod__bar.pod__bar--side .room-close {
+.pod__bar--side > .pack__tools > .segmented button {
   font-size: 13px;
   line-height: 1;
 }
@@ -117,20 +116,8 @@
   background: var(--success);
 }
 
-/* The leader's Close: the pod bar's own button size, not a room header's small one. */
-.pod__bar .room-close {
-  align-self: center;
-  padding: 7px 14px;
-  font-size: inherit;
-  line-height: inherit;
-  background: var(--color-bg-hover);
-  border-color: var(--color-border-light);
-}
-
-.pod__bar .room-close--danger {
-  border-color: var(--danger);
-}
-
+/* The leader's Close is the room header's own (`CloseRoom.css`), the lobby's look; the bar only centres it. */
+.pod__bar .room-close,
 .pod__bar .room-close__ask {
   align-self: center;
 }
