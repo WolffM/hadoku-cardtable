@@ -993,12 +993,13 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	#seatOpRoom(
 		roomId: string,
 		memberId: string,
+		override = false,
 	):
 		| { room: LobbyRoom; hooks: RoomTypeHooks<unknown, I>; target: GenericSeatTarget; generic: boolean }
 		| { refused: 'no-room' | 'not-member' | 'not-draft' | 'not-lobby' } {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { refused: 'no-room' };
-		if (!isRoomMember(room, memberId)) return { refused: 'not-member' };
+		if (!override && !isRoomMember(room, memberId)) return { refused: 'not-member' };
 		const hooks = this.hooksOf(room);
 		if (hooks.usesSeats(room)) {
 			if (hooks.seatsFixed(room)) return { refused: 'not-lobby' };
@@ -1134,14 +1135,16 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	 * The library's own `removeFromSeat(table, participantId)` is `unseatParticipant(table,
 	 * participantId, { hold: false })`, the same shape a plain null-out already was, so the target
 	 * array is mutated directly here rather than through `seat-table-adapter.ts`.
+	 * `override`: the caller acts with an operator's reach (a wife or admin tier, checked by the route),
+	 * needing to be neither the leader nor a member.
 	 */
-	removeFromSeat(roomId: string, memberId: string, targetId: string): RemoveFromSeatResult<V> {
+	removeFromSeat(roomId: string, memberId: string, targetId: string, override = false): RemoveFromSeatResult<V> {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
-		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		if (!override && !isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
+		if (!override && room.leader !== memberId) return { ok: false, reason: 'not-leader' };
 		if (!isRoomMember(room, targetId)) return { ok: false, reason: 'target-not-member' };
-		const found = this.#seatOpRoom(roomId, memberId);
+		const found = this.#seatOpRoom(roomId, memberId, override);
 		if ('refused' in found) return { ok: false, reason: found.refused };
 		const { room: r, hooks, target, generic } = found;
 		const seats = target.read();
@@ -1194,13 +1197,15 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	 * refused `'no-bot-seat'`, a truthful, specific reason — never the plain `not-draft`, which
 	 * would wrongly say this room does not seat through game seats at all (it does, for the other
 	 * two ops), and never an invented AI seat the table has nowhere to show.
+	 * `override`: the caller acts with an operator's reach (a wife or admin tier, checked by the route),
+	 * needing to be neither the leader nor a member.
 	 */
-	botReplacesHuman(roomId: string, memberId: string, seat: number): BotReplacesHumanResult<V> {
+	botReplacesHuman(roomId: string, memberId: string, seat: number, override = false): BotReplacesHumanResult<V> {
 		const room = this.#rooms.get(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (!isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
-		if (room.leader !== memberId) return { ok: false, reason: 'not-leader' };
-		const found = this.#seatOpRoom(roomId, memberId);
+		if (!override && !isRoomMember(room, memberId)) return { ok: false, reason: 'not-member' };
+		if (!override && room.leader !== memberId) return { ok: false, reason: 'not-leader' };
+		const found = this.#seatOpRoom(roomId, memberId, override);
 		if ('refused' in found) return { ok: false, reason: found.refused };
 		const { room: r, hooks, target, generic } = found;
 		if (hooks.fieldFixed?.(r) === true) return { ok: false, reason: 'historical' };

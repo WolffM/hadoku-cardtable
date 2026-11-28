@@ -397,6 +397,39 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 		return true;
 	}
 
+	/**
+	 * What an operator reads of the game to tell a softlock from a slow player (`http/admin.ts`): its
+	 * status, turn and whose it is, the turn a restore goes back to, when the table last moved, and per
+	 * seat who holds it, whether they are here, what Forge waits on them for and since when, and their clock.
+	 */
+	inspect(): MatchInspection {
+		const now = this.now();
+		const live = this.live();
+		const told = this.seatIdentities();
+		return {
+			status: this.status,
+			startedAt: this.startedAt,
+			turn: live?.turn ?? null,
+			active: live?.active ?? null,
+			life: live?.life ?? null,
+			restoreTurn: this.latestSnapshot?.turn ?? null,
+			lastActivityAt: this.activity(now).lastAt,
+			seats: this.seats.map((s) => {
+				const id = told[s.seat];
+				return {
+					seat: s.seat,
+					owner: s.owner,
+					ai: s.ai,
+					here: s.here,
+					away: s.away,
+					asks: [...s.asks.values()].map((a) => ({ method: a.method, ageMs: now - a.sentAt })),
+					waitingOn: id?.waitingOn?.method ?? null,
+					clock: id?.clock ?? null,
+				};
+			}),
+		};
+	}
+
 	/** See {@link gameOutcome}. */
 	outcome(): GameOutcome | null {
 		return gameOutcome(this);
@@ -436,7 +469,19 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	 */
 	concedeAi(): boolean {
 		const seat = this.seats.findIndex((s) => s.ai);
-		if (seat < 0 || this.status !== 'running' || this.concededBy !== null) return false;
+		return seat >= 0 && this.concedeFor(seat);
+	}
+
+	/**
+	 * The game ends as `seat`'s concede, whoever asks for it (an operator awarding the game to the other
+	 * seat, `http/table-actions.ts`): a human seat concedes as its own Concede does, Forge's answer watched
+	 * ({@link watchConcede}); the AI seat as {@link concedeAi} says. False when no game is running, or a
+	 * seat already conceded.
+	 */
+	concedeFor(seat: number): boolean {
+		const s = this.seats[seat];
+		if (s === undefined || this.status !== 'running' || this.concededBy !== null) return false;
+		if (!s.ai) return this.fromClient(seat, { kind: 'act', method: 'concede' }).ok;
 		this.concededBy = seat;
 		this.deps.log({ evt: 'ai-conceded', matchId: this.id, seat, turn: this.session.live()?.turn ?? null });
 		this.forceConcede(seat);
@@ -596,6 +641,31 @@ export class Match extends HostedMatch<BridgeLine, BridgeCommand> {
 	offeredToOthers(seat: number, cardIds: readonly number[]): number[] {
 		return this.session.offeredToOthers(seat, cardIds);
 	}
+}
+
+/** {@link Match.inspect}'s answer. */
+export interface MatchInspection {
+	status: string;
+	startedAt: number;
+	turn: number | null;
+	/** The seat whose turn it is. */
+	active: 0 | 1 | null;
+	life: [number | null, number | null] | null;
+	/** The turn {@link MatchRegistry.restore} starts the game again at; null: from its first. */
+	restoreTurn: number | null;
+	lastActivityAt: number | null;
+	seats: {
+		seat: number;
+		owner: string | null;
+		ai: boolean;
+		here: boolean;
+		away: boolean;
+		/** Forge's open asks of this seat, oldest first, with how long each has waited. */
+		asks: { method: string; ageMs: number }[];
+		/** The input this seat holds the game on, as the other seat is told it (`SeatIdentity.waitingOn`). */
+		waitingOn: string | null;
+		clock: SeatIdentity['clock'] | null;
+	}[];
 }
 
 /* ── The registry ────────────────────────────────────────────────────── */

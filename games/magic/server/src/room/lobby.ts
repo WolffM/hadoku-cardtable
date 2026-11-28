@@ -350,7 +350,12 @@ type ResolveTableResult =
 /** `Lobby.dqPlayer`: the games it let go of, for the caller to stop. */
 type DqPlayerResult = { ok: true; tableId: string | null; matchIds: string[] } | { ok: false; reason: 'no-room' | 'not-leader' | 'no-pod' | 'not-entrant' | 'already-dropped' };
 
-type ResetGameResult = { ok: true; matchId: string } | { ok: false; reason: 'no-room' | 'not-leader' | 'no-such-table' | 'no-game' };
+type ResetGameResult = { ok: true; matchId: string | null } | { ok: false; reason: 'no-room' | 'not-leader' | 'no-such-table' | 'no-game' };
+
+/** `Lobby.awardMatch`: the game it let go of, if one was in play, for the caller to end as the loser's. */
+type AwardMatchResult =
+	| { ok: true; matchId: string | null; loser: string | null; wins: [number, number] }
+	| { ok: false; reason: 'no-room' | 'not-leader' | 'no-such-table' | 'not-pod-table' | 'round-over' };
 
 /** `Lobby.resetRoom`: the tables it started over, and the games they were playing, for the caller to stop. */
 type ResetRoomResult = { ok: true; tableIds: string[]; matchIds: string[] } | { ok: false; reason: 'no-room' | 'not-leader' | 'pod-under-way' };
@@ -571,13 +576,27 @@ export interface Lobby
 	 * `dropTableMatch`, every later pairing of theirs is a bye for its opponent (`#pairRound`), and the
 	 * standings keep their record, marked (`PodView.dropped`).
 	 */
-	dqPlayer(roomId: string, leaderId: string, entrantId: string): DqPlayerResult;
+	dqPlayer(roomId: string, leaderId: string, entrantId: string, override?: boolean): DqPlayerResult;
 	/**
 	 * The leader restarts a table's game in play from scratch. Forge cannot rewind, so the game is let go
 	 * of (returned for the caller to stop) without a result; the series stands at its score, still
 	 * `playing`, and the table's next start is the same game again with the decks its seats hold.
 	 */
-	resetGame(roomId: string, leaderId: string, tableId: string): ResetGameResult;
+	resetGame(roomId: string, leaderId: string, tableId: string, override?: boolean): ResetGameResult;
+	/**
+	 * A pod match's result, set from outside the games: `winner`'s side wins the series as a forfeit by
+	 * the other gives it (`#forfeit`: the majority to the winner, the loser's won games below it), and
+	 * the round advances once its last table is done. A match of the current round already over is
+	 * corrected in place: its result and score change, the standings with them. A game in play is let
+	 * go of, returned for the caller to end. The leader's, or `override`'s (a wife or admin caller).
+	 */
+	awardMatch(roomId: string, leaderId: string, tableId: string, winner: 0 | 1, override?: boolean): AwardMatchResult;
+	/**
+	 * A table's match played again from its first game: the series goes back to 0–0 with the same seats,
+	 * no result recorded, and the game in play is let go of without one, returned for the caller to stop.
+	 * The leader's, or `override`'s.
+	 */
+	replayMatch(roomId: string, leaderId: string, tableId: string, override?: boolean): ResetGameResult;
 	/**
 	 * The leader cleans up the room without closing it (the operator, 2026-11-11: *"we shouldn't close
 	 * it automatically but leader needs a way to clean up a room"*): every table starts over as a mode
@@ -586,7 +605,7 @@ export interface Lobby
 	 * a result, returned for the caller to stop. Who is here, who sits where, the settings and the
 	 * link stay. A draft or tournament under way is refused: its rounds end with Close.
 	 */
-	resetRoom(roomId: string, leaderId: string): ResetRoomResult;
+	resetRoom(roomId: string, leaderId: string, override?: boolean): ResetRoomResult;
 	/**
 	 * Rematch: `http/routes.ts`'s `POST …/ready` calls this UNCONDITIONALLY
 	 * every time a `ready: true` leaves every seat of a table ready, and the
@@ -1699,6 +1718,49 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		return { ok: true, matchId };
 	}
 
+	awardMatch(roomId: string, leaderId: string, tableId: string, winner: 0 | 1, override = false): AwardMatchResult {
+		const room = this.#room(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!override && room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
+		const table = room.game.tables.find((t) => t.id === tableId);
+		if (table === undefined) return { ok: false, reason: 'no-such-table' };
+		const pod = room.game.pod;
+		const pairing = pod?.pairings.find((p) => p.tableId === tableId);
+		if (pod === null || pairing === undefined) return { ok: false, reason: pod === null ? 'not-pod-table' : 'round-over' };
+		const order = seatOrder(table);
+		// The entrant at the losing seat: the AI's own entrant id where Forge's AI sits (`null` in the seat order).
+		const loserSeat = winner === 0 ? 1 : 0;
+		const loser = order[loserSeat] ?? pairing.players.find((p) => isAiEntrant(p)) ?? null;
+		const { matchId } = table;
+		if (table.series.phase === 'done') {
+			// A finished match of this round, corrected: its recorded result goes, and is recorded again from the new score.
+			const [a, b] = pairing.players;
+			room.game.pod = { ...pod, results: pod.results.filter((r) => !(r.round === pod.round && r.playerA === a && r.playerB === b)) };
+			table.series = { ...table.series, phase: 'playing' };
+		}
+		const wins = loser === null ? table.series.wins : this.#forfeit(room, table, loser);
+		this.persist(room);
+		this.log({ event: 'match-awarded', roomId, tableId, by: leaderId, override, winner, matchId, wins });
+		return { ok: true, matchId, loser, wins };
+	}
+
+	replayMatch(roomId: string, leaderId: string, tableId: string, override = false): ResetGameResult {
+		const room = this.#room(roomId);
+		if (room === undefined) return { ok: false, reason: 'no-room' };
+		if (!override && room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
+		const table = room.game.tables.find((t) => t.id === tableId);
+		if (table === undefined) return { ok: false, reason: 'no-such-table' };
+		if (table.series.phase === 'done' || (table.matchId === null && table.series.games.length === 0)) return { ok: false, reason: 'no-game' };
+		const { matchId } = table;
+		// Abandon's letting-go: replaced, not settled, so nothing is recorded; the seats stay, nobody is ready.
+		table.matchId = null;
+		table.ready = [false, false];
+		table.series = newSeries(seriesRoomOf(room), seatOrder(table), 'seating');
+		this.persist(room);
+		this.log({ event: 'match-replayed', roomId, tableId, by: leaderId, override, matchId });
+		return { ok: true, matchId };
+	}
+
 	/**
 	 * `loser`'s pod match at `table`, still under way, is forfeited: the other side wins the series — its
 	 * wins raised to the majority, the loser's won games standing below it — recorded as any finished
@@ -1724,10 +1786,10 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		return wins;
 	}
 
-	dqPlayer(roomId: string, leaderId: string, entrantId: string): DqPlayerResult {
+	dqPlayer(roomId: string, leaderId: string, entrantId: string, override = false): DqPlayerResult {
 		const room = this.#room(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
+		if (!override && room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
 		const pod = room.game.pod;
 		if (pod === null || pod.round > pod.rounds) return { ok: false, reason: 'no-pod' };
 		if (!pod.humans.includes(entrantId)) return { ok: false, reason: 'not-entrant' };
@@ -1754,10 +1816,10 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		return { tableId: table.id, matchIds };
 	}
 
-	resetGame(roomId: string, leaderId: string, tableId: string): ResetGameResult {
+	resetGame(roomId: string, leaderId: string, tableId: string, override = false): ResetGameResult {
 		const room = this.#room(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
+		if (!override && room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
 		const table = room.game.tables.find((t) => t.id === tableId);
 		if (table === undefined) return { ok: false, reason: 'no-such-table' };
 		const { matchId } = table;
@@ -1772,10 +1834,10 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		return { ok: true, matchId };
 	}
 
-	resetRoom(roomId: string, leaderId: string): ResetRoomResult {
+	resetRoom(roomId: string, leaderId: string, override = false): ResetRoomResult {
 		const room = this.#room(roomId);
 		if (room === undefined) return { ok: false, reason: 'no-room' };
-		if (room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
+		if (!override && room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
 		if (room.game.pod !== null || room.game.draftStartedAt !== null) return { ok: false, reason: 'pod-under-way' };
 		const matchIds = room.game.tables.flatMap((t) => (t.matchId === null ? [] : [t.matchId]));
 		// Let go of first, so a stopped game's end finds no table naming it and records nothing.

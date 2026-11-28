@@ -16,6 +16,7 @@ import { newGauntlet } from '../room/gauntlet.ts';
 import { attachRooms } from './rooms.js';
 import { attachTableActions } from './table-actions.js';
 import { magicView } from '../room/magic-view.js';
+import { isPodAi } from '@hadoku/shared';
 
 const ALICE = 'fk:aaaaaaaaaaaaaaaa' as ParticipantId;
 const BOB = 'fk:bbbbbbbbbbbbbbbb' as ParticipantId;
@@ -35,10 +36,13 @@ interface Harness {
 	acts: { seat: number; frame: unknown }[];
 	stopped: string[];
 	ended: string[];
+	restored: string[];
+	awarded: { table: string; winner: 0 | 1 }[];
+	events: Record<string, unknown>[];
 }
 
 /** A room alice leads and bob is in, its table playing `MATCH` with alice at seat 0 and bob at seat 1 — mounted after the rooms router, as `index.ts` mounts it. */
-async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harness> {
+async function open(opts: { refuse?: string; pod?: boolean; starting?: boolean } = {}): Promise<Harness> {
 	const dir = await mkdtemp(join(tmpdir(), 'cardtable-table-actions-'));
 	const lobby = await openLobby({ dir });
 	const made = lobby.create({ id: ALICE, name: 'alice', userId: null }, { name: 'tonight', gameType: 'constructed-1v1', clientMode: 'builtin', ...(opts.pod === true ? { mode: { mode: 'classic', modeOptions: {} } } : {}) });
@@ -75,6 +79,9 @@ async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harn
 	const acts: Harness['acts'] = [];
 	const stopped: string[] = [];
 	const ended: string[] = [];
+	const restored: string[] = [];
+	const awarded: Harness['awarded'] = [];
+	const events: Harness['events'] = [];
 	const seats = new Map<string, number>(players.map((id, seat) => [id, seat]));
 	const app = express();
 	const api = express.Router();
@@ -85,17 +92,24 @@ async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harn
 		log: () => undefined,
 		seriesEnded: (_room, table) => void ended.push(table),
 		callerOf: (req) => String(req.headers['x-test-user']) as ParticipantId,
-		match: (id) =>
-			id !== MATCH
-				? undefined
-				: {
-						seatOf: (who) => seats.get(who) ?? null,
-						fromClient: (seat, frame) => {
-							acts.push({ seat, frame });
-							return opts.refuse === undefined ? { ok: true } : { ok: false, error: opts.refuse };
-						},
-						stop: () => void stopped.push(MATCH),
-					},
+		report: (event, context) => void events.push({ event, ...context }),
+		restore: (id) => (id === MATCH && !stopped.includes(MATCH) ? (restored.push(id), { from: 'snapshot', turn: 7 }) : null),
+		awardGame: (_room, table, winner) => (awarded.push({ table, winner }), true),
+		match: (id) => {
+			if (id !== MATCH) return undefined;
+			const fromClient = (seat: number, frame: { kind: 'act'; method: 'concede' }) => {
+				acts.push({ seat, frame });
+				return opts.refuse === undefined ? { ok: true as const } : { ok: false as const, error: opts.refuse };
+			};
+			return {
+				seatOf: (who) => seats.get(who) ?? null,
+				fromClient,
+				concedeFor: (seat) => (opts.starting === true ? false : fromClient(seat, { kind: 'act', method: 'concede' }).ok),
+				concedeAi: () => false,
+				inspect: () => ({ status: 'running', startedAt: 0, turn: 7, active: 1, life: [20, 3], restoreTurn: 7, lastActivityAt: 0, seats: [] }),
+				stop: () => void stopped.push(MATCH),
+			};
+		},
 	});
 	app.use('/api', api);
 	const server: Server = createServer(app);
@@ -105,7 +119,7 @@ async function open(opts: { refuse?: string; pod?: boolean } = {}): Promise<Harn
 		await snapshotWriter().idle();
 		await rm(dir, { recursive: true, force: true });
 	});
-	return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, lobby, roomId, tableId, acts, stopped, ended };
+	return { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, lobby, roomId, tableId, acts, stopped, ended, restored, awarded, events };
 }
 
 const concede = (h: Harness, as: string, tableId = h.tableId) =>
@@ -172,8 +186,12 @@ describe('POST /api/rooms/:roomId/tables/:tableId/abandon', () => {
 	});
 });
 
-const leader = (h: Harness, as: string, path: string, body?: unknown) =>
-	fetch(`${h.base}/api/rooms/${h.roomId}/${path}`, { method: 'POST', headers: { 'x-test-user': as, 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+const leader = (h: Harness, as: string, path: string, body?: unknown, tier?: string) =>
+	fetch(`${h.base}/api/rooms/${h.roomId}/${path}`, {
+		method: 'POST',
+		headers: { 'x-test-user': as, 'content-type': 'application/json', ...(tier === undefined ? {} : { 'x-hadoku-tier': tier }) },
+		body: JSON.stringify(body ?? {}),
+	});
 
 describe('POST /api/rooms/:roomId/tables/:tableId/reset', () => {
 	it('the leader, watching, restarts the game in play: it is stopped, the series score stands', async () => {
@@ -258,5 +276,171 @@ describe('POST /api/rooms/:roomId/pod/dq', () => {
 		const plain = await open();
 		expect((await leader(plain, ALICE, 'pod/dq', { memberId: BOB })).status).toBe(409);
 		expect(h.acts).toEqual([]);
+	});
+});
+
+/** Someone who is not in the room at all, as the edge names them. */
+const OUTSIDER = 'fk:eeeeeeeeeeeeeeee';
+
+describe('an operator (raw edge tier wife or admin) has the leader’s tools in any room', () => {
+	it('resets a game, DQs a player and resets a room without being the leader or even a member; member and friend are refused', async () => {
+		const h = await open({ pod: true });
+		for (const tier of ['member', 'friend', 'guest']) {
+			expect((await leader(h, BOB, `tables/${h.tableId}/reset`, {}, tier)).status, `a ${tier} player`).toBe(403);
+			expect((await leader(h, OUTSIDER, `tables/${h.tableId}/reset`, {}, tier)).status, `a ${tier} outsider`).toBe(404);
+		}
+		expect(h.stopped).toEqual([]);
+		expect((await leader(h, OUTSIDER, `tables/${h.tableId}/reset`, {}, 'wife')).status).toBe(200);
+		expect(h.stopped).toEqual([MATCH]);
+		expect((await leader(h, OUTSIDER, 'pod/dq', { memberId: CAROL }, 'admin')).status).toBe(200);
+		expect(h.lobby.get(h.roomId)!.game!.pod!.dropped).toEqual([CAROL]);
+		const plain = await open();
+		expect((await leader(plain, BOB, 'tables/reset', {}, 'wife')).status).toBe(200);
+		expect(plain.stopped).toEqual([MATCH]);
+	});
+
+	it('every act, done or refused, is a server event naming who did it and their tier', async () => {
+		const h = await open({ pod: true });
+		await leader(h, BOB, `tables/${h.tableId}/reset`, {}, 'member');
+		await leader(h, OUTSIDER, `tables/${h.tableId}/reset`, {}, 'admin');
+		expect(h.events).toMatchObject([
+			{ event: 'admin-act', act: 'game-reset', by: BOB, tier: 'member', ok: false, reason: 'not-leader' },
+			{ event: 'admin-act', act: 'game-reset', by: OUTSIDER, tier: 'admin', ok: true, matchId: MATCH },
+		]);
+		expect(new Set(h.events.map((e) => e.key)).size, 'each its own incident key, so none is folded into another').toBe(2);
+	});
+});
+
+describe('POST /api/rooms/:roomId/tables/:tableId/award', () => {
+	it('a game in play is the seat’s: the other seat concedes it, so both screens end and the series records it', async () => {
+		const h = await open({ pod: true });
+		expect((await leader(h, OUTSIDER, `tables/${h.tableId}/award`, { seat: 0 }, 'wife')).status).toBe(200);
+		expect(h.acts).toEqual([{ seat: 1, frame: { kind: 'act', method: 'concede' } }]);
+		expect(h.awarded).toEqual([]);
+		expect(h.stopped).toEqual([]);
+	});
+
+	it('a game that cannot end itself (still starting) is recorded for the seat and stopped', async () => {
+		const h = await open({ pod: true, starting: true });
+		expect((await leader(h, ALICE, `tables/${h.tableId}/award`, { seat: 1 })).status).toBe(200);
+		expect(h.awarded).toEqual([{ table: h.tableId, winner: 1 }]);
+		expect(h.stopped).toEqual([MATCH]);
+	});
+
+	it('the whole match is the seat’s: the series ends at the majority, the standings take it, the game in play is conceded', async () => {
+		const h = await open({ pod: true });
+		const res = await leader(h, OUTSIDER, `tables/${h.tableId}/award`, { seat: 1, match: true }, 'admin');
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ ok: true, wins: [0, 2] });
+		expect(h.acts).toEqual([{ seat: 0, frame: { kind: 'act', method: 'concede' } }]);
+		expect(h.ended).toEqual([h.tableId]);
+		expect(h.lobby.get(h.roomId)!.game!.pod!.results).toEqual([{ round: 1, playerA: BOB, playerB: CAROL, gamesA: 0, gamesB: 2 }]);
+	});
+
+	it('a match of a round already paired past is refused, for the tournaments command', async () => {
+		const h = await open({ pod: true });
+		expect((await leader(h, CAROL, `tables/${h.tableId}/drop`)).status).toBe(200);
+		const refused = await leader(h, ALICE, `tables/${h.tableId}/award`, { seat: 1, match: true });
+		expect(refused.status).toBe(409);
+		expect(await refused.json()).toEqual({ error: 'that round is over: correct it with the tournaments command' });
+	});
+
+	it('refuses a player who is not the leader, a member-tier outsider, a bad body, and a match outside a pod', async () => {
+		const h = await open({ pod: true });
+		expect((await leader(h, BOB, `tables/${h.tableId}/award`, { seat: 0 }, 'member')).status).toBe(403);
+		expect((await leader(h, BOB, `tables/${h.tableId}/award`, { seat: 0, match: true }, 'friend')).status).toBe(403);
+		expect((await leader(h, OUTSIDER, `tables/${h.tableId}/award`, { seat: 0 }, 'member')).status).toBe(404);
+		expect((await leader(h, ALICE, `tables/${h.tableId}/award`, { seat: 2 })).status).toBe(400);
+		expect((await leader(h, ALICE, `tables/${h.tableId}/award`, { seat: 0, why: 'x' })).status).toBe(400);
+		expect(h.acts).toEqual([]);
+		const plain = await open();
+		expect((await leader(plain, ALICE, `tables/${plain.tableId}/award`, { seat: 0, match: true })).status).toBe(409);
+	});
+});
+
+describe('POST /api/rooms/:roomId/tables/:tableId/restore and /replay', () => {
+	it('restore starts the game in play again at the start of its turn; nothing in play is refused', async () => {
+		const h = await open({ pod: true });
+		expect((await leader(h, BOB, `tables/${h.tableId}/restore`, {}, 'member')).status).toBe(403);
+		const res = await leader(h, OUTSIDER, `tables/${h.tableId}/restore`, {}, 'wife');
+		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({ ok: true, from: 'snapshot', turn: 7 });
+		expect(h.restored).toEqual([MATCH]);
+		h.lobby.releaseTableMatch(h.roomId, h.tableId);
+		expect((await leader(h, ALICE, `tables/${h.tableId}/restore`)).status).toBe(409);
+	});
+
+	it('replay plays the match again from 0–0 with the same seats and no result, its game stopped', async () => {
+		const h = await open({ pod: true });
+		expect(h.lobby.recordGameResult(h.roomId, h.tableId, { matchId: MATCH, winner: 0 }).ok).toBe(true);
+		expect(h.lobby.setTableMatch(h.roomId, h.tableId, MATCH)).toBe(true);
+		expect((await leader(h, BOB, `tables/${h.tableId}/replay`, {}, 'friend')).status).toBe(403);
+		expect((await leader(h, OUTSIDER, `tables/${h.tableId}/replay`, {}, 'admin')).status).toBe(200);
+		expect(h.stopped).toEqual([MATCH]);
+		expect(h.ended).toEqual([h.tableId]);
+		expect(magicView(h.lobby.get(h.roomId))!.tables.find((t) => t.id === h.tableId)).toMatchObject({
+			players: [{ memberId: BOB }, { memberId: CAROL }],
+			matchId: null,
+			series: { phase: 'seating', wins: [0, 0], games: [] },
+		});
+		expect(h.lobby.get(h.roomId)!.game!.pod!.results).toEqual([]);
+	});
+});
+
+describe('GET /api/rooms/:roomId/admin/live', () => {
+	const live = (h: Harness, as: string, tier?: string) => fetch(`${h.base}/api/rooms/${h.roomId}/admin/live`, { headers: { 'x-test-user': as, ...(tier === undefined ? {} : { 'x-hadoku-tier': tier }) } });
+
+	it('lists every table under way with its match as it stands, for the leader or an operator only', async () => {
+		const h = await open({ pod: true });
+		expect((await live(h, BOB, 'member')).status).toBe(403);
+		expect((await live(h, OUTSIDER, 'friend')).status).toBe(404);
+		const res = await live(h, OUTSIDER, 'wife');
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { round: number; tables: unknown[] };
+		expect(body.round).toBe(1);
+		expect(body.tables).toEqual([
+			{
+				tableId: h.tableId,
+				players: [{ memberId: BOB, name: 'bob' }, { memberId: CAROL, name: 'carol' }],
+				series: { phase: 'playing', wins: [0, 0], games: 0, length: 3 },
+				matchId: MATCH,
+				match: { status: 'running', startedAt: 0, turn: 7, active: 1, life: [20, 3], restoreTurn: 7, lastActivityAt: 0, seats: [] },
+			},
+		]);
+	});
+});
+
+describe('POST /api/rooms/:roomId/admin/unseat and /bot (before the lock)', () => {
+	it('an operator stands a no-show up, or puts the AI in their seat; a member may not', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'cardtable-admin-seats-'));
+		const lobby = await openLobby({ dir });
+		const made = lobby.create({ id: ALICE, name: 'alice', userId: null }, { name: 'sunday', gameType: 'constructed-1v1', clientMode: 'builtin', mode: { mode: 'classic', modeOptions: {} } });
+		if (!made.ok) throw new Error(made.reason);
+		const roomId = made.room.id;
+		for (const p of [BOB, CAROL]) expect(lobby.join(roomId, { id: p, name: p, userId: null }).ok).toBe(true);
+		expect(lobby.setSettings(roomId, ALICE, { tournament: true }).ok).toBe(true);
+		standAll(lobby, roomId);
+		expect(lobby.sitSeat(roomId, BOB, 0).ok && lobby.sitSeat(roomId, CAROL, 1).ok).toBe(true);
+		const app = express();
+		const api = express.Router();
+		api.use(express.json());
+		attachTableActions(api, { lobby, log: () => undefined, report: () => undefined, seriesEnded: () => undefined, restore: () => null, awardGame: () => false, match: () => undefined, callerOf: (req) => String(req.headers['x-test-user']) as ParticipantId });
+		app.use('/api', api);
+		const server = createServer(app);
+		await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+		cleanups.push(async () => {
+			await new Promise<void>((done) => server.close(() => done()));
+			await rm(dir, { recursive: true, force: true });
+		});
+		const h = { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, roomId } as Harness;
+		const seats = () => lobby.get(roomId)!.game!.pod!.seats.map((s) => (s === null ? null : isPodAi(s.memberId) ? 'ai' : s.memberId));
+		expect((await leader(h, BOB, 'admin/unseat', { memberId: CAROL }, 'member')).status).toBe(403);
+		expect((await leader(h, OUTSIDER, 'admin/bot', { seat: 1 }, 'friend')).status).toBe(404);
+		expect(seats().slice(0, 2)).toEqual([BOB, CAROL]);
+		expect((await leader(h, OUTSIDER, 'admin/unseat', { memberId: CAROL }, 'wife')).status).toBe(200);
+		expect(seats().slice(0, 2)).toEqual([BOB, null]);
+		expect((await leader(h, OUTSIDER, 'admin/bot', { seat: 0 }, 'admin')).status).toBe(200);
+		expect(seats()[0]).toBe('ai');
+		expect(lobby.get(roomId)!.members.map((m) => m.id), 'evicted to the spectator row, still in the room').toContain(BOB);
 	});
 });

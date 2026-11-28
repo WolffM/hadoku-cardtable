@@ -473,6 +473,12 @@ export interface TablesHandle {
 	 * finished by its games does (`recordGame`).
 	 */
 	seriesEnded(roomId: string, tableId: string): void;
+	/**
+	 * A game of the table's series won by `winner` with no game to say so (an operator's award when the
+	 * game in play cannot end itself: still starting, failed, or between games): recorded as a finished
+	 * game is (`recordGame`), the series moving on from it. False when there is no such table.
+	 */
+	awardGame(roomId: string, tableId: string, winner: 0 | 1): boolean;
 }
 
 /** The part of play's `Match` that recording its outcome needs. */
@@ -2494,6 +2500,13 @@ export function attachTables(api: Router, deps: TablesDeps): TablesHandle {
 	return {
 		library,
 		seriesEnded: restoreSeriesDecks,
+		awardGame(roomId, tableId, winner) {
+			const room = magicView(rooms?.get(roomId));
+			const table = room?.tables.find((t) => t.id === tableId);
+			if (room === undefined || table === undefined) return false;
+			recordGame(room, table, table.matchId ?? `awarded-${String(Date.now())}`, winner);
+			return true;
+		},
 		seatAvatar(matchId, memberId) {
 			const room = rooms?.roomOfMatch(matchId);
 			if (memberId === AI_SEAT_OWNER) {

@@ -58,6 +58,8 @@ beforeAll(async () => {
 		seriesEnded: () => {},
 		callerOf: () => me,
 		match: () => undefined,
+		restore: () => null,
+		awardGame: () => false,
 	});
 	app.use('/api', api);
 	server = createServer(app);

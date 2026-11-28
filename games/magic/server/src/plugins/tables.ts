@@ -32,7 +32,13 @@ export const tablesPlugin: CardtablePlugin = {
 		const { api, state } = ctx;
 		const { lobby, draftRooms } = state;
 		// A table's game resolved from its card: concede, abandon, drop match (`http/table-actions.ts`).
-		attachTableActions(api, { lobby, match: (id) => state.play?.matches.get(id), seriesEnded: (roomId, tableId) => state.tables.seriesEnded(roomId, tableId) });
+		attachTableActions(api, {
+			lobby,
+			match: (id) => state.play?.matches.get(id),
+			restore: (id) => state.play?.matches.restore(id) ?? null,
+			seriesEnded: (roomId, tableId) => state.tables.seriesEnded(roomId, tableId),
+			awardGame: (roomId, tableId, winner) => state.tables.awardGame(roomId, tableId, winner),
+		});
 
 		// The front page's featured match. Built before play, whose `liveChanged` re-picks it; its
 		// candidates are read from play when asked.

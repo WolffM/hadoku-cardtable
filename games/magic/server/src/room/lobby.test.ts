@@ -4898,6 +4898,33 @@ describe('Leader tools: DQ a player, reset a game', () => {
 		expect(lobby.get(id)!.game!.pod!.dropped).toEqual([BOB.id]);
 	});
 
+	it('awardMatch: an operator (override) gives a live match to a seat, and corrects one already over this round — vs the AI too', async () => {
+		const { lobby, id, entries, tableOf } = await fourEntrants();
+		const bobs = tableOf(BOB.id);
+		const carols = tableOf(CAROL.id);
+		expect(lobby.awardMatch(id, DAVE.id, bobs, 0)).toEqual({ ok: false, reason: 'not-leader' });
+		// Bob v Dave, game 1 to Bob, then game 2 hangs: Dave (seat 1) is given the match.
+		expect(lobby.setTableMatch(id, bobs, 'm-b1')).toBe(true);
+		lobby.recordGameResult(id, bobs, { matchId: 'm-b1', winner: 0 });
+		expect(lobby.setTableMatch(id, bobs, 'm-b2')).toBe(true);
+		const seatOfDave = lobby.get(id)!.tables.find((t) => t.id === bobs)!.players.findIndex((p) => p.memberId === DAVE.id) as 0 | 1;
+		const awarded = lobby.awardMatch(id, 'fk:0000000000000099', bobs, seatOfDave, true);
+		expect(awarded).toMatchObject({ ok: true, matchId: 'm-b2' });
+		const resultOf = (who: string) => lobby.get(id)!.game!.pod!.results.filter((r) => r.round === 1 && (r.playerA === who || r.playerB === who));
+		const games = (who: string) => resultOf(who).map((r) => (r.playerA === who ? [r.gamesA, r.gamesB] : [r.gamesB, r.gamesA]));
+		expect(games(DAVE.id), 'Dave by the majority, Bob’s won game standing').toEqual([[2, 1]]);
+		// The round is still on (Carol v the AI), so a wrong result is corrected in place, once.
+		const seatOfBob = (1 - seatOfDave) as 0 | 1;
+		expect(lobby.awardMatch(id, ALICE.id, bobs, seatOfBob)).toMatchObject({ ok: true, matchId: null });
+		expect(games(BOB.id)).toEqual([[2, 1]]);
+		// Carol (seat 0) v the AI: the AI is given the match, its entrant the winner.
+		expect(lobby.awardMatch(id, ALICE.id, carols, 1)).toMatchObject({ ok: true, loser: CAROL.id });
+		expect(games(CAROL.id)).toEqual([[0, 2]]);
+		expect(lobby.get(id)!.game!.pod!.round, 'the round’s last match decided, the next round pairs').toBe(2);
+		expect(lobby.awardMatch(id, ALICE.id, carols, 0)).toEqual({ ok: false, reason: 'round-over' });
+		expect(entries).toContainEqual(expect.objectContaining({ event: 'match-awarded', roomId: id, override: true, winner: seatOfDave }));
+	});
+
 	it('DQ is a pod’s: a room with no rounds under way refuses it', async () => {
 		const lobby = await openLobby({ dir: await tempDir() });
 		const made = lobby.create(ALICE, { name: 'Kitchen table', gameType: 'constructed-1v1', clientMode: 'builtin' });
