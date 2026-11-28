@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest';
 
 import { currentFace, intOf, type ServerFrame } from '@hadoku/forge-wire';
 
-import { available, deck, landPayer, promptBar, startScenario, timeline, waitUntil, type Card, type Scenario } from './scenario.js';
+import { available, deck, landPayer, startScenario, timeline, waitUntil, type Card, type Scenario } from './scenario.js';
 
 const title = (t: string): string => (available.ok ? t : `${t} — SKIPPED: ${available.reason}`);
 
@@ -105,20 +105,25 @@ async function drive(s: Scenario, label: string, done: () => boolean, d: Drive =
 				return false;
 			}
 			payingSince = null;
-			if (at === acted || promptBar(s, 0) === null) return false;
+			// Forge sends a window's prompt and its bar as two frames, in either order: the bar read here
+			// may be the one before the prompt, so a press waits for the bar its act needs.
+			if (at === acted) return false;
 			const bar = s.buttons(0);
 			const pick = picks.find((p) => !p.finished && p.when.test(msg));
 			if (pick !== undefined) {
-				acted = at;
-				if (pick.next < pick.ids.length) s.select(0, pick.ids[pick.next++]!);
-				else {
+				if (pick.next < pick.ids.length) {
+					acted = at;
+					s.select(0, pick.ids[pick.next++]!);
+				} else if (pick.ok !== true) pick.finished = true;
+				else if (bar?.enable1 === true) {
+					acted = at;
 					pick.finished = true;
-					if (pick.ok === true && bar?.enable1 === true) s.ok(0);
+					s.ok(0);
 				}
 				return false;
 			}
 			const yesNo = bars.find((b) => !b.used && b.when.test(msg));
-			if (yesNo !== undefined && bar !== null) {
+			if (yesNo !== undefined && bar?.enable1 === true && bar.enable2 === true) {
 				acted = at;
 				yesNo.used = true;
 				if (yesNo.yes) s.ok(0);
@@ -227,7 +232,8 @@ async function withBoard(seed: number, board: Board, answers: Answer[], body: (s
 		await waitUntil(() => (s.answerAsks(), settled(s) && s.turn(0)?.n === 3), "seat 0's turn-3 main with the board", 90_000, s);
 		await body(s, asked);
 	} catch (e) {
-		console.log(`[blb] timeline:\n${timeline(s, 0, from)}`);
+		const said = s.sent.filter((x) => x.seat === 0 && x.envelope.frame.method === 'message').map((x) => (x.envelope.frame as unknown as { message: string }).message);
+		console.log(`[blb] timeline:\n${timeline(s, 0, from)}\n--- game log\n${said.join('\n')}`);
 		throw e;
 	} finally {
 		await s.stop();
@@ -293,19 +299,25 @@ describe.skipIf(!available.ok)(title('Bloomburrow mechanics do what the card say
 		});
 	});
 
-	it('gift a tapped Fish: Into the Flood Maw promised bounces a creature and a nonland permanent, and the Fish enters tapped', { timeout: T }, async () => {
+	it('gift a tapped Fish: Into the Flood Maw promised bounces a nonland permanent instead of a creature, and the Fish enters tapped', { timeout: T }, async () => {
 		await withBoard(2915, { hand: ['Into the Flood Maw'], battlefield: ['Island'], aiBattlefield: ['Grizzly Bears', 'Mind Stone', 'Plains'] }, [PROMISE], async (s) => {
-			const bears = one(s, 'ai', 'Battlefield', 'Grizzly Bears');
 			const stone = one(s, 'ai', 'Battlefield', 'Mind Stone');
 			const theirHand = cards(s, 'ai', 'Hand').length;
-			await cast(s, 'Into the Flood Maw', () => cards(s, 'ai', 'Hand').length === theirHand + 2, {
-				picks: [
-					{ when: /Select target creature an opponent controls/, ids: [bears.id] },
-					{ when: /Select target nonland permanent an opponent controls/, ids: [stone.id] },
-				],
+			await cast(s, 'Into the Flood Maw', () => cards(s, 'ai', 'Hand').length === theirHand + 1 && count(s, 'ai', 'Battlefield', 'Fish Token') === 1, {
+				picks: [{ when: /Select target nonland permanent an opponent controls/, ids: [stone.id] }],
 			});
-			expect(names(s, 'ai', 'Battlefield')).toEqual(['Fish Token', 'Plains']);
+			expect(names(s, 'ai', 'Battlefield')).toEqual(['Fish Token', 'Grizzly Bears', 'Plains']);
 			expect(one(s, 'ai', 'Battlefield', 'Fish Token').tapped, 'a tapped Fish').toBe(true);
+		});
+	});
+
+	it('gift refused: Into the Flood Maw bounces a creature, and no Fish', { timeout: T }, async () => {
+		await withBoard(2934, { hand: ['Into the Flood Maw'], battlefield: ['Island'], aiBattlefield: ['Grizzly Bears', 'Mind Stone', 'Plains'] }, [], async (s) => {
+			const bears = one(s, 'ai', 'Battlefield', 'Grizzly Bears');
+			await cast(s, 'Into the Flood Maw', () => !names(s, 'ai', 'Battlefield').includes('Grizzly Bears'), {
+				picks: [{ when: /Select target creature an opponent controls/, ids: [bears.id] }],
+			});
+			expect(names(s, 'ai', 'Battlefield')).toEqual(['Mind Stone', 'Plains']);
 		});
 	});
 
