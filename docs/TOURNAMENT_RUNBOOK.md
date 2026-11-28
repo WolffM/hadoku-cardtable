@@ -52,7 +52,7 @@ table last moved.
 | **Wrong result, round already paired past** | Refused in the room ("that round is over"). After the event: `npx tsx games/magic/server/src/cli/tournaments.ts show <id> --site prod`, then `set …` without `--write` (dry run), check it, then again with `--write`. Never hand-edit `tournaments.json`. |
 | **A match crashed** (board says the game ended, the table still says playing) | ⋯ → **Restart turn** (failover from the turn's snapshot); no snapshot: it restarts the game. Nothing in play: **Reset game** and the players re-enter from the table page. |
 | **The leader left** | An operator's seat chip **Make leader** on someone in the room; until then an operator has every leader tool anyway. |
-| **Server restart** (pm2 restart, a deploy) | **Deploy or restart cardtable only between rounds.** A restart mid-round freezes every board until the new server has taken back every match, finished games still in their 10-minute grace included; no player is back before the last one. About 5–6 s for a Sunday round of 6–8 tables; longer the more has been played and the more finished games are in their grace (measured on PPE 2026-11-28 with the open-ask fix live: 18 matches, ~38k lines, all back by 8.3 s; 42 matches under soak load, ~114k lines, 26.3 s). Then each game resumes exactly where it was; rooms and brackets persist. A game that could not be adopted lets its table go with no result: the players reopen the table link and the same game starts again, the score standing. Prod changes only through `release.yml`; do not cut a release mid-event. |
+| **Server restart** (pm2 restart, a deploy) | **Restart only between rounds, and if you can wait, once the round's last game has been over for 10 minutes.** A restart freezes every board for about 1 s per 4,500 recorded lines of the games live or finished in the last 10 minutes: on Sunday about 5–6 s. Right after most of a round's games have ended it can run 15–20 s, because finished games still in their grace are taken back first. Measured on PPE 2026-11-28: 26 matches, 93k lines, 18.3 s, with the 6 live ones alone about 5 s; 18 matches, 8.3 s; 42 under soak load, 26.3 s. On the page it is short: in one claw match, the server was back at 1.25 s and the seat's ask was offered again at 2.0 s. Then each game resumes exactly where it was; rooms and brackets persist. A game that could not be adopted lets its table go with no result: the players reopen the table link and the same game starts again, the score standing. Prod changes only through `release.yml`; do not cut a release mid-event. |
 | **Whole room wrong** (not a tournament yet) | The leader's **Reset** beside Close in the room (an operator: `api('tables/reset', {})` below). A tournament under way can only be closed. |
 
 ## A claw fails mid-match (failover)
@@ -102,6 +102,59 @@ comes back as a plain 1/1 body without the copied creature's abilities (the turn
 `token`); fixed by fork 83886be5 once that pin is deployed. Until then, if a failover hits a table
 with an Offspring token on the board, the players may agree to treat the token as having its
 abilities, or use **Reset game**.
+
+## Find the tool from what you see
+
+| What you see | Tool |
+| --- | --- |
+| The draft is dealt and nobody's pick has a timer (the leader forgot **Pick timer**) | console: **pick timer on** (below) |
+| A drafter's tab closed mid-draft and the table waits on their pack | console: **the bot picks for them** (below); it stops by itself when they come back |
+| A player sat down but never readies, and the field has not locked | their seat chip → **Bot** (the AI takes it) or **Remove** |
+| A seat is empty and nobody is coming | the seat chip → **AI**, or **Close** |
+| A screen shows nothing to do, but the game doesn't move | ⋯ → **Re-send asks** |
+| A game will not move, and Re-send asks did not help | ⋯ → **Restart turn** |
+| Restart turn is refused, or the game itself is wrong from the start | ⋯ → **Reset game** |
+| The players agree who won a game the table cannot finish | ⋯ → **Game to ‹player›** |
+| A player is gone for the rest of the match, and their opponent should have it | ⋯ → **Match to ‹player›** |
+| A match should be played again from 0–0 | ⋯ → **Replay match** |
+| A player must leave the tournament (cheating, gone for good) | ⋯ → **DQ** (their match is conceded, byes after) |
+| A past round's result is wrong | `npx tsx games/magic/server/src/cli/tournaments.ts`, never ⋯ |
+
+## The two console-only tools
+
+Open the room on `hadoku.me/cardtable/`, signed in as the leader or as a wife/admin account, and open
+the browser console (F12). The room id is the end of the address: `…#/room/<ROOM>`. The page's own
+sign-in carries the call: no key is needed, and none should be pasted.
+
+**Pick timer on, mid-draft** (the likeliest slip: dealt with the timer off). It starts at once on
+every human seat, and every screen shows it.
+
+```js
+const ROOM = 'r-xxxxxxxxxxxx';
+await fetch(`/cardtable/api/rooms/${ROOM}/draft/timer`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ on: true, speed: 1 }) }).then(async (r) => [r.status, await r.json()]);
+// → [200, { ok: true }]     speed: 1 is the normal clock; 0.25 (slowest) … 4 (fastest)
+// → [403, { error: 'only the room leader can do that' }]  not the leader, and not wife/admin
+```
+
+**The bot picks for a drafter until they're back.** First find their member id by name:
+
+```js
+const ROOM = 'r-xxxxxxxxxxxx';
+(await fetch(`/cardtable/api/rooms/${ROOM}`, { credentials: 'include' }).then((r) => r.json())).members.map((m) => `${m.name}  ${m.id}`).join('\n');
+```
+
+then:
+
+```js
+const ID = 'fk:xxxxxxxxxxxxxxxx';
+await fetch(`/cardtable/api/rooms/${ROOM}/draft/pick-for`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ memberId: ID }) }).then(async (r) => [r.status, await r.json()]);
+// → [200, { ok: true }]      it stops by itself when they reconnect; { memberId: ID, on: false } stops it sooner
+// → [409, { error: 'there is no draft running in this room' }]
+// → [404, { error: 'that player is not drafting here' }]  wrong id, or someone else now sits in their seat
+```
+
+A drafter who **left the room** needs neither: the bot already picks for them. A server restart
+forgets a pick-for, so send it again after one.
 
 ## API equivalents (when the page will not load)
 
