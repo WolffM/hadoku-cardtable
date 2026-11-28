@@ -1971,6 +1971,39 @@ describe('a match that outlives its server', () => {
 		expect((match as Match).seats[PROBE_ASK.seat]?.asks.has(callId)).toBe(true);
 	});
 
+	// PPE m-c6fb6927493e, 2026-11-28 07:24Z: the seat clicked a card and Forge asked which ability, an
+	// ask the click puts to the seat. The server handed over before the seat answered. The replay
+	// re-decided that ask without the click (no command is replayed into the seat's state), answered it
+	// as "one ability" into nothing, and dropped every re-send of it as a duplicate: frozen for good.
+	it('never answers an ask into a replay: one still open at the handover is asked or answered for real', () => {
+		const r = running();
+		const probe = (PROBE_ASK.frame as { callId: string }).callId;
+		expect(r.first.fromClient(PROBE_ASK.seat, reply(probe, true))).toEqual({ ok: true });
+		r.first.fromClient(0, ClientFrameSchema.parse({ kind: 'act', method: 'selectCard', card: { kind: 'card', id: 87 }, otherCardViewsToSelect: [], triggerEvent: null }));
+		const offer: BridgeLine = {
+			t: 'frame',
+			seat: 0,
+			frame: { kind: 'ask', callId: 'click-1', method: 'getAbilityToPlay', hostCard: { kind: 'card', id: 87 }, abilities: [{ kind: 'spellAbility', id: 301, label: 'Spell Pierce' }], triggerEvent: null },
+		};
+		r.state.push(offer);
+		expect(r.first.seats[0]?.asks.has('click-1'), "the click's own offer is put to the seat").toBe(true);
+		const before = r.state.commandsSent().length;
+
+		r.first.handOver();
+		const { match } = r.next();
+		const answered = r.state
+			.commandsSent()
+			.slice(before)
+			.filter((c) => c.t === 'reply' && c.callId === 'click-1');
+		const open = (match as Match).seats[0]?.asks.has('click-1') ?? false;
+		// Forge still waits on it: the new server either puts it to the seat or answers it, once.
+		expect({ open, answers: answered.length }).toEqual(open ? { open: true, answers: 0 } : { open: false, answers: 1 });
+
+		// And Forge re-sending it (the act-silence net's `resend-pending`) is never what loses it.
+		r.state.push(offer);
+		expect(((match as Match).seats[0]?.asks.has('click-1') ?? false) || answered.length === 1).toBe(true);
+	});
+
 	it('stops a match it took back that nobody rejoins — an orphan nobody wants is still a JVM', () => {
 		vi.useFakeTimers();
 		const r = running();
