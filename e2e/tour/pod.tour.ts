@@ -105,8 +105,13 @@ test('pod: a BLB set-cube pod from the lobby to the podium, as two players and a
     await expect(b.locator('[data-testid^="pod-seat-"][data-mine]')).toHaveCount(1, { timeout: UI });
     const seatOf = async (p: Page): Promise<number> => Number(await p.locator('[data-testid^="pod-seat-"][data-mine]').first().getAttribute('data-seat'));
     const seated = (await roomOf(alice, stack, roomId)).game.pod?.seats ?? [];
-    const aliceId = seated[await seatOf(a)] as string;
-    const bobId = seated[await seatOf(b)] as string;
+    const memberAt = (i: number): string => {
+      const seat = seated[i];
+      if (seat === null || seat === undefined) throw new Error(`pod seat ${i} is empty`);
+      return seat.memberId;
+    };
+    const aliceId = memberAt(await seatOf(a));
+    const bobId = memberAt(await seatOf(b));
     const who = (id: string): string => (id === aliceId ? 'alice' : id === bobId ? 'bob' : isAi(id) ? 'AI' : id);
     say(`alice is ${aliceId}, bob is ${bobId}`);
     for (let i = 0; i < 6; i++) {
@@ -247,6 +252,10 @@ test('pod: a BLB set-cube pod from the lobby to the podium, as two players and a
       if (round !== lastSeenRound) {
         lastSeenRound = round;
         roundStart = Date.now();
+      }
+      if (round === 1 && !(await aliceIsLive(a)) && (await a.getByTestId('table-page').count()) > 0 && (await a.locator('a[data-door="enter"], a[data-door="sideboard"]').count()) === 0) {
+        // Her round-1 match is over: back to the hub by the page's own link, to sit there until round 2 arrives.
+        await a.getByTestId('table-hub').click({ timeout: 3_000 }).catch(() => undefined);
       }
       await playStep(a, round, roomUrl, once, S, { hold });
       if (awayRound !== round || !b.isClosed()) await playStep(b, round, roomUrl, noShots, S, { hold: false });
