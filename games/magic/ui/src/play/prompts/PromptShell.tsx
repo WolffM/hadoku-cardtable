@@ -447,6 +447,7 @@ export function OptionButton({
   dataAnswer,
   autoFocus,
   ariaLabel,
+  disabled,
   onClick,
   children,
 }: {
@@ -458,6 +459,7 @@ export function OptionButton({
   dataAnswer?: string;
   autoFocus?: boolean;
   ariaLabel?: string;
+  disabled?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -470,6 +472,7 @@ export function OptionButton({
       data-answer={dataAnswer}
       aria-label={ariaLabel}
       autoFocus={autoFocus === true}
+      disabled={disabled === true}
       onClick={onClick}
     >
       {children}

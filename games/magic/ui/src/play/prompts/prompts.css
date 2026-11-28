@@ -1148,6 +1148,12 @@
   text-align: left;
 }
 
+/* A planeswalker ability Forge cannot take now: listed in its place, dimmed (the `.button:disabled` convention). */
+.prompt__choice:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .prompt__input {
   max-width: 100%;
 }

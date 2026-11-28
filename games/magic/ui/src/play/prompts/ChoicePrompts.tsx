@@ -576,13 +576,16 @@ export function GetAbilityToPlayPrompt({ ask, onAnswer, lookup }: PromptProps<'g
       }
     >
       <ul className="prompt__list">
-        {ask.abilities.map((ab) => (
+        {listedAbilities(ask).map(({ ability: ab, offered }) => (
           <li key={ab.id}>
             <OptionButton
               testId="prompt-choice"
               className="prompt__choice"
               ariaLabel={plainRulesText(refName(lookup, ab))}
-              onClick={() => answer(ab)}
+              disabled={!offered}
+              onClick={() => {
+                if (offered) answer(ab);
+              }}
             >
               <RulesText text={refName(lookup, ab)} />
             </OptionButton>
@@ -591,6 +594,21 @@ export function GetAbilityToPlayPrompt({ ask, onAnswer, lookup }: PromptProps<'g
       </ul>
     </PromptShell>
   );
+}
+
+/**
+ * The offer's abilities with a planeswalker's `withheld` ones (`PlayBridge.java`'s `withheld`) put back
+ * at their places among its loyalty abilities, so the picker lists them all in card order and greys
+ * the ones Forge cannot take now. Never offered, so never an answer.
+ */
+export function listedAbilities(
+  ask: PromptProps<'getAbilityToPlay'>['ask'],
+): { ability: (typeof ask.abilities)[number]; offered: boolean }[] {
+  const out = ask.abilities.map((ability) => ({ ability, offered: true }));
+  for (const { at, ...ability } of [...(ask.withheld ?? [])].sort((a, b) => a.at - b.at)) {
+    out.splice(Math.min(at, out.length), 0, { ability, offered: false });
+  }
+  return out;
 }
 
 /**

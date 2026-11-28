@@ -1010,11 +1010,11 @@ function LivePrompt({ match, ask }: { match: LiveMatch; ask: LiveAsk }) {
   );
 }
 
-/** The labels a `getAbilityToPlay` offer carries, keyed by ability id. */
+/** The labels a `getAbilityToPlay` offer carries, its withheld abilities' too, keyed by ability id. */
 function abilityLabelsOf(ask: LiveAsk): Record<number, string> {
   if (ask.method !== 'getAbilityToPlay') return {};
   const out: Record<number, string> = {};
-  for (const ab of ask.abilities) {
+  for (const ab of [...ask.abilities, ...(ask.withheld ?? [])]) {
     const label = offeredAbilityLabel(ab);
     if (label !== undefined) out[ab.id] = label;
   }
