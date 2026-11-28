@@ -87,7 +87,7 @@ function tablesOf(pod: PodRead, friendOf: Map<string, Friend>): [Friend, Friend]
   return pod.pairings.map((x) => [friendOf.get(x.players[0])!, friendOf.get(x.players[1])!]);
 }
 
-/** Every entrant still in has exactly one place this round: a table, or a result already settled (a bye, a leaver's win). */
+/** Every entrant still in has exactly one place this round: a table, or the bye (a settled result). */
 function placedOnce(pod: PodRead, active: string[], round: number): void {
   for (const id of active) {
     const tables = pod.pairings.filter((x) => x.players.includes(id)).length;
@@ -239,7 +239,10 @@ async function runCell(browser: Browser, field: string[], leaver: string): Promi
   await podCell(browser, forge, field, leaver);
 }
 
-// An even field: the leaver's round-1 opponent has the win, one table plays.
+// The leaver is never paired (`#pairRound`): three play on, one table and a bye each round.
 test(title('four drafters, one leaves'), ({ browser }) => runCell(browser, ['alice', 'bob', 'carol', 'erin'], 'carol'));
-// An odd field: a bye, and the leaver is either at a table (their opponent's win) or given the bye themselves.
-test(title('five drafters, one leaves: an odd field and its bye'), ({ browser }) => runCell(browser, ['alice', 'bob', 'carol', 'erin', 'drafter3'], 'carol'));
+// Four play on: two tables, no bye.
+test(title('five drafters, one leaves: four play on'), ({ browser }) => runCell(browser, ['alice', 'bob', 'carol', 'erin', 'drafter3'], 'carol'));
+// Sunday's pod: eight humans and no bots, one leaves mid-draft; seven play on, three tables and a bye each round.
+test(title('eight drafters, one leaves: a full pod, seven play on'), ({ browser }) =>
+  runCell(browser, ['alice', 'bob', 'carol', 'erin', 'drafter3', 'drafter4', 'drafter5', 'drafter6'], 'carol'));
