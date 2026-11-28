@@ -198,10 +198,12 @@ function hash32(text: string): number {
 
 async function roomOf(p: Player, run: Pick<Run, 'stack' | 'roomId'>): Promise<RoomBody> {
   // A connection the edge drops (ECONNRESET under a full table's load) or a gateway answer from it (502–504: the
-  // server behind it did not answer in time) is asked again, as a browser would; any other answer is final.
+  // server behind it did not answer in time) is asked again, as a browser would; any other answer is final. A
+  // request that timed out gets 6 tries (~2 min): a server frozen by the claws field's coord-stall-60 wakes inside
+  // that, a dead one still fails.
   for (let attempt = 1; ; attempt++) {
     const res = await p.f.context.request.get(`${run.stack.origin}${PREFIX}/api/rooms/${run.roomId}`).catch((err: unknown) => {
-      if (attempt >= 3) throw err;
+      if (attempt >= ((err as Error).name === 'TimeoutError' ? 6 : 3)) throw err;
       return null;
     });
     if (res === null || (res.status() >= 502 && res.status() <= 504 && attempt < 3)) {
