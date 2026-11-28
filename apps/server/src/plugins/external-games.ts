@@ -83,16 +83,15 @@ export function externalGames(opts: ExternalGamesOptions = {}): { configPlugin: 
 	const refresh = (): Promise<void> => {
 		const reader = read;
 		if (reader === null) return Promise.resolve();
-		refreshing ??= Promise.all(
-			hosted
-				.filter((game) => game.manifest === undefined)
-				.map(async (game) => {
-					const got = await reader(game);
-					if (got !== null && current.get(game.id) !== JSON.stringify(got.manifest)) register(game, got);
-				}),
-		).then(
-			() => {
+		const due = hosted.filter((game) => game.manifest === undefined);
+		refreshing ??= Promise.all(due.map((game) => reader(game))).then(
+			(gots) => {
 				refreshing = null;
+				// Read together, registered in the configured order: the create form lists them in it.
+				due.forEach((game, i) => {
+					const got = gots[i]!;
+					if (got !== null && current.get(game.id) !== JSON.stringify(got.manifest)) register(game, got);
+				});
 			},
 			(err: unknown) => {
 				refreshing = null;
@@ -118,13 +117,13 @@ export function externalGames(opts: ExternalGamesOptions = {}): { configPlugin: 
 				...(opts.fetch === undefined ? {} : { fetch: opts.fetch }),
 			});
 			const reader = read;
-			await Promise.all(
-				hosted.map(async (game) => {
-					const got = await reader(game);
-					if (got !== null) register(game, got);
-					else log({ evt: 'alert', key: `external-game-unavailable:${game.id}`, text: `${game.id} has no manifest and no saved copy: it is not a room type, and its saved rooms are quarantined` });
-				}),
-			);
+			// Read together, registered in the configured order: the create form lists them in it.
+			const gots = await Promise.all(hosted.map((game) => reader(game)));
+			hosted.forEach((game, i) => {
+				const got = gots[i]!;
+				if (got !== null) register(game, got);
+				else log({ evt: 'alert', key: `external-game-unavailable:${game.id}`, text: `${game.id} has no manifest and no saved copy: it is not a room type, and its saved rooms are quarantined` });
+			});
 			const timer = setInterval(() => void refresh(), opts.refreshMs ?? REFRESH_MS);
 			timer.unref();
 			return { shutdown: () => clearInterval(timer) };
