@@ -894,8 +894,13 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
     serverFindings(run);
     for (const p of run.players) for (const e of new Set(p.errors)) finding(run, `${p.name} ${e}`);
     say(`${scenario.key}: ${run.findings.length} finding(s)`);
-    await stack.stop();
-    await claws?.stop();
+    // `stack.stop()` throws on a red stack invariant; the scratch claws' agents stop either way, or they keep
+    // 127.0.0.2/.3 bound and the next claws run on this host finds no warm JVM.
+    try {
+      await stack.stop();
+    } finally {
+      await claws?.stop();
+    }
   }
   expect(run.findings, `${scenario.key}: findings`).toEqual([]);
 }
