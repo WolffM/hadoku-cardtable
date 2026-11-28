@@ -40,11 +40,11 @@ export const DESK = { width: 1440, height: 900 };
 const IPHONE_UA =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
 
-export async function openPhone(browser: Browser, name: string): Promise<Friend> {
+export async function openPhone(browser: Browser, name: string, device: 'desktop' | 'phone' = DESKTOP ? 'desktop' : 'phone'): Promise<Friend> {
   const id = FRIENDS[name];
   if (id === undefined) throw new Error(`tour: no identity ${name}`);
   const context = await browser.newContext(
-    DESKTOP
+    device === 'desktop'
       ? { viewport: DESK, deviceScaleFactor: 1, colorScheme: 'dark' }
       : { viewport: PORTRAIT, isMobile: true, hasTouch: true, deviceScaleFactor: 3, colorScheme: 'dark', userAgent: IPHONE_UA },
   );
@@ -295,6 +295,27 @@ export async function shotSizes(page: Page, id: string, meta: ShotMeta, sizes: {
     await shot(page, id, meta);
   }
   if (sizes.small === true || sizes.landscape === true) await setSize(page, PORTRAIT);
+}
+
+/**
+ * One state, shot at both sizes in both colour schemes: each page at 1440×900 and at 390×844, dark then light
+ * (the fleet theme follows `prefers-color-scheme` live), and back to the desktop size in dark after. The
+ * phone shots are the same mouse page resized, so `pointer: coarse` rules are not in them.
+ */
+export async function shotBoth(pages: readonly Page[], id: string, meta: ShotMeta, opts: { full?: boolean } = {}): Promise<void> {
+  for (const page of pages) {
+    for (const size of [DESK, PORTRAIT]) {
+      await setSize(page, size);
+      for (const colorScheme of ['dark', 'light'] as const) {
+        await page.emulateMedia({ colorScheme });
+        await page.waitForTimeout(250);
+        const theme = await page.evaluate(() => document.querySelector('[data-theme]')?.getAttribute('data-theme') ?? '');
+        await shot(page, `${id}-${colorScheme}`, { ...meta, state: `${meta.state} — ${colorScheme}`, note: theme === '' ? 'no data-theme' : `data-theme ${theme}` }, opts);
+      }
+    }
+    await setSize(page, DESK);
+    await page.emulateMedia({ colorScheme: 'dark' });
+  }
 }
 
 /** Keep going when one state cannot be reached; the miss is recorded for the artifact. */
