@@ -376,7 +376,9 @@ async function playStep(
     await a.waitForTimeout(3_000);
     await once('match-player', [a], S('match', '#/match/<id>', 'the person’s own match, game 1, opening hand'));
     if (hold) return;
-    const concede = phone ? await inMenu(a, 'live-concede') : a.getByTestId('live-concede');
+    // The game can end under the step (the other seat conceded: the result now covers the board); the next step reads it.
+    const concede = phone ? await inMenu(a, 'live-concede').catch(() => null) : a.getByTestId('live-concede');
+    if (concede === null) return;
     if (phone) await concede.tap({ timeout: 3_000 }).catch(() => undefined);
     else await concede.click({ timeout: 3_000 }).catch(() => undefined);
     await once('match-concede', [a], S('match', '#/match/<id>', 'the Concede sheet'));
