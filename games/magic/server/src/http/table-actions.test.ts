@@ -447,6 +447,7 @@ describe('the room’s seat routes take an operator as the leader (before the lo
 		await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
 		cleanups.push(async () => {
 			await new Promise<void>((done) => server.close(() => done()));
+			await snapshotWriter().idle();
 			await rm(dir, { recursive: true, force: true });
 		});
 		const h = { base: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, roomId } as Harness;
