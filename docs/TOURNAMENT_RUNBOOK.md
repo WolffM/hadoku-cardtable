@@ -103,6 +103,13 @@ comes back as a plain 1/1 body without the copied creature's abilities (the turn
 with an Offspring token on the board, the players may agree to treat the token as having its
 abilities, or use **Reset game**.
 
+**Some turns cannot be restarted.** When the game holds something the turn's save cannot keep (on
+PPE's Bloomburrow soak, about 1 match in 7: a token copy on the board), a player's **Restart turn** is
+not offered, and an admin's ⋯ → **Restart turn** answers "this turn cannot be restored exactly"
+with what it is. Then use **Reset game**, or **Game to ‹player›** if both players agree. A failover
+on such a turn still restores the board, without that token's abilities: look at the board with both
+players, and award the game if it mattered.
+
 ## Find the tool from what you see
 
 | What you see | Tool |
