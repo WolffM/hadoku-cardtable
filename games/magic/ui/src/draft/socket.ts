@@ -453,6 +453,16 @@ function watchesAnother(shown: DraftView | null, next: DraftView): boolean {
   return shown?.viewer.kind !== 'watcher' || shown.viewer.seatId !== next.viewer.seatId;
 }
 
+/**
+ * The same moment with another pick timer: one turned on or off, or its speed changed, mid-draft. No card
+ * moved, so the server sends the table again at the same seq (`room/socket.ts` `resync`). The time left
+ * differs on every send, so only the timer's length and presence count.
+ */
+function retimed(shown: DraftView | null, next: DraftView): boolean {
+  const timerOf = (view: DraftView | null): number | null => (view?.viewer.kind === 'seat' ? (view.viewer.timer?.totalMs ?? null) : null);
+  return next.viewer.kind === 'seat' && timerOf(shown) !== timerOf(next);
+}
+
 export function ingest(draft: SocketDraft, raw: unknown): void {
   const parsed = safeParseServerMessage(raw);
   if (!parsed.ok) {
@@ -481,15 +491,12 @@ export function ingest(draft: SocketDraft, raw: unknown): void {
     return;
   }
 
-  const rewatch =
-    msg.type === 'state' &&
-    draft.cursor?.epoch === msg.cursor.epoch &&
-    draft.cursor.seq === msg.cursor.seq &&
-    watchesAnother(draft.view, msg.view);
+  const sameMoment = msg.type === 'state' && draft.cursor?.epoch === msg.cursor.epoch && draft.cursor.seq === msg.cursor.seq;
+  const rewatch = sameMoment && (watchesAnother(draft.view, msg.view) || retimed(draft.view, msg.view));
   if (verdict === 'duplicate' && !rewatch) {
     // Drop. No resync, and no clobbering newer state with an older snapshot.
-    // Except the answer to a `watch`: the same moment of the draft, over
-    // another drafter's shoulder.
+    // Except the same moment of the draft seen anew: the answer to a `watch`
+    // (over another drafter's shoulder), or a pick timer turned on or off.
     draft.stats.duplicatesDropped += 1;
     notify(draft);
     return;

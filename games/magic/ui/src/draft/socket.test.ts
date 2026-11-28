@@ -256,6 +256,21 @@ describe('classifySeq dispatch', () => {
     expect(countOf(stub, 'resync')).toBe(0);
   });
 
+  // The fire drill, 2026-11-28: the leader's pick timer turned on mid-draft (`POST …/draft/timer`) moves no card, so the
+  // server sends every screen its table again at the same seq (`room/socket.ts` `resync`); dropped as a duplicate, the
+  // drafter it was for lost their pick to the bot with no timer on their screen.
+  it('a snapshot of the same moment with a pick timer the screen lacks is adopted; the same timer again is not', () => {
+    const seat = at(1);
+    if (seat.viewer.kind !== 'seat') throw new Error('expected a seat fixture');
+    const timed = (timer: { totalMs: number; msLeft: number } | undefined): DraftView => ({ ...seat, viewer: { ...seat.viewer, ...(timer === undefined ? {} : { timer }) } }) as DraftView;
+    ingest(draft, stateMessage(timed(undefined)));
+    ingest(draft, stateMessage(timed({ totalMs: 40_000, msLeft: 40_000 })));
+    expect(draft.view?.viewer).toMatchObject({ kind: 'seat', timer: { totalMs: 40_000 } });
+    ingest(draft, stateMessage(timed({ totalMs: 40_000, msLeft: 39_000 })));
+    expect(draft.stats.duplicatesDropped).toBe(1);
+    expect(countOf(stub, 'resync')).toBe(0);
+  });
+
   it('gap — asks for a resync, carrying the cursor it actually has', () => {
     ingest(draft, stateMessage(at(1)));
     ingest(draft, updateMessage(at(9)));
