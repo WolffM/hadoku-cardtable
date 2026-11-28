@@ -225,7 +225,8 @@ test('the draft rope: an idle drafter is picked for on timeout, and every pick i
         const card = alice.page.locator('[data-testid="pack"] button[data-testid="card"]:not([disabled])').first();
         await card.waitFor({ timeout: UI_TIMEOUT });
         await card.click();
-        await expect.poll(() => poolSize(alice), { timeout: UI_TIMEOUT }).toBe(n + 1);
+        // At least: alice has a rope too, and on a starved page her own timeout can pick before her click lands.
+        await expect.poll(() => poolSize(alice), { timeout: UI_TIMEOUT }).toBeGreaterThanOrEqual(n + 1);
       }
     })();
 
@@ -274,7 +275,8 @@ test('the rope runs out when the timeout pick lands, however many envelopes arri
         const card = alice.page.locator('[data-testid="pack"] button[data-testid="card"]:not([disabled])').first();
         await card.waitFor({ timeout: UI_TIMEOUT });
         await card.click();
-        await expect.poll(() => poolSize(alice), { timeout: UI_TIMEOUT }).toBe(n + 1);
+        // At least: alice has a rope too, and on a starved page her own timeout can pick before her click lands.
+        await expect.poll(() => poolSize(alice), { timeout: UI_TIMEOUT }).toBeGreaterThanOrEqual(n + 1);
       }
     })();
     await expect.poll(() => poolSize(bob), { message: 'two timeouts pick for bob', timeout: expectedMs(15) + expectedMs(14) + 15_000, intervals: [250] }).toBe(2);
@@ -290,11 +292,14 @@ test('the rope runs out when the timeout pick lands, however many envelopes arri
     console.log(`[w83b] bob's deadlines ${JSON.stringify(ropeSet)}`);
     console.log(`[w83b] rope emptied ${JSON.stringify(emptied)} picks landed ${JSON.stringify(landed)} gaps ${JSON.stringify(landed.map((l, i) => l.at - (emptied[i] ?? NaN)))} server lateMs ${JSON.stringify(timeouts.map((t) => t.lateMs))} of it the event loop's ${JSON.stringify(timeouts.map((t) => t.loopLateMs))} bob views ${midPick}`);
     expect(emptied.length, 'the rope ran out once per pick').toBeGreaterThanOrEqual(2);
-    for (const [i, l] of landed.entries()) {
-      // Empty no earlier than a moment before the pick lands, and the pick lands no later than a moment after.
-      const gap = l.at - emptied[i]!;
-      expect(gap, `pick ${i + 1}: the pick landed ${gap} ms after the rope ran out`).toBeLessThan(750);
-      expect(gap, `pick ${i + 1}: the rope ran out ${-gap} ms after the pick landed`).toBeGreaterThan(-750);
+    expect(timeouts.length, 'the server picked for bob twice').toBeGreaterThanOrEqual(2);
+    // The rope's end against the moment the server made the pick, both on this host's clock: the page's
+    // receipt of the pick (`landed`, logged above) waits on its renderer, which a starved claw froze for
+    // 2.9 s frames while the rope and the server agreed within 60 ms (e2e-nightly 46161324794).
+    for (const [i, t] of timeouts.slice(0, 2).entries()) {
+      const gap = Date.parse(t.t as string) - emptied[i]!;
+      expect(gap, `pick ${i + 1}: the server picked ${gap} ms after the rope ran out`).toBeLessThan(750);
+      expect(gap, `pick ${i + 1}: the rope ran out ${-gap} ms after the server picked`).toBeGreaterThan(-750);
     }
     // The server's own timer asks for the deadline itself: no waiting on a model, no held turn. How late the
     // event loop then ran it (`loopLateMs`) is the host's: a claw's busy loop held it 450 ms with nothing of
