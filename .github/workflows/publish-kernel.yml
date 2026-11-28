@@ -178,17 +178,18 @@ jobs:
       # dry run: it packs, renames, runs the leak gate and prints the file list,
       # and uploads nothing, so the hosted job below has nothing of it to publish.
       # A dry run that the gate refuses is reported, not fatal: the gate's
-      # findings are what the first-publish request is decided on.
-      - name: Is the npmjs half live?
-        id: npmjs
-        run: echo "live=${{ vars[matrix.npmjs] == 'live' }}" >> "$GITHUB_OUTPUT"
-
+      # findings are what the first-publish request is decided on. A LIVE one
+      # the gate refuses fails the job. Both conditions read `vars`, never a
+      # step output: on a `uses:` step, continue-on-error sees `steps` as
+      # empty, so a `steps.*` condition there is always true. That kept
+      # game-server's refused live publish green for a day
+      # (hadoku-actions#12).
       - name: Stage ${{ matrix.package }} for npmjs
-        continue-on-error: ${{ steps.npmjs.outputs.live != 'true' }}
+        continue-on-error: ${{ vars[matrix.npmjs] != 'live' }}
         uses: WolffM/hadoku-actions/publish-npmjs@v1
         with:
           package-dir: ${{ env.DIR }}
-          dry-run: ${{ steps.npmjs.outputs.live != 'true' }}
+          dry-run: ${{ vars[matrix.npmjs] != 'live' }}
 
       - name: Report the outcome so a silent failure can't hide
         if: always()
