@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { differences, differenceText, expectedOf, signatureOf } from './expected.ts';
+import { differences, differenceText, expectedOf, RECORDED_SEED, signatureOf, sweepExit } from './expected.ts';
 import type { CardResult } from './run-cards.ts';
 
 function result(over: Partial<CardResult>): CardResult {
@@ -63,5 +63,22 @@ describe('differences', () => {
 
   it('names a card the set has no expectation for', () => {
     expect(differences([result({ card: 'New Card' })], recorded)).toMatchObject([{ card: 'New Card', expected: null }]);
+  });
+});
+
+describe('sweepExit — the recording is one seed\'s boards', () => {
+  const clean = { flagged: 0, broken: 0, differing: 0, seed: RECORDED_SEED };
+
+  it('fails a play that differs from the recording on the seed it was recorded on', () => {
+    expect(sweepExit(clean)).toBe(0);
+    expect(sweepExit({ ...clean, differing: 1 })).toBe(1);
+  });
+
+  it('reports, and does not fail, a difference on another seed: its boards hold other targets and permanents', () => {
+    expect(sweepExit({ ...clean, seed: 1129, differing: 23 })).toBe(0);
+  });
+
+  it('still fails a flag or a broken keyword promise on any seed', () => {
+    for (const bad of [{ flagged: 1 }, { broken: 1 }]) expect(sweepExit({ ...clean, seed: 1129, ...bad }), JSON.stringify(bad)).toBe(1);
   });
 });
