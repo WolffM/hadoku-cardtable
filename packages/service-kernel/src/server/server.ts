@@ -61,7 +61,7 @@ import { capacitySampler } from '../capacity/index.ts';
 import { createAccountErase, ERASE_PATH, MERGE_PATH, type EraseStep } from '../erase/index.ts';
 import { healthResponse, readCommit, serviceIdOf, type HealthExtra } from '../health/index.ts';
 import { checkBundle, isEmbedEntry, stampOrigin, type BasePathVerdict, type Gate } from '../http/index.ts';
-import { bootClock, busyHandler, closeConnections, sendThenFlush, type BusyRun } from '../lifecycle/index.ts';
+import { bootClock, busyHandler, closeConnections, sendThenFlush, toggleInspector, type BusyRun } from '../lifecycle/index.ts';
 import type { JsonLog } from '../log/index.ts';
 import { firstSeen, installTelemetry, type Report } from '../telemetry/index.ts';
 import { createBus, type Bus, type EventMap, type KernelEvents } from './bus.ts';
@@ -380,6 +380,7 @@ export async function createGameServer<E extends EventMap, S>({ id, config, stat
 	if (config.signals ?? true) {
 		process.on('SIGTERM', () => void shutdown('SIGTERM'));
 		process.on('SIGINT', () => void shutdown('SIGINT'));
+		process.on('SIGUSR1', () => toggleInspector(config.log));
 	}
 
 	// After every socket.io attach: engine.io moves itself to the front of the request listeners.
