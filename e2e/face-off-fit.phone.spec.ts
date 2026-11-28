@@ -37,14 +37,13 @@ test(titled('a table page at 390px: the face-off keeps both avatars whole, and t
       expect(res.ok(), `${method} ${path}: ${res.status()}`).toBe(true);
       return (await res.json()) as { id?: string };
     };
+    // Classic: the deck is chosen on the table page, so its Ready makes the match at once.
     const { id: roomId } = await api('POST', '/rooms', { name: `e2e face-off fit ${Date.now()}`, gameType: 'constructed-1v1', mode: 'classic' });
     await api('PATCH', `/rooms/${roomId}`, { settings: { tournament: true, tournamentDecks: 'per-round' } });
     await api('POST', `/rooms/${roomId}/pod/sit`, { seat: 0 });
     await api('POST', `/rooms/${roomId}/pod/ai`, { seat: 1, on: true });
     await page.goto(`${stack.origin}${PREFIX}/#/room/${roomId}`);
-    // Classic: a deck chosen in the lobby, so the round's match exists as it pairs and its page offers the way in.
-    await page.getByTestId('deck-mine').getByTestId('deck-option').first().click({ timeout: UI_TIMEOUT });
-    await page.locator('[data-testid="ready-toggle"]:enabled').click({ timeout: UI_TIMEOUT });
+    await page.getByTestId('ready-toggle').click({ timeout: UI_TIMEOUT });
     expect(await toMyTable(page, UI_TIMEOUT), 'my lit table opens its page').toBe('table');
     const seats = page.getByTestId('table-seats');
     await expect(seats, 'the reveal comes to rest').not.toHaveAttribute('data-revealing', /.*/, { timeout: UI_TIMEOUT });
@@ -63,7 +62,10 @@ test(titled('a table page at 390px: the face-off keeps both avatars whole, and t
       expect(f.right, `avatar ${i}: inside the arena's right edge (${JSON.stringify(f)})`).toBeGreaterThanOrEqual(0);
     }
 
-    // The way on is a link drawn as the primary button: it reads as one, as the hub's and the table card's do.
+    // A deck and the table's Ready: the match exists, and the page offers the way in. It is a link drawn as the
+    // primary button, and reads as one, as the hub's and the table card's do.
+    await page.getByTestId('deck-option').first().click({ timeout: UI_TIMEOUT });
+    await page.locator('[data-testid="ready-toggle"]:enabled').click({ timeout: UI_TIMEOUT });
     const go = page.getByTestId('table-way').locator('a[data-door]');
     await expect(go).toBeVisible({ timeout: UI_TIMEOUT });
     expect(await go.evaluate((el) => getComputedStyle(el).textDecorationLine), 'Enter game is not underlined').toBe('none');
