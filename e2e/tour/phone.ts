@@ -297,14 +297,23 @@ export async function shotSizes(page: Page, id: string, meta: ShotMeta, sizes: {
   if (sizes.small === true || sizes.landscape === true) await setSize(page, PORTRAIT);
 }
 
+/** The sizes `shotBoth` shoots: 1440×900 and 390×844, or `TOUR_SIZES` (`768x1024,1920x1080`). */
+const SHOT_SIZES = (process.env.TOUR_SIZES ?? '').trim() === ''
+  ? [DESK, PORTRAIT]
+  : process.env.TOUR_SIZES!.split(',').map((s) => {
+      const [width, height] = s.trim().split('x').map(Number);
+      if (!(width > 0 && height > 0)) throw new Error(`tour: TOUR_SIZES has no size in "${s}"`);
+      return { width, height };
+    });
+
 /**
- * One state, shot at both sizes in both themes: each page at 1440×900 and at 390×844, dark then light, and
- * back to the desktop size after. The phone shots are the same mouse page resized, so `pointer: coarse`
- * rules are not in them.
+ * One state, shot at every size in both themes: each page at 1440×900 and at 390×844 (or `TOUR_SIZES`'s),
+ * dark then light, and back to the desktop size after. The phone shots are the same mouse page resized, so
+ * `pointer: coarse` rules are not in them.
  */
 export async function shotBoth(pages: readonly Page[], id: string, meta: ShotMeta, opts: { full?: boolean } = {}): Promise<void> {
   for (const page of pages) {
-    for (const size of [DESK, PORTRAIT]) {
+    for (const size of SHOT_SIZES) {
       await setSize(page, size);
       for (const scheme of ['dark', 'light'] as const) {
         const theme = await wearTheme(page, scheme);
