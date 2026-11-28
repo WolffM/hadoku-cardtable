@@ -550,11 +550,17 @@ function doubledHandovers(rows: readonly LogRow[]): string[] {
  * server rows across the wait are printed with it, which is what tells the two apart.
  */
 function expiredStandIns(rows: readonly LogRow[], excused: readonly Excused[] = []): string[] {
+  // A fault window lasts, for each seat, until that seat's socket is back: a browser that timed its
+  // socket out during the fault rejoins seconds after the server wakes and redraws its stand-ins then.
+  const back = (w: Excused, r: LogRow): number => {
+    const returned = rows.find((o) => o.evt === 'seat-returned' && o.matchId === r.matchId && o.seat === r.seat && Date.parse(String(o.t)) >= w.from);
+    return Math.max(w.to, returned === undefined ? w.to : Date.parse(String(returned.t)));
+  };
   const overlaps = (r: LogRow): Excused | undefined => {
     const end = Date.parse(String(r.t));
     const start = end - Number(r.ms);
-    // A browser's report of it lands a beat after the server is back.
-    return excused.find((w) => start <= w.to + 2000 && end >= w.from);
+    // A browser's report of it lands a beat after it is back.
+    return excused.find((w) => start <= back(w, r) + 2000 && end >= w.from);
   };
   const expired = rows.filter((r) => r.evt === 'client' && r.kind === 'stand-in');
   for (const r of expired) {
