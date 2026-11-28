@@ -21,7 +21,7 @@ describe('restartReport — each Restart turn against the turn it went back to',
   it('names what the restore lost or gained, key by key', () => {
     const rows = [snap(4, state(['Forest|Id:10', 'Grizzly Bears|Id:11'])), { evt: 'restart-turn', matchId: M, turn: 4 }, snap(4, state(['Forest|Id:41']), 'e2')];
     const [r] = restartReport(rows, M).restores;
-    expect(r).toMatchObject({ turn: 4, same: false, missing: false });
+    expect(r).toMatchObject({ turn: 4, same: false, missing: false, texts: { before: rows[0]!.state, after: rows[2]!.state } });
     expect(r!.diff).toEqual([{ key: 'p0battlefield', before: ['Grizzly Bears|Id:Grizzly Bears'], after: [] }]);
   });
 

@@ -24,6 +24,8 @@ export interface RestoreCheck {
   diff: { key: string; before: string[]; after: string[] }[];
   /** No restored snapshot of the turn was seen in the log. */
   missing: boolean;
+  /** Both snapshots' own text, when they differ: the cards a stale id once named are only there. */
+  texts?: { before: string; after: string };
 }
 
 export interface LossyTurn {
@@ -111,7 +113,7 @@ export function restartReport(rows: readonly Row[], matchId: string): RestartRep
         continue;
       }
       const diff = snapshotDiff(from.state, again.state as string);
-      restores.push({ turn, same: diff.length === 0, diff, missing: false });
+      restores.push({ turn, same: diff.length === 0, diff, missing: false, ...(diff.length === 0 ? {} : { texts: { before: from.state, after: again.state as string } }) });
     } else if (evt === 'restart-refused' || evt === 'undo-refused') {
       refused.push({ turn: lastSnapshot?.turn ?? null, act: String(row.act ?? row.reason ?? ''), error: String(row.error ?? row.reason ?? '') });
     }
