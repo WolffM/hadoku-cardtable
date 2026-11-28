@@ -215,21 +215,17 @@ async function podCell(browser: Browser, jar: { jar: string; res: string }, name
   }
 }
 
-const CELLS: { field: string[]; leaver: string; what: string }[] = [
-  // An even field: the leaver's round-1 opponent has the win, one table plays.
-  { field: ['alice', 'bob', 'carol', 'erin'], leaver: 'carol', what: 'four drafters, one leaves' },
-  // An odd field: a bye, and the leaver is either at a table (their opponent's win) or given the bye themselves.
-  { field: ['alice', 'bob', 'carol', 'erin', 'drafter3'], leaver: 'carol', what: 'five drafters, one leaves: an odd field and its bye' },
-];
+const title = (what: string): string => titled(`a draft pod (${what}) through a deploy mid-draft, the leaver, a deploy mid-round and a DQ between rounds: nobody is stranded and everyone is named`);
 
-for (const cell of CELLS) {
-  test(
-    titled(`a draft pod (${cell.what}) through a deploy mid-draft, the leaver, a deploy mid-round and a DQ between rounds: nobody is stranded and everyone is named`),
-    async ({ browser }) => {
-      test.skip(!forge.ok, forge.ok ? '' : forge.reason);
-      if (!forge.ok) return;
-      test.setTimeout(16 * 60_000);
-      await podCell(browser, forge, cell.field, cell.leaver);
-    },
-  );
+/** One cell: the forge check, then the run. Each cell's `test()` is its own line, since forge.yml re-runs a red by its file and line. */
+async function runCell(browser: Browser, field: string[], leaver: string): Promise<void> {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(16 * 60_000);
+  await podCell(browser, forge, field, leaver);
 }
+
+// An even field: the leaver's round-1 opponent has the win, one table plays.
+test(title('four drafters, one leaves'), ({ browser }) => runCell(browser, ['alice', 'bob', 'carol', 'erin'], 'carol'));
+// An odd field: a bye, and the leaver is either at a table (their opponent's win) or given the bye themselves.
+test(title('five drafters, one leaves: an odd field and its bye'), ({ browser }) => runCell(browser, ['alice', 'bob', 'carol', 'erin', 'drafter3'], 'carol'));
