@@ -2935,8 +2935,9 @@ export function RoomTableScreen({ roomId, tableId, step }: { roomId: string; tab
       roomTitle={roomTitle}
       titleAside={!streamed && view?.scheduledFor != null && <RoomSignups roomId={roomId} members={view.members.length} />}
       settled={settled}
-      // Not while leaving would drop me from a running event: its own Drop does that, asked for.
-      leave={leavingDrops(pod, view?.you.id ?? null) ? undefined : () => rooms.leave(roomId)}
+      // Leaving a running event drops me from it: Leave says so and asks once more, and only that press drops.
+      leave={() => rooms.leave(roomId, { drop: leavingDrops(pod, view?.you.id ?? null) })}
+      leaveAsks={leavingDrops(pod, view?.you.id ?? null) ? 'Leave tournament' : undefined}
       streamed={streamed}
       resolved={resolved}
       pending={pending}

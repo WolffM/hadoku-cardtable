@@ -52,8 +52,11 @@ to act on in that phase (no table, no game), and nothing changes.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | tab closed, back inside 30 s | ✓ seat kept | ✓ draft seat held | ✓ | ✓ same match | ✓ | ✓ | ✓ |
 | tab closed for minutes | ✓ pod seat kept | ✓ seat held; picks wait for them unless the **pick timer** is on (Sunday note 1) | **FIXED** (bug 2) kept their table seat | ✓ (a live match holds the seat) | **FIXED** (bug 2) | **FIXED** (bug 2) | ✓ |
+| away 30 min, past every hold and the idle sweep (`absent-30m`) | ✓ | ✓ still a drafter; nobody else may sit; nothing picked for them | ✓ still entered | ✓ table seat kept | ✓ | ✓ | ✓ |
 | leaves for good | ✓ seat freed | **FIXED** (bugs 1, 5): seat picked by the draft bot at once; dropped at the deal, never paired | ✓ dropped, match forfeited 2–0 | ✓ dropped, game let go, match forfeited | ✓ | ✓ pod ends, archived | ✓ named in the standings |
-| DQ by the leader | refused (`no-pod`): remove the seat instead | refused until the draft ends (workaround below) | ✓ dropped, match conceded | ✓ their game conceded | ✓ their done match stands, never paired again | ✓ | refused (`no-pod`) |
+| a leave nobody asked for (Main menu, the top bar, a script) | ✓ leaves | **FIXED** (seat tenure): refused (409 `drops`), still in | refused, still in | refused, still in | refused | refused | ✓ leaves |
+| leaves, then joins the room again (`leave-rejoin`) | ✓ | **FIXED** (seat tenure): stays dropped, watches; the bot keeps the seat | ✓ stays dropped | ✓ | ✓ | ✓ | ✓ |
+| DQ by the leader | refused (`no-pod`): remove the seat instead | **FIXED** (seat tenure): dropped, the draft bot has the seat at once, never paired; survives a restart (`dq-restart`) | ✓ their game conceded | ✓ their done match stands, never paired again | ✓ | refused (`no-pod`) |
 | a player drops their table (Concede match) | — | — | ✓ a loss, stays in | ✓ | ✓ | ✓ | — |
 | the leader resets a table's game | — | — | refused (`no-game`) | ✓ score and seats stand, the next start replays the game | ✓ (a live table) | ✓ | — |
 | the leader resets the whole room | ✓ | refused (`pod-under-way`) | refused | refused | refused | refused | refused |
@@ -109,9 +112,8 @@ it in every cell, a restart included, with the real `attachPeople` sweep.
    Workaround if it is off and someone vanishes: the vanished player presses Leave, with no other tab of
    theirs still open on the room. Their seat then picks at once (bug 5). A second tab left on the room joins
    them again on its next read, and they are an AFK seat once more.
-2. **DQ waits for the draft to end.** `dqPlayer` refuses until round 1 is dealt, and round 1 is dealt the
-   instant the last pick is made. Severity: low. Workaround: DQ them the moment the draft ends. Their round-1
-   match is conceded, and their opponent plays on.
+2. ~~**DQ waits for the draft to end.**~~ Fixed 2026-11-28 (seat tenure): a DQ mid-draft drops them at once and
+   the draft bot picks for their seat from then on.
 3. **No whole-room reset once the draft is dealt.** That is intended: a reset would throw away every
    pool. Reset a single table's game instead (the score stands).
 4. **A Concede match is not a drop.** The player who concedes stays in and is paired next round. To take
@@ -154,3 +156,25 @@ that name everyone. Each step asserts every remaining entrant has exactly one pl
 the bye). `e2e/w72-pod.spec.ts` (three humans, a bye in round 1)
 and `e2e/w83c-leader-tools.spec.ts` (DQ, game reset) cover the rest, proven in the same claw runs. Run
 ids are in the lane's closing note (`~/.cache/cardtable-manager/pre-state-machine-closing.md`).
+
+## Seat tenure (2026-11-28)
+
+The operator's ruling: a tournament seat (the draft seat and every round's table seat) never expires.
+Only a DQ or drop by the leader or an operator, or the player's own Leave, ends it; then the draft bot
+takes their draft seat. Every timer that touches a seat, and what it does in a tournament room:
+
+| timer | where | what it does | in a tournament |
+| --- | --- | --- | --- |
+| lobby seat release, 30 s | `room/socket.ts` `SEAT_RELEASE_MS` → `Lobby.releaseAbandonedSeats` | frees a table seat whose holder's sockets all closed | skips every pod pairing's table and any series under way: no effect |
+| draft disconnect grace, 5 s | `plugins/rooms.ts` `DISCONNECT_GRACE_MS` → `draftRooms.ts` `vacateAfterGrace` | empties the draft seat (picks wait) | the seat stays the drafter's: only the pod's drafters are ever seated (`joinDraftRoom`) |
+| draft seat hold, 120 s | `draftRooms.ts` `reservationTtlMs` | after it, anyone may take an empty seat | in a pod, nobody but the drafter may (the cells `5 min`, `30 min` in `socket.test.ts`) |
+| presence idle, 24 h | `room/socket.ts` `NO_HEARTBEAT_IDLE_MS` | treats a silent connection as gone | as the 5 s grace: costs nothing |
+| room idle sweep | `lobby.ts` `ROOM_IDLE_MS` 12 h, spared `POD_SPARED_MS` 24 h from the deal | forgets a room nobody touched | not reached by a night's absence; a whole room untouched for 12 h, 24 h after its deal, is gone |
+| match rejoin grace, 5 min | `play/socket.ts` `DEFAULT_REJOIN_GRACE_MS` → `Match.armRejoinGrace` | parks a match with neither seat here | no forfeit: the table keeps its series and the next start resumes it |
+| match chess clock / pick timer | Forge, `Lobby.setPickTimer` | a seat out of time loses the game / is picked for | the game's own clock, present or not: not a seat expiry |
+| external games' seat hold, 120 s | `packages/game-server/src/relay-game.ts` `SEAT_HOLD_MS` | relay-game (bomberman) seats | no tournaments there |
+
+What ended a seat without being asked, and no longer does: the result screen's Main menu and any other
+`/leave` (refused mid-event unless `?drop=1`, which only the room's confirmed "Leave tournament" sends),
+and a drafter who left joining the room again (now stays out, `RoomRecord.podDropped`).
+

@@ -32,6 +32,11 @@ export interface RoomShellProps {
    * head row draws Leave, and the page's top bar leaves through it too (`room-exit.tsx`).
    */
   leave?: LeaveRoom;
+  /**
+   * Leaving now costs the viewer their place in an event (a tournament under way), and this is what the
+   * leave is called: Leave reads so, asks once more before it leaves, and the top bar only goes home.
+   */
+  leaveAsks?: string;
   /** Close, Settings, and whatever the game type's own settings panel wants beside them. */
   headerTools: ReactNode;
   streamed: boolean;
@@ -62,6 +67,7 @@ export function RoomShell({
   titleAside,
   settled,
   leave,
+  leaveAsks,
   headerTools,
   streamed,
   streamedSubLine,
@@ -76,9 +82,8 @@ export function RoomShell({
   roomMissingMessage,
   children,
 }: RoomShellProps) {
-  useRoomLeave(leave ?? null);
+  useRoomLeave(leaveAsks === undefined ? (leave ?? null) : null);
   const home = useRoomHome();
-  const [leaving, setLeaving] = useState(false);
   return (
     <div ref={shellRef} className="shell shell--fit" data-testid="constructed" data-members={dataMembers}>
       <header className="shell__head">
@@ -95,20 +100,7 @@ export function RoomShell({
         )}
         {roomTitle !== undefined && titleAside}
         <div className="shell__tools">
-          {leave !== undefined && home !== null && (
-            <button
-              type="button"
-              className="room-leave ct-action"
-              data-testid="room-leave"
-              disabled={leaving}
-              onClick={() => {
-                setLeaving(true);
-                void leaveRoomThen(home);
-              }}
-            >
-              <span className="ct-action__label">Leave</span>
-            </button>
-          )}
+          {leave !== undefined && home !== null && <RoomLeave leave={leave} asks={leaveAsks} home={home} />}
           {headerTools}
         </div>
         {resolved && streamed && streamedSubLine}
@@ -158,5 +150,50 @@ export function RoomShell({
         )}
       </main>
     </div>
+  );
+}
+
+/** The head row's Leave. A leave that costs an event (`asks`) is asked once more, by its name, before it leaves. */
+function RoomLeave({ leave, asks, home }: { leave: LeaveRoom; asks: string | undefined; home: () => void }) {
+  const [leaving, setLeaving] = useState(false);
+  const [asking, setAsking] = useState(false);
+  if (asks === undefined || !asking) {
+    return (
+      <button
+        type="button"
+        className="room-leave ct-action"
+        data-testid="room-leave"
+        disabled={leaving}
+        onClick={() => {
+          if (asks !== undefined) {
+            setAsking(true);
+            return;
+          }
+          setLeaving(true);
+          void leaveRoomThen(home);
+        }}
+      >
+        <span className="ct-action__label">{asks ?? 'Leave'}</span>
+      </button>
+    );
+  }
+  return (
+    <span className="room-leave__ask" data-testid="room-leave-ask">
+      <button type="button" className="room-leave ct-action" data-testid="room-leave-no" autoFocus disabled={leaving} onClick={() => setAsking(false)}>
+        <span className="ct-action__label">Cancel</span>
+      </button>
+      <button
+        type="button"
+        className="room-leave ct-action ct-action--danger"
+        data-testid="room-leave-yes"
+        disabled={leaving}
+        onClick={() => {
+          setLeaving(true);
+          void leave().finally(home);
+        }}
+      >
+        <span className="ct-action__label">{asks}</span>
+      </button>
+    </span>
   );
 }

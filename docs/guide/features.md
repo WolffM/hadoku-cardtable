@@ -248,7 +248,10 @@ the leader leaves, the room passes to whoever has been in it longest.
 
 **What it does not do.** Inside a watchparty room the table belongs to
 watchparty, so there is no Leave there; watchparty's own controls end it.
-Mid-tournament, leaving drops you from the event, as it always has.
+Mid-tournament the button reads **Leave tournament** and asks once more,
+because leaving drops you from the event; clicking **Card Table**, a match's
+**Main menu**, closing the tab or losing your connection only take you away,
+and your seat waits for you for as long as the event runs.
 
 ## Room link previews
 

@@ -55,6 +55,8 @@ export interface LobbyCore<V extends RoomViewCore, C> {
 	setReady(roomId: string, callerId: string, ready: boolean): boolean;
 	touch(roomId: string, callerId: string): void;
 	leave(roomId: string, callerId: string): { ok: true; room: V; forfeited?: { tableId: string; matchIds: readonly string[] } } | { ok: false };
+	/** Whether leaving now drops the caller from the room's event, which only an asked-for leave may do. */
+	leaveDrops(roomId: string, callerId: string): boolean;
 	close(roomId: string, callerId: string): { ok: true; matches: readonly string[] } | { ok: false; reason: string };
 	bindWatchparty(caller: CallerLike, watchpartyRoom: string): { ok: true; room: V } | { ok: false };
 	roomOfMatch(matchId: string): V | undefined;
@@ -447,13 +449,16 @@ export function attachRoomCore<V extends RoomViewCore, C, P extends object, G = 
 		res.json(roomBody(room, caller.id));
 	});
 
-	// A member steps out of their own room. A tournament entrant mid-round is a drop (`forfeited`).
+	// A member steps out of their own room. A tournament entrant mid-event is a drop (`forfeited`), and
+	// only when they said so (`?drop=1`, the room's own "Leave tournament"): no page closing, Back or
+	// "Main menu" ever drops anyone from a tournament (the operator, 2026-11-28).
 	rooms.post('/:id/leave', (req: Request, res: Response) => {
 		if (parseBody(wire.emptyBody, req, res) === null) return;
 		const caller = callerOf(req);
 		if (!isDurableParticipantId(caller.id)) return notDurable(res, 'leave');
 		const id = String(req.params.id);
 		if (!wire.roomIdRe.test(id)) return noMatch(res);
+		if (req.query.drop !== '1' && lobby.leaveDrops(id, caller.id)) return res.status(409).json({ error: 'leaving now drops you from the tournament', reason: 'drops' });
 		const result = lobby.leave(id, caller.id);
 		if (!result.ok) return noMatch(res);
 		if (result.forfeited !== undefined) deps.forfeited?.(id, result.forfeited.tableId, caller.id, result.forfeited.matchIds);

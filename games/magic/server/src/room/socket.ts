@@ -502,22 +502,35 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	};
 
 	/**
-	 * The human seats whose drafter has left the room (`Lobby.leave`): out of the event (`#dealPodRounds`
-	 * drops them), so nobody waits on their picks. Each is on a deadline of nothing, timer or no timer.
+	 * The human seats whose drafter is out of the event: disqualified, or gone on their own word (`Lobby.leave`),
+	 * both kept as the pod's `dropped` (and a member no longer in the room, for a record from before it). Nobody
+	 * waits on their picks: each is on a deadline of nothing, timer or no timer. Absence is never here: a drafter
+	 * whose page closed, for any length of time or across a restart, keeps their seat and their picks.
 	 * Their seat is the one the pod dealt them (`Lobby.dealtSeats`, which a restart, a rejoin by someone else
 	 * or a hold running out never changes), else the one they sit in or the table remembers them by: their
 	 * page closing vacates it, so an occupied seat alone would lose them.
 	 */
 	const goneSeats = (room: DraftRoom): Set<number> => {
-		const { roomId } = podOfDraftId(room.roomId);
 		const gone = new Set<number>();
-		const left = (magicView(deps.lobby.get(roomId))?.game?.pod?.drafters ?? []).filter((id) => !deps.lobby.isMember(roomId, id));
-		// A leader's or operator's word (`pickFor`) puts a seat on the same footing as a drafter who left.
-		for (const id of [...left, ...(proxied.get(room.roomId) ?? [])]) {
+		// A leader's or operator's word (`pickFor`) puts a seat on the same footing as a drafter who is out.
+		for (const id of [...outDrafters(room), ...(proxied.get(room.roomId) ?? [])]) {
 			const seat = seatOfDrafter(room, id);
 			if (seat !== null) gone.add(seat);
 		}
 		return gone;
+	};
+
+	/** The drafters of `room`'s pod who are out of its event: dropped (left on their word, or disqualified), or no longer members. */
+	const outDrafters = (room: DraftRoom): string[] => {
+		const { roomId } = podOfDraftId(room.roomId);
+		const pod = magicView(deps.lobby.get(roomId))?.game?.pod;
+		const dropped = new Set(pod?.dropped ?? []);
+		return (pod?.drafters ?? []).filter((id) => dropped.has(id) || !deps.lobby.isMember(roomId, id));
+	};
+
+	/** A drafter out of the event still at the table (their page open as the leader disqualified them) stands up: the seat is the draft bot's. */
+	const standOut = (room: DraftRoom): void => {
+		for (const id of outDrafters(room)) if (releaseSeat(room, id as ParticipantId, false)) log({ evt: 'drafter-out', draftId: room.roomId, memberId: id });
 	};
 
 	/**
@@ -543,6 +556,7 @@ export function attachDraftSocket(io: SocketIOServer, deps: DraftSocketDeps): Dr
 	const resync = (room: DraftRoom): void => {
 		const seq = stateOf(room).seq;
 		const sig = ropeSig(room);
+		standOut(room);
 		settle(room);
 		if (stateOf(room).seq !== seq) stepped(room);
 		// No card moved, so no new seq: each screen gets its whole table again (a state, as a join's), timers and all.

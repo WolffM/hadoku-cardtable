@@ -251,9 +251,10 @@ export interface RoomsClient {
    *
    * This is the result screen's "Main menu" button: leave, then go to the
    * lobby list. "Rematch" never calls this — it stays a member and readies at
-   * the room's table.
+   * the room's table. Mid-tournament the server refuses it, so Main menu only
+   * goes home; `drop` is the room's own confirmed "Leave tournament".
    */
-  leave(roomId: string): Promise<RoomOutcome>;
+  leave(roomId: string, opts?: { drop?: boolean }): Promise<RoomOutcome>;
   /** The owner ends the room for everyone: its games stop and it leaves the list. */
   close(roomId: string): Promise<{ ok: true } | { ok: false; message: string }>;
   /** An admin resets a seeded testing room from the list: it closes, and the server seeds it fresh. */
@@ -411,8 +412,8 @@ export function roomsClient(
 
     ready: (roomId, ready) => core.ready(roomId, ready),
 
-    async leave(roomId) {
-      const outcome = await core.leave(roomId);
+    async leave(roomId, opts) {
+      const outcome = await core.leave(roomId, opts);
       if (outcome.ok) clearJoined(roomId);
       return outcome;
     },

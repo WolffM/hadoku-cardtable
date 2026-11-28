@@ -124,6 +124,12 @@ export interface MagicRoomGame {
 	/** Who has pressed Play in `building` (`playPod`). Persisted with `pod`, so a restart mid-build keeps the presses. */
 	podPlaying: string[];
 	/**
+	 * Drafters out of the event before its rounds start: disqualified (`dqPlayer`) or left on their own word, while
+	 * drafting or building. The draft bot picks for their seat from then on, and the deal starts them dropped
+	 * (`PodRecord.dropped`, which takes the list over). Persisted, so a restart or a rejoin never puts them back.
+	 */
+	podDropped: string[];
+	/**
 	 * A tournament's locked deck(s) by entrant id, meaningful only with
 	 * `settings.tournament` on and `tournamentDecks === 'locked'` — empty
 	 * otherwise. Classic / All Random: each entrant's one deck choice,
@@ -228,6 +234,8 @@ interface StoredMagicGame {
 	pod: PodRecord | null;
 	/** Absent for a room written before it was persisted: nobody has pressed Play. */
 	podPlaying?: string[];
+	/** Absent for a room written before it was kept, or that nobody left mid-draft. */
+	podDropped?: string[];
 	/** Absent before the tournament begins, and for a room that began before it was kept (`RoomRecord.entrants`'s doc). */
 	entrants?: Record<string, string>;
 	/** Absent for a room written before tournament mode: nothing was ever locked. */
@@ -412,6 +420,9 @@ function decodeMagicGame(g: Record<string, unknown>, gameType: string): Omit<Sto
 	if (g.podPlaying !== undefined && !(Array.isArray(g.podPlaying) && g.podPlaying.every((m) => typeof m === 'string'))) {
 		throw new Error('app.game.podPlaying is not a list of member ids');
 	}
+	if (g.podDropped !== undefined && !(Array.isArray(g.podDropped) && g.podDropped.every((m) => typeof m === 'string'))) {
+		throw new Error('app.game.podDropped is not a list of member ids');
+	}
 	// Absent is a room written before tournament mode. Each value's own shape
 	// (a Classic/Random deck) is opaque here, the same discipline
 	// `LobbyMember.state` already keeps.
@@ -462,6 +473,7 @@ function decodeMagicGame(g: Record<string, unknown>, gameType: string): Omit<Sto
 		...(g.podSplit === undefined ? {} : { podSplit: copySplit(g.podSplit as PodSplit) }),
 		pod: g.pod === undefined || g.pod === null ? null : (g.pod as PodRecord),
 		podPlaying: g.podPlaying === undefined ? [] : [...(g.podPlaying as string[])],
+		...(g.podDropped === undefined ? {} : { podDropped: [...(g.podDropped as string[])] }),
 		...(g.entrants === undefined ? {} : { entrants: { ...(g.entrants as Record<string, string>) } }),
 		lockedDecks: g.lockedDecks === undefined ? {} : { ...(g.lockedDecks as Record<string, unknown>) },
 		...(g.gauntlets !== undefined ? { gauntlets: { ...(g.gauntlets as Record<string, GauntletState>) } } : {}),

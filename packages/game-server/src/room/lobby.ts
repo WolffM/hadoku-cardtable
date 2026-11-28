@@ -191,6 +191,12 @@ export interface RoomTypeHooks<G, I extends RoomCreateInput = RoomCreateInput> {
 	liveMatches(room: LobbyRoom<G>): string[];
 	/** A member is leaving and still in the room: what it costs their game (a match it forfeits). */
 	leaving?(room: LobbyRoom<G>, memberId: string): Pick<LeaveOk<never>, 'forfeited'> | void;
+	/**
+	 * Whether leaving now would take the member out of an event under way (a tournament's draft or rounds).
+	 * Such a leave is only ever asked for, never a side effect: `POST /:id/leave` refuses it unless the
+	 * caller says so (`?drop=1`). Absent: no leave costs anything.
+	 */
+	leaveDrops?(room: LobbyRoom<G>, memberId: string): boolean;
 	/** A Ready: `'keep'` refuses the change quietly (the room's positions are fixed). Called before it is saved. */
 	ready?(room: LobbyRoom<G>, memberId: string, ready: boolean): 'keep' | void;
 	/** After a saved change to who sits or who is ready (a tournament's field filling, say). */
@@ -627,6 +633,12 @@ export class RoomLobby<V extends PlatformRoomView, I extends RoomCreateInput> {
 	isMember(roomId: string, memberId: string): boolean {
 		const room = this.#rooms.get(roomId);
 		return room !== undefined && isRoomMember(room, memberId);
+	}
+
+	/** Whether `memberId` leaving `roomId` now would drop them from its event (`RoomTypeHooks.leaveDrops`). */
+	leaveDrops(roomId: string, memberId: string): boolean {
+		const room = this.#rooms.get(roomId);
+		return room !== undefined && isRoomMember(room, memberId) && this.hooksOf(room).leaveDrops?.(room, memberId) === true;
 	}
 
 	/**

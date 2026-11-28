@@ -860,14 +860,14 @@ export function podViewOf(room: RoomRecord, checks: GameHooks): PodView {
 	// back to before `#dealPodRounds` has run.
 	const humans = room.game.pod?.humans ?? seatedHumans(room);
 	if (phase === 'drafting') {
-		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: humans, pods: room.game.podDrafts ?? [humans], built: [], personas: podPersonas(room, humans, checks), ...planFields };
+		return { phase, seats, round: 0, rounds: 0, results: [], standings: [], pairings: [], bye: null, dropped: [...room.game.podDropped], drafters: humans, pods: room.game.podDrafts ?? [humans], built: [], personas: podPersonas(room, humans, checks), ...planFields };
 	}
 	// Done building: pressed Play (`playPod`) with a deck that is still legal.
 	// A bot built its deck as it drafted (`botDeck.ts`).
 	const built = humans.filter((id) => isAiEntrant(id) || (room.game.podPlaying.includes(id) && checks.built(memberDraftId(room, id), id)));
 	const pods = tournament ? [] : (room.game.podDrafts ?? [humans]);
 	if (phase === 'building') {
-		return { phase, seats, round: 0, rounds: roundsFor(tournament ? humans.length : draftEntrants(room, humans).length), results: [], standings: [], pairings: [], bye: null, dropped: [], drafters: humans, pods, built, personas: podPersonas(room, humans, checks), ...planFields };
+		return { phase, seats, round: 0, rounds: roundsFor(tournament ? humans.length : draftEntrants(room, humans).length), results: [], standings: [], pairings: [], bye: null, dropped: [...room.game.podDropped], drafters: humans, pods, built, personas: podPersonas(room, humans, checks), ...planFields };
 	}
 	// `podPhaseOf` already answers `rounds`/`done` only when `room.pod !== null`
 	// (it throws otherwise, above) — but this cast is the one place that

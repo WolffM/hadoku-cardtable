@@ -133,10 +133,12 @@
  * **No bot backfill on a drop.** `unseatParticipant` empties the seat rather
  * than handing it to a bot, so its packs keep queueing in front of it and the
  * pod waits on that pile for the drafter to come back. That is what a held seat MEANS; padding it with
- * a bot would pick their cards for them while they reconnect. The cost is that
- * one dropped player stalls the pod until they return or the hold expires, and
- * that is a product decision to revisit with a real pod, not a bug to paper
- * over here.
+ * a bot would pick their cards for them while they reconnect. In a pod (a room's draft, `drafters`
+ * non-empty) the hold running out gives nothing away either: only the pod's own drafters are ever
+ * seated (`joinDraftRoom`), so the seat is the absent drafter's for as long as the draft runs (the
+ * operator, 2026-11-28: absence never costs a tournament seat). Only their being out of the event
+ * (left on their own word, or disqualified) hands the seat to the draft bot (`socket.ts`'s `goneSeats`);
+ * a pick timer the leader turned on is the one clock an absent drafter's seat still runs on.
  */
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
@@ -1164,8 +1166,16 @@ export function joinDraftRoom(
 	// vacate and — because the seat is still theirs — nothing changes below.
 	cancelVacate(room, participantId);
 	const before = seatOf(room.seats, participantId);
-	const drafted = before !== null || room.seats.remembered[participantId] !== undefined;
-	if (drafters.length > 0 && !drafted) return { client: watchRoom(room, clientId, participantId, tier), seat: null, changed: false };
+	const drafter = drafters.find((h) => h.participantId === participantId);
+	// A pod's seats are its drafters' for the whole draft, however long they are away (the operator,
+	// 2026-11-28): anyone else watches, and so does a drafter who is out (left, or disqualified) — the
+	// draft bot has their seat. A drafter is seated where the pod dealt them, even when the table no
+	// longer remembers them there.
+	if (drafters.length > 0 && drafter === undefined) {
+		const changed = before !== null && releaseSeat(room, participantId as ParticipantId, false);
+		return { client: watchRoom(room, clientId, participantId, tier), seat: null, changed };
+	}
+	if (drafter?.seat !== undefined && room.seats.remembered[participantId] === undefined) room.seats.remembered[participantId] = drafter.seat;
 	const client = joinRoom<DraftApp, DraftClient>(room, clientId, clientId, participantId, () => ({
 		tier,
 		watching: null,
@@ -1180,7 +1190,6 @@ export function joinDraftRoom(
 		room.app.presence.connect(key, key);
 	}
 	const seat = seatOf(room.seats, participantId);
-	const drafter = drafters.find((h) => h.participantId === participantId);
 	const name = drafter?.displayName ?? null;
 	const renamed = seat !== null && name !== null && state.displayNames[seat] !== name;
 	// A character changed in the room since the deal is drawn at the seat from the next join.
@@ -1214,12 +1223,13 @@ function watchRoom(room: DraftRoom, clientId: string, participantId: Participant
  *
  * `hold: true` is the table's default, spelled out because the choice matters
  * and is invisible otherwise: a viewer leaving a watch party should free their
- * slot at once, and a drafter should not cost the other seven their pod.
+ * slot at once, and a drafter should not cost the other seven their pod. `hold: false` is a drafter
+ * out of the event, whose seat is the draft bot's from now on.
  */
-export function releaseSeat(room: DraftRoom, participantId: ParticipantId): boolean {
+export function releaseSeat(room: DraftRoom, participantId: ParticipantId, hold = true): boolean {
 	const state = stateOf(room);
 	cancelVacate(room, participantId);
-	const vacated = unseatParticipant(room.seats, participantId, { hold: true });
+	const vacated = unseatParticipant(room.seats, participantId, { hold });
 	if (vacated === null) return false;
 	bumpSeq(state);
 	room.app.persist(room);

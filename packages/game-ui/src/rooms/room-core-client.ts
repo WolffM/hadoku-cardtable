@@ -45,7 +45,11 @@ export interface RoomCoreClient<R> {
   get(roomId: string): Promise<R | null>;
   create(body: Record<string, unknown>): Promise<RoomOutcome<R>>;
   join(roomId: string, password?: string): Promise<RoomJoinOutcome<R>>;
-  leave(roomId: string): Promise<RoomOutcome<R>>;
+  /**
+   * `POST /api/rooms/:id/leave`. Mid-tournament the server refuses it unless `drop` says the caller is
+   * leaving the tournament on purpose (the room's own Leave, confirmed): a way off the page never drops anyone.
+   */
+  leave(roomId: string, opts?: { drop?: boolean }): Promise<RoomOutcome<R>>;
   ready(roomId: string, ready: boolean): Promise<RoomOutcome<R>>;
   close(roomId: string): Promise<RoomEndOutcome>;
   reset(roomId: string): Promise<RoomEndOutcome>;
@@ -159,7 +163,7 @@ export function roomCoreClient<R>({ parse, fetch: fetchImpl = pageFetch, base = 
       return { ok: true, room };
     },
 
-    leave: (roomId) => send(`${id(roomId)}/leave`, {}, 'Could not leave the room'),
+    leave: (roomId, opts) => send(`${id(roomId)}/leave${opts?.drop === true ? '?drop=1' : ''}`, {}, 'Could not leave the room'),
     ready: (roomId, ready) => send(`${id(roomId)}/ready`, { ready }, 'Could not change your readiness'),
     close: (roomId) => end(roomId, 'close', 'Could not close the room'),
     reset: (roomId) => end(roomId, 'reset', 'Could not reset the room'),

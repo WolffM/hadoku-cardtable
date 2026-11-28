@@ -430,7 +430,7 @@ export interface Lobby
 	extends Pick<
 		RoomLobby<RoomView, CreateRoomInput>,
 		| 'list' | 'offered' | 'touch' | 'get' | 'isMember' | 'playerState' | 'setPlayerState' | 'setReady' | 'setAvatar' | 'onAvatarChange'
-		| 'usersOf' | 'setLook' | 'onChange' | 'leave' | 'close' | 'anonymise' | 'merge' | 'names' | 'removed' | 'flushed' | 'reschedule' | 'seatsShutUntil' | 'gameSeatOf'
+		| 'usersOf' | 'setLook' | 'onChange' | 'leave' | 'leaveDrops' | 'close' | 'anonymise' | 'merge' | 'names' | 'removed' | 'flushed' | 'reschedule' | 'seatsShutUntil' | 'gameSeatOf'
 		| 'bindWatchparty' | 'join' | 'rename' | 'sweep' | 'onRelayRoomOpened' | 'sitSeat' | 'standSeat' | 'aiSeat' | 'closeSeat'
 		| 'subPlaceOf' | 'roleOf' | 'removeFromSeat' | 'lowerSeatCapacity' | 'botReplacesHuman' | 'passLeader'
 	> {
@@ -700,8 +700,8 @@ export interface Lobby
 	 */
 	podDraft(roomId: string): PodDeal | null;
 	/**
-	 * Every human entrant's seat at draft `draftId`, whether or not they are still a member: `podDraft` names its
-	 * drafters and so leaves out whoever left, but the seat they were dealt is still theirs to be picked for.
+	 * Every human entrant's seat at draft `draftId`, whether or not they are still in: `podDraft` names its
+	 * drafters and so leaves out whoever left or was dropped, but the seat they were dealt is still theirs to be picked for.
 	 */
 	dealtSeats(draftId: string): ReadonlyMap<string, number>;
 	/**
@@ -906,6 +906,7 @@ function storedMagicGame(room: LobbyRoom<MagicRoomGame>): StoredApp['game'] {
 		...(game.podDrafts === null ? {} : { podDrafts: game.podDrafts.map((p) => [...p]) }),
 		...(game.podSplit === null ? {} : { podSplit: copySplit(game.podSplit) }),
 		podPlaying: [...game.podPlaying],
+		...(game.podDropped.length === 0 ? {} : { podDropped: [...game.podDropped] }),
 		...(game.entrants === undefined ? {} : { entrants: { ...game.entrants } }),
 		lockedDecks: { ...game.lockedDecks },
 		gauntlets: Object.fromEntries(Object.entries(game.gauntlets).map(([t, g]) => [t, gauntletWithoutNames(g)])),
@@ -1229,13 +1230,16 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			// remembered matches (what `roomOfMatch` used to answer, read directly off this room instead
 			// of scanning every room for it).
 			subPlaceOf: (room, rest) => room.game.tables.some((t) => t.id === rest || t.matchId === rest) || room.game.matches.includes(rest),
+			leaveDrops: (room, memberId) => this.#entrantStanding(room, memberId) !== null,
 			leaving: (room, memberId) => {
-				// An entrant who leaves mid-tournament has dropped out. Not a testing room's seed, which stands in
-				// for an entrant through round 1 and leaves so a real admin can take its seat (`testing-rooms.ts`).
-				const pod = room.game.pod;
+				// An entrant who leaves mid-tournament has dropped out, mid-draft as much as mid-round.
 				let forfeited: { tableId: string; matchIds: string[] } | undefined;
-				if (pod !== null && pod.round <= pod.rounds && pod.humans.includes(memberId) && !(pod.dropped ?? []).includes(memberId) && room.testing !== true) {
-					const { tableId, matchIds } = this.#dropEntrant(room, pod, memberId);
+				const standing = this.#entrantStanding(room, memberId);
+				if (standing === 'drafting') {
+					this.#dropDrafter(room, memberId);
+					this.log({ event: 'pod-entrant-left', roomId: room.id, memberId, tableId: null, matchIds: [] });
+				} else if (standing === 'rounds' && room.game.pod !== null) {
+					const { tableId, matchIds } = this.#dropEntrant(room, room.game.pod, memberId);
 					if (tableId !== null) forfeited = { tableId, matchIds };
 					this.log({ event: 'pod-entrant-left', roomId: room.id, memberId, tableId, matchIds });
 				}
@@ -1355,6 +1359,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			podSplit: null,
 			pod: null,
 			podPlaying: [],
+			podDropped: [],
 			departed: {},
 			lockedDecks: {},
 			gauntlets: {},
@@ -1422,6 +1427,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			// Restored with `draftStartedAt`, and released with it.
 			pod: game.pod,
 			podPlaying: game.podPlaying ?? [],
+			podDropped: game.podDropped ?? [],
 			...(game.entrants === undefined ? {} : { entrants: { ...game.entrants } }),
 			// Read again from each account (`usersOf`, `nameDeparted`): a saved room keeps no names (R12).
 			departed: {},
@@ -1808,6 +1814,15 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		if (room === undefined) return { ok: false, reason: 'no-room' };
 		if (!override && room.leader !== leaderId) return { ok: false, reason: 'not-leader' };
 		const pod = room.game.pod;
+		// Mid-draft or building: out of the event before its rounds, and the draft bot takes their seat at once.
+		if (pod === null && isDraftRoom(room) && room.game.draftStartedAt !== null) {
+			if (!seatedHumans(room).includes(entrantId)) return { ok: false, reason: 'not-entrant' };
+			if (this.#entrantStanding(room, entrantId, true) === null) return { ok: false, reason: 'already-dropped' };
+			this.#dropDrafter(room, entrantId);
+			this.persist(room);
+			this.log({ event: 'player-dq', roomId, by: leaderId, memberId: entrantId, tableId: null, matchIds: [] });
+			return { ok: true, tableId: null, matchIds: [] };
+		}
 		if (pod === null || pod.round > pod.rounds) return { ok: false, reason: 'no-pod' };
 		if (!pod.humans.includes(entrantId)) return { ok: false, reason: 'not-entrant' };
 		if ((pod.dropped ?? []).includes(entrantId)) return { ok: false, reason: 'already-dropped' };
@@ -1815,6 +1830,26 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		this.persist(room);
 		this.log({ event: 'player-dq', roomId, by: leaderId, memberId: entrantId, tableId, matchIds });
 		return { ok: true, tableId, matchIds };
+	}
+
+	/**
+	 * Where `memberId` stands in the room's event, while leaving would cost them it: `'drafting'` while the
+	 * draft is dealt or built and they draft in it, `'rounds'` while its rounds play and they are entered;
+	 * null once they are out (dropped, or the event over), or never in. A testing room's seed is never in:
+	 * it stands in for an entrant through round 1 and leaves so a real admin can take its seat
+	 * (`testing-rooms.ts`). `anyRoom` skips that exception, for the leader's DQ.
+	 */
+	#entrantStanding(room: RoomRecord, memberId: string, anyRoom = false): 'drafting' | 'rounds' | null {
+		if (room.testing === true && !anyRoom) return null;
+		const pod = room.game.pod;
+		if (pod !== null) return pod.round <= pod.rounds && pod.humans.includes(memberId) && !(pod.dropped ?? []).includes(memberId) ? 'rounds' : null;
+		if (!isDraftRoom(room) || room.game.draftStartedAt === null) return null;
+		return seatedHumans(room).includes(memberId) && !room.game.podDropped.includes(memberId) ? 'drafting' : null;
+	}
+
+	/** A drafter out before the rounds (`RoomRecord.podDropped`): the draft picks for their seat, and the deal starts them dropped. */
+	#dropDrafter(room: RoomRecord, memberId: string): void {
+		room.game.podDropped = [...room.game.podDropped, memberId];
 	}
 
 	/**
@@ -2558,6 +2593,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			room.game.podDrafts = null;
 			room.game.pod = null;
 			room.game.podPlaying = [];
+			room.game.podDropped = [];
 			this.persist(room);
 			released.push(room.id);
 		}
@@ -2626,7 +2662,8 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 			humans: table.flatMap((place, seat) => {
 				if (place.kind !== 'human') return [];
 				const member = room.members.find((m) => m.id === place.id);
-				return member === undefined ? [] : [{ participantId: place.id, displayName: member.name, seat, ...(member.avatarId === undefined ? {} : { avatarId: member.avatarId }) }];
+				if (member === undefined || room.game.podDropped.includes(place.id)) return [];
+				return [{ participantId: place.id, displayName: member.name, seat, ...(member.avatarId === undefined ? {} : { avatarId: member.avatarId }) }];
 			}),
 			bots: table.flatMap((place, seat) => (place.kind === 'ai' ? [place.persona === null ? { name: `Bot ${seat}` } : { name: place.persona.name, avatarId: place.persona.avatarId }] : [])),
 			plan: room.game.plan,
@@ -2653,7 +2690,8 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		if (drafters === undefined) return null;
 		const humans = drafters.flatMap((id, seat) => {
 			const member = room.members.find((m) => m.id === id);
-			return member === undefined ? [] : [{ participantId: id, displayName: member.name, seat, ...(member.avatarId === undefined ? {} : { avatarId: member.avatarId }) }];
+			if (member === undefined || room.game.podDropped.includes(id)) return [];
+			return [{ participantId: id, displayName: member.name, seat, ...(member.avatarId === undefined ? {} : { avatarId: member.avatarId }) }];
 		});
 		const worn = humans.map((h) => h.avatarId);
 		const faces: string[] = [];
@@ -2724,7 +2762,7 @@ class FileLobby extends RoomLobby<RoomView, CreateRoomInput> implements Lobby {
 		const rounds = roundsFor(entrants.length);
 		// An entrant who left the room before the deal (mid-draft) is locked in and out from round 1: never
 		// paired (`#pairRound`), so no table waits for them and nobody wins a free match off them.
-		const gone = entrants.filter((id) => !isAiEntrant(id) && !room.members.some((m) => m.id === id));
+		const gone = entrants.filter((id) => !isAiEntrant(id) && (!room.members.some((m) => m.id === id) || room.game.podDropped.includes(id)));
 		const dropped = gone.length === 0 ? {} : { dropped: gone };
 		room.game.pod = { humans: entrants, round: 1, rounds, results: [], pairings: [], bye: null, ...dropped };
 		const { pairings, settled, bots, bye } = this.#pairRound(room, podPlayers(room, entrants), [], 1);
