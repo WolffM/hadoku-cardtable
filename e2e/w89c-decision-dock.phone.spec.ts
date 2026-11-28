@@ -445,6 +445,8 @@ test(titled('a docked decision: every row of the ⋯ sheet, and Concede in its M
       await pumpOpponent(bob.page);
       return (await dock(page).filter({ visible: true }).count()) > 0;
     });
+    // Eleven lands open the sheet full screen; a player shrinks it to the dock with the handle's Shrink.
+    if ((await dockMode(page)) === 'full') await dock(page).getByRole('button', { name: 'Shrink' }).tap();
     await expect(dock(page), 'the question is docked, not minimised').toHaveAttribute('data-mode', 'dock');
     const more = page.getByTestId('action-more');
     await more.tap();
