@@ -22,6 +22,10 @@
  *                  that dropped a match fails over).
  *  - `disk-full`   the match's claw's disk filled mid-match. PASS: the match goes on, or is restored
  *                  elsewhere; it never freezes, the server stays up.
+ *  - `coord-disk-full` the coordinator's work dir filled (prod: hokon's /tmp, where each claw match's
+ *                  records and frames live), then a deploy 20 s later while still full. PASS: the server
+ *                  stays up, the match comes back after the restart (re-attached, or restored from its
+ *                  turn snapshot, never a new game) and moves on.
  *  - `coord-restart` the coordinator SIGTERMed (a deploy). PASS: the agents hold, the next server
  *                  re-attaches the same JVMs, nothing is restored.
  *  - `coord-kill`  the coordinator SIGKILLed, up again 5 s later. PASS: as `coord-restart`.
@@ -37,11 +41,11 @@ import { expect, test } from '@playwright/test';
 
 import { makeTitled } from './play/board.ts';
 import { openFriend, type Friend } from './play/browser.ts';
-import { startClaws } from './play/claws.ts';
+import { mountTmpfs, startClaws } from './play/claws.ts';
 import { enterMatch } from './play/enter.ts';
 import { RESTORING, fire, hostOf, lostMatches, latestTurn, mark, marked, promptMethod, rows, say, sleep, turnShown, until, type Fault } from './play/failover.ts';
 import { connectHands, type Hands } from './play/hands.ts';
-import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { PLAY_WORK_ROOT, forgeAvailability, startPlayStack } from './play/harness.ts';
 import { answerPrompt } from './play/prompts.ts';
 
 const forge = forgeAvailability();
@@ -72,6 +76,8 @@ test(titled(`claw failover, one 1v1 match: ${FAULT}${ASK_OPEN ? ' with an ask op
   if (!forge.ok) return;
   test.setTimeout(20 * 60_000);
   const claws = await startClaws({ count: 2, ...(FAULT === 'disk-full' ? { diskMb: { 0: Number(process.env.DISK_MB ?? '1200'), 1: Number(process.env.DISK_MB ?? '1200') } } : {}) });
+  // The coordinator's work root on a filesystem of its own, to fill (`coord-disk-full`).
+  const workDisk = FAULT === 'coord-disk-full' ? mountTmpfs(PLAY_WORK_ROOT, Number(process.env.DISK_MB ?? '256')) : null;
   const stack = await startPlayStack(forge, { env: claws.env });
   const stop = { done: false };
   const drivers: Promise<void>[] = [];
@@ -132,6 +138,8 @@ test(titled(`claw failover, one 1v1 match: ${FAULT}${ASK_OPEN ? ' with an ask op
       const restored = after.filter((r) => r.evt === 'match-restored' && r.matchId === matchId);
       say('after', { restored: restored.length, failed: after.filter((r) => r.evt === 'claw-failed-over' || r.evt === 'fenced-over').map((r) => r.evt) });
       if (FAULT === 'coord-restart' || FAULT === 'coord-kill') expect(restored, 'a restart re-attaches, it does not restore').toHaveLength(0);
+      // A full coordinator disk may cost the re-attach record: then the match must still come back, from its snapshot.
+      if (FAULT === 'coord-disk-full') expect(restored.every((r) => r.from === 'snapshot'), 'never a new game').toBe(true);
     }
 
     /* both screens, without a page load */
@@ -168,5 +176,6 @@ test(titled(`claw failover, one 1v1 match: ${FAULT}${ASK_OPEN ? ' with an ask op
     await Promise.all(drivers);
     await stack.stop();
     await claws.stop();
+    workDisk?.unmount();
   }
 });
