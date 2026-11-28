@@ -376,13 +376,26 @@ async function playStep(
     await a.waitForTimeout(3_000);
     await once('match-player', [a], S('match', '#/match/<id>', 'the person’s own match, game 1, opening hand'));
     if (hold) return;
-    // The game can end under the step (the other seat conceded: the result now covers the board); the next step reads it.
-    const concede = phone ? await inMenu(a, 'live-concede').catch(() => null) : a.getByTestId('live-concede');
-    if (concede === null) return;
-    if (phone) await concede.tap({ timeout: 3_000 }).catch(() => undefined);
-    else await concede.click({ timeout: 3_000 }).catch(() => undefined);
-    await once('match-concede', [a], S('match', '#/match/<id>', 'the Concede sheet'));
-    await a.getByTestId('live-concede-yes').click({ timeout: 3_000 }).catch(() => undefined);
+    // A phone concedes as `w89f-bar-anchor.phone.spec.ts` does (`pressInMenu`, whose phone branch keys off a
+    // project name the tour does not have): Concede in the menu, the menu closed by ⋯ as a player closes it,
+    // then a tap on the confirmation. The game can end under the step (the other seat conceded, its result now
+    // covers the board): no miss, and the next step reads the result.
+    await attempt(`concede, round ${round}`, async () => {
+      try {
+        if (phone) {
+          await (await inMenu(a, 'live-concede')).tap({ timeout: 5_000 });
+          const more = a.getByTestId('action-more');
+          if ((await a.getByTestId('action-menu').getAttribute('aria-expanded')) === 'true') await more.tap({ timeout: 5_000 });
+          if ((await more.getAttribute('aria-expanded')) === 'true') await more.tap({ timeout: 5_000 });
+        } else await a.getByTestId('live-concede').click({ timeout: 5_000 });
+        await once('match-concede', [a], S('match', '#/match/<id>', 'the Concede sheet'));
+        const yes = a.getByTestId('live-concede-yes');
+        if (phone) await yes.tap({ timeout: 5_000 });
+        else await yes.click({ timeout: 5_000 });
+      } catch (err) {
+        if ((await a.getByTestId('game-result').count()) === 0) throw err;
+      }
+    }, a);
     return;
   }
   if (/\/sideboard$/.test(hash)) {
