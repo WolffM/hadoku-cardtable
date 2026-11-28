@@ -103,6 +103,9 @@ async function main(): Promise<void> {
     });
     const first = results[0]!;
     console.log(`[sweep] ${variant}: ${results.map((r) => `${r.card} ${r.cast}`).join(', ')} — ended ${first.ended}, ${first.flags.length} flag(s) [${first.flags.map((f) => f.kind).join(',')}] ${Math.round(first.ms / 1000)}s`);
+    // A shared play that flags is played again alone and its report keeps the replay, so the log is
+    // where a flag of the first match is kept.
+    for (const f of first.flags) console.log(`[sweep]   ${f.kind} ${f.matchId} seed ${f.seed} turn ${f.turn ?? '?'} ${f.phase ?? ''}: ${f.detail}\n${f.context.map((c) => `[sweep]     ${c}`).join('\n')}`);
     keep(results);
   };
   /** A play stands when it asked what is recorded for it and, out of a shared match, also resolved and flagged nothing. */
