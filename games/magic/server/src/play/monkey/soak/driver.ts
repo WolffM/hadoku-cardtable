@@ -9,7 +9,9 @@
  *
  * 1. A pod: the first 8 accounts sit an 8-seat Bloomburrow set-cube draft and pick at a person's pace.
  * 2. `--matches` lanes, each an account playing monkey-vs-AI matches back to back (the monkey's
- *    `driveSeat`, ticking at a person's pace) until the run's end.
+ *    `driveSeat`, ticking at a person's pace) until the run's end, on library decks or, with
+ *    `--pod-decks`, on 40-card decks built from the pod's own pools. Each match's end line carries
+ *    the AI's time per turn and per priority hold.
  * 3. `--spectators` watcher sockets over the remaining accounts, each following a live match and
  *    moving on when it ends (a page load each time), and re-reading the hub as an open front page does.
  * 4. Every tab posts the usage batches and a page perf event, as a browser does.
@@ -25,13 +27,15 @@ import { mintTabId } from '@wolffm/rooms-protocol';
 import { socketPath } from '@hadoku/game-ui/room/socket-options.ts';
 // The draft client's tab identity is keyed by the app, as the page's own entry configures it.
 import { configureShell } from '../../../../../../../packages/ui-shell/src/app-id/index.ts';
-import { closeMatch, startMatch, type LiveMatch } from '../../../../../ui/src/play/live/match.ts';
+import { closeMatch, startMatch, viewerPlayerIdOf, type LiveMatch } from '../../../../../ui/src/play/live/match.ts';
 import { applyPick, closeDraft, isComplete, startDraft, type SocketDraft } from '../../../../../ui/src/draft/socket.ts';
 
 import { makeRng, type Rng } from '../rng.ts';
 import { driveSeat } from '../seat-driver.ts';
 import { closeSocketTransport, socketTransport } from '../wire-transport.ts';
 import { ORIGIN, PREFIX, cookieOf, fetchAs, type Account } from './edge.ts';
+import type { DraftCard } from '@hadoku/shared';
+import { buildDeck } from './pod-deck.ts';
 
 interface Args {
   accounts: Account[];
@@ -43,6 +47,8 @@ interface Args {
   hubPaths: string[];
   tickMs: number;
   turnCap: number;
+  /** Play the matches on decks built from the pod's own drafted pools, as Sunday's are. */
+  podDecks: boolean;
 }
 
 /** What an open front page re-reads every minute (recorded from a real page on PPE, 2026-11-28). */
@@ -72,6 +78,7 @@ function parseArgs(argv: readonly string[]): Args {
     hubPaths: hub === undefined ? HUB_POLLS : (JSON.parse(readFileSync(hub, 'utf8')) as string[]),
     tickMs: Number(get('tick-ms') ?? '1200'),
     turnCap: Number(get('turn-cap') ?? '40'),
+    podDecks: argv.includes('--pod-decks'),
   };
 }
 
@@ -132,6 +139,18 @@ function browserPosts(a: Account, screen: string): () => void {
 
 const BLB = { rounds: [1, 2, 3].map(() => ({ kind: 'set', code: 'BLB', style: 'set-cube' })) };
 const DRAFT_LIMIT_MS = 50 * 60_000;
+
+/** Each drafter's deck from their own pool, by account: the match gate checks a deck against its caller's pool. */
+async function podDecks(roomId: string, drafters: readonly Account[]): Promise<Map<string, { roomId: string; dck: string }>> {
+  const decks = new Map<string, { roomId: string; dck: string }>();
+  for (const d of drafters) {
+    const { json } = await call(d, 'GET', `/drafts/${roomId}/mine`);
+    const pool = (json as { pool?: DraftCard[] } | null)?.pool ?? [];
+    if (pool.length >= 23) decks.set(d.userId, { roomId, dck: buildDeck(pool, `soak ${d.name}`) });
+  }
+  log('pod-decks', { n: decks.size });
+  return decks;
+}
 
 async function runPod(drafters: Account[]): Promise<string | null> {
   const [leader, ...rest] = drafters;
@@ -202,7 +221,7 @@ async function deckLibrary(a: Account): Promise<{ id: string; era: string }[]> {
   return ((json as { decks?: { id: string; era: string }[] } | null)?.decks ?? []).map((d) => ({ id: d.id, era: d.era }));
 }
 
-async function matchLane(a: Account, lane: number, decks: { id: string; era: string }[]): Promise<void> {
+async function matchLane(a: Account, lane: number, decks: { id: string; era: string }[], built: Map<string, { roomId: string; dck: string }>): Promise<void> {
   const rng: Rng = makeRng(`lane-${String(lane)}-${String(Date.now())}`);
   const stopPosts = browserPosts(a, 'match');
   try {
@@ -215,13 +234,23 @@ async function matchLane(a: Account, lane: number, decks: { id: string; era: str
       const s0 = pick();
       const s1 = decks.filter((d) => d.era === s0.era)[Math.floor(rng.next() * decks.filter((d) => d.era === s0.era).length)] ?? s0;
       const asked = Date.now();
-      const res = await call(a, 'POST', '/play/matches', {
-        opponent: 'ai',
-        seats: [
-          { deck: { library: s0.id }, rules: { kind: 'standard', format: s0.era } },
-          { deck: { library: s1.id }, rules: { kind: 'standard', format: s1.era } },
-        ],
-      });
+      // The AI plays the same 40: a drafted deck may only be checked against its caller's own pool.
+      const own = built.get(a.userId);
+      const drafted = own === undefined ? null : { deck: { dck: own.dck }, rules: { kind: 'draft', draftId: own.roomId } };
+      const res = await call(
+        a,
+        'POST',
+        '/play/matches',
+        drafted !== null
+          ? { opponent: 'ai', seats: [drafted, drafted] }
+          : {
+              opponent: 'ai',
+              seats: [
+                { deck: { library: s0.id }, rules: { kind: 'standard', format: s0.era } },
+                { deck: { library: s1.id }, rules: { kind: 'standard', format: s1.era } },
+              ],
+            },
+      );
       const matchId = (res.json as { matchId?: string } | null)?.matchId;
       if (matchId === undefined) {
         log('match-refused', { lane, status: res.status });
@@ -244,11 +273,26 @@ async function matchLane(a: Account, lane: number, decks: { id: string; era: str
       const began = Date.now();
       let turn = 0;
       let turnSince = Date.now();
+      // The AI's cost, read off the board as a seat sees it: each turn it was active, and each
+      // stretch it held priority (one decision, or a run of them), to the driver's tick.
+      const aiTurnsMs: number[] = [];
+      const aiHoldsMs: number[] = [];
+      let aiTurn = false;
+      let holdSince: number | null = null;
       const isOver = (): boolean => {
         const t = match.view?.turn ?? 0;
+        const me = viewerPlayerIdOf(match);
+        const ai = match.view?.players.find((p) => p.id !== me);
         if (t !== turn) {
+          if (aiTurn) aiTurnsMs.push(Date.now() - turnSince);
           turn = t;
           turnSince = Date.now();
+          aiTurn = ai !== undefined && match.view?.activePlayerId === ai.id;
+        }
+        if (ai?.hasPriority === true) holdSince ??= Date.now();
+        else if (holdSince !== null) {
+          aiHoldsMs.push(Date.now() - holdSince);
+          holdSince = null;
         }
         return trouble !== null || match.over || match.ended !== null || t > args.turnCap || stopping() || Date.now() - turnSince > 10 * 60_000;
       };
@@ -270,6 +314,9 @@ async function matchLane(a: Account, lane: number, decks: { id: string; era: str
         stalled: Date.now() - turnSince > 10 * 60_000,
         decisions: result.decisions,
         flags: result.flags.map((f) => f.kind),
+        deck: drafted !== null ? 'pod' : 'library',
+        aiTurnsMs,
+        aiHoldsMs: aiHoldsMs.filter((ms) => ms >= 1000),
         minutes: (Date.now() - began) / 60_000,
       });
       closeMatch(match);
@@ -336,10 +383,11 @@ if (decks.length === 0) throw new Error('the deck library is empty');
 log('decks', { n: decks.length });
 
 const podRoom = args.pod ? await runPod(players) : null;
+const built = podRoom !== null && args.podDecks ? await podDecks(podRoom, players) : new Map<string, { roomId: string; dck: string }>();
 const work: Promise<void>[] = [];
 for (let lane = 0; lane < args.matches; lane++) {
   const a = players[lane % players.length];
-  if (a !== undefined) work.push(matchLane(a, lane, decks));
+  if (a !== undefined) work.push(matchLane(a, lane, decks, built));
   await sleep(20_000);
 }
 for (let n = 0; n < args.spectators; n++) {
