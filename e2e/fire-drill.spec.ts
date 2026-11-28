@@ -790,6 +790,14 @@ test(titled('fire drill: the tournament runbook, symptom by symptom, in an 8-sea
     });
 
     await drill('The draft is dealt with the pick timer off and a seat never picks', 'console: pick timer on', async () => {
+      try {
+        await timerDrill();
+      } finally {
+        // Carol drafts on whatever the drill found, so the rest of the runbook is still drilled.
+        carolRelease = true;
+      }
+    });
+    async function timerDrill(): Promise<void> {
       await expect.poll(() => carolHeld, { timeout: 10 * 60_000 }).toBe(true);
       await sleep(12_000);
       expect(await alice!.f.page.getByTestId('pick-rope').count(), 'no timer before the command').toBe(0);
@@ -810,8 +818,7 @@ test(titled('fire drill: the tournament runbook, symptom by symptom, in an 8-sea
         })
         .toBeGreaterThanOrEqual(2);
       say(`two timed-out picks in ${Math.round((Date.now() - t0) / 1000)} s at speed 1`);
-      carolRelease = true;
-    });
+    }
     await Promise.all(drafting);
     await Promise.all(people.map((p) => build(p, stack)));
 
