@@ -75,9 +75,14 @@ test('pod: a BLB set-cube pod from the lobby to the podium, as a player and as a
     const roomUrl = `${stack.origin}${PREFIX}/#/room/${roomId}`;
     await a.getByTestId('draft-lobby').waitFor({ timeout: UI });
     await shotBoth([a], 'lobby-empty', S('lobby', '#/room/<id>', 'the leader alone in a new draft room'), { full: true });
-    await a.getByTestId('pool-picker-tab-set').click();
-    await a.getByTestId('pool-picker-sets-BLB').click();
-    await a.getByTestId('pool-picker-style-set-cube').click();
+    // Each press writes the room's plan, and the picker is disabled until the room answers: timed, so a slow one shows.
+    for (const id of ['pool-picker-tab-set', 'pool-picker-sets-BLB', 'pool-picker-style-set-cube']) {
+      const t0 = Date.now();
+      await a.getByTestId(id).click({ timeout: 120_000 });
+      await expect(a.getByTestId('pool-picker-sets-BLB')).toBeEnabled({ timeout: 120_000 });
+      say(`${id}: ${Date.now() - t0} ms to press and settle`);
+    }
+    await expect(a.getByTestId('pool-picker-sets-BLB')).toBeChecked();
     await expect(a.getByTestId('pool-picker-verdict')).toHaveAttribute('data-state', 'ready', { timeout: 90_000 });
     await shotBoth([a], 'lobby-blb', S('lobby', '#/room/<id>', 'BLB · Set-cube chosen, its verdict ready'), { full: true });
     await a.getByTestId('match-rules').click();
