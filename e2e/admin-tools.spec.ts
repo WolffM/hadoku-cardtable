@@ -4,6 +4,7 @@
  * has the room leader's tools in a tournament they neither lead nor play in, and a member has none.
  *
  * - before the lock, a no-show's seat goes to the AI (`/seats/bot`), so the field can lock;
+ * - Re-send asks: Forge says what it waits on for each human seat and sends it again;
  * - Restart turn: the game in play goes back to the start of its turn on a new JVM, the same match,
  *   and the game as it was before is kept as its own recording (`<matchId>-e1`);
  * - Game to a player: the other seat (here the AI) concedes it, so both screens end and it counts;
@@ -141,6 +142,14 @@ test(titled('an operator who neither leads nor plays replaces a no-show, restart
     const replayed = await call<{ header: unknown }>(admin, origin, 'GET', `/replays/${carolGame}-e1`);
     console.log(`[admin] earlier epoch replay: ${replayed.status}`);
     expect(replayed.status, 'the game before the restart is a replay').toBe(200);
+
+    // Re-send asks: Forge answers what it waits on for Carol (the one human seat), the game goes on, and a member may not.
+    expect((await call(erin, origin, 'POST', `/rooms/${roomId}/tables/${carols.id}/unstick`)).status).toBe(403);
+    const resent = await call<{ seats: { seat: number; forge: string[] | null; shown: string[] }[] }>(admin, origin, 'POST', `/rooms/${roomId}/tables/${carols.id}/unstick`);
+    console.log(`[admin] re-send asks: ${JSON.stringify(resent.body)}`);
+    expect(resent.status).toBe(200);
+    expect(resent.body.seats.map((x) => Array.isArray(x.forge)), 'the bridge said what it waits on').toEqual([true]);
+    await expect(carol.page.locator('[aria-label="Game board"]'), 'carol: still in her game').toBeVisible({ timeout: UI_TIMEOUT });
 
     // Game to Carol: the AI concedes it, her board ends on the win, and it counts.
     await confirmOnCard(admin.page, carols.id, /^Game to e2e-carol$/);
