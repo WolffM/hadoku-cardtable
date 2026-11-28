@@ -471,6 +471,19 @@ export interface PlayStack {
    * for it to be healthy. Rooms and running matches carry over; nothing else does.
    */
   restart(): Promise<void>;
+  /**
+   * A fault this spec fired held the server or every claw stopped from `from` to `to` (`failover.ts`):
+   * a stand-in whose safety clock ran out across it is the clock doing its job, since nothing could
+   * say the play was still being decided. Every other check is unchanged.
+   */
+  excuse(from: number, to: number, why: string): void;
+}
+
+/** A stretch the spec's own fault stopped the server or its claws. */
+interface Excused {
+  from: number;
+  to: number;
+  why: string;
 }
 
 /** The longest a seat may hold a live server window with nothing on its screen to press. */
@@ -536,7 +549,13 @@ function doubledHandovers(rows: readonly LogRow[]): string[] {
  * stand with no card behind it, or taken away mid-decision — and is the spec's red; the match's own
  * server rows across the wait are printed with it, which is what tells the two apart.
  */
-function expiredStandIns(rows: readonly LogRow[]): string[] {
+function expiredStandIns(rows: readonly LogRow[], excused: readonly Excused[] = []): string[] {
+  const overlaps = (r: LogRow): Excused | undefined => {
+    const end = Date.parse(String(r.t));
+    const start = end - Number(r.ms);
+    // A browser's report of it lands a beat after the server is back.
+    return excused.find((w) => start <= w.to + 2000 && end >= w.from);
+  };
   const expired = rows.filter((r) => r.evt === 'client' && r.kind === 'stand-in');
   for (const r of expired) {
     console.log(`[stand-in] ${JSON.stringify(r)}`);
@@ -548,7 +567,12 @@ function expiredStandIns(rows: readonly LogRow[]): string[] {
       if (o !== r && o.matchId === r.matchId && t >= start && t <= end) console.log(`[stand-in]   +${t - start - 1000}ms ${JSON.stringify(o).slice(0, 300)}`);
     }
   }
-  const timedOut = expired.filter((r) => r.how === 'timeout');
+  const timedOut = expired.filter((r) => {
+    if (r.how !== 'timeout') return false;
+    const w = overlaps(r);
+    if (w !== undefined) console.log(`[stand-in] excused: its wait overlapped ${w.why} (${new Date(w.from).toISOString()} → ${new Date(w.to).toISOString()})`);
+    return w === undefined;
+  });
   return timedOut.length === 0 ? [] : [`${timedOut.length} stand-in(s) taken down by the safety clock, not by their card: ${timedOut.map((r) => JSON.stringify(r)).join(' ; ')}`];
 }
 
@@ -571,9 +595,9 @@ function heldReveals(rows: LogRow[]): string[] {
 }
 
 /** What every spec's stack checks at `stop()`, whatever the spec was about. */
-function assertStackInvariants(serverLogFile: string): void {
+function assertStackInvariants(serverLogFile: string, excused: readonly Excused[]): void {
   const rows = logRows(serverLogFile);
-  const broken = [...deadBars(rows), ...unreadAsks(rows), ...doubledHandovers(rows), ...expiredStandIns(rows), ...heldReveals(rows)];
+  const broken = [...deadBars(rows), ...unreadAsks(rows), ...doubledHandovers(rows), ...expiredStandIns(rows, excused), ...heldReveals(rows)];
   if (broken.length > 0) throw new Error(broken.join('\n'));
 }
 
@@ -800,6 +824,7 @@ export async function startPlayStack(forge: { jar: string; res: string }, given:
   warm.catch(() => undefined);
 
   let edge: Server | null = null;
+  const excused: Excused[] = [];
   const reap = (): ReapedJvm[] => reapJvms(workDir);
   const stop = async (options: { reap?: boolean } = {}): Promise<void> => {
     // AE20: while recording (`CARDTABLE_E2E_VIDEO=1`), close this stack's own
@@ -847,7 +872,7 @@ export async function startPlayStack(forge: { jar: string; res: string }, given:
     // what this would have killed.
     if (options.reap !== false) reap();
     await claws?.stop();
-    assertStackInvariants(serverLogFile);
+    assertStackInvariants(serverLogFile, excused);
   };
 
   try {
@@ -882,6 +907,7 @@ export async function startPlayStack(forge: { jar: string; res: string }, given:
     workDir,
     stop,
     reap,
+    excuse: (from, to, why) => void excused.push({ from, to, why }),
     restart: async () => {
       // The edge stays up, so every browser keeps its origin and its socket
       // reconnects to the next server exactly as it does across a deploy.

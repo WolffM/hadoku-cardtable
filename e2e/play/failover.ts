@@ -131,6 +131,7 @@ export async function fire(fault: Fault, stack: PlayStack, claws: Claws, host: s
       process.kill(pid, 'SIGSTOP');
       await sleep(STALL_MS[fault]!);
       process.kill(pid, 'SIGCONT');
+      stack.excuse(at, Date.now(), `${fault}: the coordinator SIGSTOPped`);
       return { at, detail: { stalledMs: Date.now() - at, pid } };
     }
     case 'agents-stall-30': {
@@ -138,6 +139,7 @@ export async function fire(fault: Fault, stack: PlayStack, claws: Claws, host: s
       for (const a of claws.agents) a.kill('SIGSTOP');
       await sleep(STALL_MS[fault]!);
       for (const a of claws.agents) a.kill('SIGCONT');
+      stack.excuse(at, Date.now(), `${fault}: every agent SIGSTOPped`);
       return { at, detail: { stalledMs: Date.now() - at, agents: claws.agents.map((a) => a.node) } };
     }
     case 'coord-disk-full': {
