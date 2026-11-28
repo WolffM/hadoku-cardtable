@@ -148,7 +148,13 @@ async function fitsAt(
 ): Promise<void> {
   for (const size of sizes) {
     await resizeWindow(page, size);
-    const fit = await measure(page, mustShow, mayScroll, TILE_PX, sideways);
+    // A fit column (`useFitScale`) is scaled by its ResizeObserver a frame or more after the resize,
+    // so a size is judged once the page holds still: a misfit that stays is still a failure.
+    let fit = await measure(page, mustShow, mayScroll, TILE_PX, sideways);
+    for (const until = Date.now() + 3_000; fit.failures.length > 0 && Date.now() < until; ) {
+      await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+      fit = await measure(page, mustShow, mayScroll, TILE_PX, sideways);
+    }
     console.log(`[lobby-fit] ${where} ${who} ${fit.size}: ${fit.evidence.join(' | ')}`);
     for (const f of fit.failures) console.log(`[lobby-fit] ${where} ${who} ${fit.size} FAIL ${f}`);
     failures.push(...fit.failures.map((f) => `${where} ${who} ${fit.size}: ${f}`));
