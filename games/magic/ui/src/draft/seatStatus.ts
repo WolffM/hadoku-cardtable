@@ -64,6 +64,15 @@ export function seatStatus(seat: DraftSeatView): SeatStatus {
 }
 
 /** Every seat the table is holding for an absent player, in seat order. */
+/** Who is at the table, as the room's bar counts it: people, bots, and free chairs. */
+export function tallySeats(seats: readonly DraftSeatView[]): { humans: number; bots: number; open: number } {
+  return {
+    humans: seats.filter((s) => s.occupant?.kind === 'human').length,
+    bots: seats.filter((s) => s.occupant?.kind === 'bot').length,
+    open: seats.filter((s) => s.occupant === null).length,
+  };
+}
+
 export function heldSeats(view: DraftView): DraftSeatView[] {
   return view.seats.filter((seat) => seatStatus(seat) === 'held');
 }

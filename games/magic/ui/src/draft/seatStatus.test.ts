@@ -15,7 +15,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadFixtures } from './fixtures.ts';
-import { defaultSeatName, heldSeats, seatStatus, SEAT_HELD_NOTE } from './seatStatus.ts';
+import { defaultSeatName, heldSeats, seatStatus, SEAT_HELD_NOTE, tallySeats } from './seatStatus.ts';
 import type { DraftSeatView, DraftView } from './types.ts';
 
 const spectator = (): DraftView => {
@@ -82,5 +82,24 @@ describe('the held seats of a table', () => {
     // carries no reservation clock, and a UI that claimed one would be lying.
     expect(SEAT_HELD_NOTE).toMatch(/inferred/);
     expect(SEAT_HELD_NOTE).toMatch(/no reservation clock/);
+  });
+});
+
+describe('the room bar’s tally', () => {
+  it('counts a person who stepped away from the table (the builder, a reload) among the people, not as an open chair', () => {
+    const view = spectator();
+    const human = view.seats.findIndex((s) => s.occupant?.kind === 'human');
+    if (human < 0) throw new Error('expected the fixture to hold a human');
+    const before = tallySeats(view.seats);
+    const seats = view.seats.map((s, i) => (i === human ? drop(s) : s));
+    expect(tallySeats(seats)).toEqual(before);
+  });
+
+  it('still counts a chair nobody has held as open', () => {
+    const view = spectator();
+    const bot = view.seats.findIndex((s) => s.occupant?.kind === 'bot');
+    if (bot < 0) throw new Error('expected the fixture to hold a bot');
+    const seats = view.seats.map((s, i) => (i === bot ? { ...s, occupant: null, displayName: defaultSeatName(s.id) } : s));
+    expect(tallySeats(seats).open).toBe(tallySeats(view.seats).open + 1);
   });
 });

@@ -72,6 +72,7 @@ import {
   type DraftTransport,
   type SocketDraft,
 } from '../draft/socket.ts';
+import { tallySeats } from '../draft/seatStatus.ts';
 import { initialState, nextTable, type TableState } from '../draft/table.ts';
 import { DraftScreen, DraftSkeleton, PackTools } from '../components/DraftScreen.tsx';
 import { mountInspector } from '../play/inspect/index.ts';
@@ -168,9 +169,7 @@ export function PodScreen({ draftId, tableId, makeTransport, podSource = livePod
 
   const view = table?.view ?? null;
   const seats = view?.seats ?? [];
-  const humans = seats.filter((s) => s.occupant?.kind === 'human').length;
-  const bots = seats.filter((s) => s.occupant?.kind === 'bot').length;
-  const open = seats.filter((s) => s.occupant === null).length;
+  const { humans, bots, open } = tallySeats(seats);
   const done = draft !== null && isComplete(draft);
   // The draft's frame rate, in the server's log (`rooms/page-frames.ts`): a summary every few picks, the frames split by
   // whether a pack waits on this seat.
