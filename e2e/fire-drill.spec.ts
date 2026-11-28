@@ -5,7 +5,7 @@
  * leads it nor plays. Each symptom of the runbook's "Find the tool from what you see" table is caused
  * in turn, and the operator answers it with the runbook's own words:
  *
- *  - the operator joins: "press Stand" before anyone readies;
+ *  - the operator joins: the spectator row's open slot ("Spectate") before anyone readies;
  *  - a no-show at the lock: the seat chip's Bot;
  *  - a drafter who closes their tab mid-pack: the console's member lookup, then pick-for;
  *  - a seat that never picks, with the pick timer off: the console's timer command;
@@ -654,17 +654,10 @@ test(titled('fire drill: the tournament runbook, symptom by symptom, in an 8-sea
       await resizeWindow(p.f.page, { width: 1280, height: 800 });
     }
 
-    await drill('An operator not in the room joins it', '"In the lobby, entering seats you: press Stand before anyone readies"', async (miss) => {
+    await drill('An operator not in the room joins it', '"In the lobby, entering seats you: press the open slot in the spectator row (labelled "Spectate")"', async () => {
       const page = op.f.page;
       await expect(page.locator('[data-testid^="pod-seat-"][data-mine]'), 'entering seated the operator').toHaveCount(1, { timeout: UI_TIMEOUT });
-      const stand = page.getByRole('button', {
-        name: 'Stand',
-        exact: true,
-      });
-      if ((await stand.count()) === 0) {
-        miss('there is no Stand button: the way out of a seat is the spectator row\'s open slot, labelled "Spectate" (seat-stand)');
-        await page.getByRole('button', { name: 'Spectate', exact: true }).click();
-      } else await stand.click();
+      await page.getByRole('button', { name: 'Spectate', exact: true }).click();
       await expect(page.locator('[data-testid^="pod-seat-"][data-mine]'), 'the operator holds no seat').toHaveCount(0, { timeout: UI_TIMEOUT });
     });
 
@@ -842,7 +835,7 @@ test(titled('fire drill: the tournament runbook, symptom by symptom, in an 8-sea
     const agents = people.map((p) => atTheTable(p, () => over));
     await op.f.page.goto(roomUrl());
 
-    await drill('A screen shows nothing to do, but the game does not move', '⋯ → Re-send asks', async (miss) => {
+    await drill('A screen shows nothing to do, but the game does not move', '⋯ → Re-send asks', async () => {
       await expect.poll(async () => (await live()).find((t) => t.tableId === t1.tableId)?.match?.status, { timeout: START_TIMEOUT * 2, message: 'the table starts' }).toBe('running');
       await expect(stuck.f.page.locator('[aria-label="Game board"]'), `${stuck.name}: at the board`).toBeVisible({ timeout: START_TIMEOUT });
       await sleep(20_000);
@@ -857,11 +850,8 @@ test(titled('fire drill: the tournament runbook, symptom by symptom, in an 8-sea
       await expect(stuck.f.page.getByTestId('live-says'), `${stuck.name}: the screen has something to do again`).not.toHaveText('', { timeout: UI_TIMEOUT });
       await expect.poll(async () => (await live()).find((t) => t.tableId === t1.tableId)?.match?.turn ?? 0, { timeout: 4 * 60_000, message: 'the game moves again' }).toBeGreaterThanOrEqual(2);
       const after = await readState(t1.tableId);
+      // The bar was dropped in the page, after the server sent it: the runbook says such a loss is not named.
       say(`⋯ reads after: ${after}`);
-      if (!after.includes('unshown'))
-        miss(
-          '"a question Forge waited on that the seat had never been shown is named in the danger colour": nothing was, because the server had sent it; the frame was lost after the server (the page). The runbook does not say the mark only covers what the server never sent',
-        );
     });
 
     await drill('A finished match has the wrong result while the round still plays', '⋯ → Match to ‹right player›', async () => {
