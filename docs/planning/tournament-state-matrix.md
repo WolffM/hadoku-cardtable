@@ -127,6 +127,9 @@ it in every cell, a restart included, with the real `attachPeople` sweep.
 
 ## The claw e2e for Sunday
 
-`e2e/pre-pod-state.spec.ts`, real Forge: a draft pod with a mid-draft leaver, a server restart mid-draft
-and mid-round, a DQ between rounds, and an odd field's bye. Its runs are listed in the lane's closing note
-(`~/.cache/cardtable-manager/pre-state-machine-closing.md`).
+`e2e/pre-pod-state.spec.ts`, real Forge, two fields (four drafters, and five for an odd field's bye): a
+mid-draft leaver with the pick timer off, a server restart mid-draft and mid-round 1, a DQ at a round-2
+table, and standings that name everyone. Each step asserts every remaining entrant has exactly one place
+in the round (a table, a bye or a leaver's win). `e2e/w72-pod.spec.ts` (three humans, a bye in round 1)
+and `e2e/w83c-leader-tools.spec.ts` (DQ, game reset) cover the rest, proven in the same claw runs. Run
+ids are in the lane's closing note (`~/.cache/cardtable-manager/pre-state-machine-closing.md`).
