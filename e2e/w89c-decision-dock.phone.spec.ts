@@ -439,7 +439,9 @@ test(titled('a docked decision: every row of the ⋯ sheet, and Concede in its M
     const page = alice.page;
     await forcePortrait(page);
     await castByTap(page, 'Scapeshift');
-    await until('a decision docks (Scapeshift asks to sacrifice)', async () => {
+    // "Do you want to sacrifice?" is a yes/no in the bar; the sheet of lands to sacrifice that follows it docks.
+    await until('a decision docks (Scapeshift\'s lands to sacrifice)', async () => {
+      await tapConfirmYes(page);
       await pumpOpponent(bob.page);
       return (await dock(page).filter({ visible: true }).count()) > 0;
     });
