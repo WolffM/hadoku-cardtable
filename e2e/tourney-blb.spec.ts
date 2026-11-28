@@ -83,6 +83,8 @@ interface Scenario {
    * cap if every finished game stays on its JVM for play's ten minutes; the monkey keeps one 10 s.
    */
   env?: Record<string, string>;
+  /** One person in each pod (never the leader) presses Leave after a few picks and closes their page. */
+  leaverPerPod?: boolean;
 }
 
 /**
@@ -99,7 +101,7 @@ function botsPlayIn(scenario: Scenario): boolean {
  * people's Forge JVM at the end of its third round) and run on a bigger host with
  * CARDTABLE_E2E_BIG_FIELDS=1. Left out, not skipped: forge-e2e fails a skip.
  */
-const CLAW_FIELDS: ReadonlySet<string> = new Set(['1p+7bots bye']);
+const CLAW_FIELDS: ReadonlySet<string> = new Set(['1p+7bots bye', '9p leavers']);
 
 const ALL_SCENARIOS: readonly Scenario[] = [
   { key: '7p+1bot bye', humans: 7, bots: 1, botsPlay: false, realGames: 1, realTables: 1, minutes: 42 },
@@ -107,6 +109,9 @@ const ALL_SCENARIOS: readonly Scenario[] = [
   { key: '8p', humans: 8, bots: 0, botsPlay: true, realGames: 1, realTables: 1, minutes: 42 },
   { key: '1p+7bots', humans: 1, bots: 7, botsPlay: true, realGames: 3, realTables: 1, minutes: 42 },
   { key: '1p+7bots bye', humans: 1, bots: 7, botsPlay: false, realGames: 0, realTables: 0, minutes: 20 },
+  // A room past one pod with a drafter gone from each mid-draft: both pods' drafts end, the leavers are dropped, and the Swiss of the rest
+  // pairs on. Every game is conceded (no live board), and finished games leave their JVM in 30 s, so nine browsers fit a claw.
+  { key: '9p leavers', humans: 9, bots: 0, botsPlay: false, realGames: 0, realTables: 0, minutes: 36, env: { CARDTABLE_PLAY_OVER_GRACE_MS: '30000' }, leaverPerPod: true },
 ];
 const SCENARIOS = ALL_SCENARIOS.filter((s) => CLAW_FIELDS.has(s.key) || process.env.CARDTABLE_E2E_BIG_FIELDS === '1');
 
@@ -140,6 +145,8 @@ interface Player {
   handsFor: string;
   /** This page's draft socket, frame by frame (`draftLine`), for a refused pick's evidence. */
   wire: string[];
+  /** Pressed Leave mid-draft and closed their page: out of the room for good. */
+  gone: boolean;
 }
 
 interface Run {
@@ -245,7 +252,7 @@ async function openPlayer(browser: Browser, name: string): Promise<Player> {
   // Up to fifteen pages on one host: a load past a hundred can hold a page's first load past the config's twenty seconds.
   f.page.setDefaultNavigationTimeout(90_000);
   const wire: string[] = [];
-  const p: Player = { f, name, id: '', wire, pack: capturePack(f.page, wire), picks: [], results: new Map(), last: '', lastAt: Date.now(), errors: [], trail: [], hands: null, handsFor: '' };
+  const p: Player = { f, name, id: '', wire, pack: capturePack(f.page, wire), picks: [], results: new Map(), last: '', lastAt: Date.now(), errors: [], trail: [], hands: null, handsFor: '', gone: false };
   f.page.on('framenavigated', (frame) => {
     if (frame !== f.page.mainFrame()) return;
     const hash = new URL(frame.url()).hash;
@@ -290,13 +297,14 @@ function choosePick(p: Player, pack: readonly WireCard[]): WireCard {
   return [...pack].sort((a, b) => score(b) - score(a))[0]!;
 }
 
-async function draft(p: Player): Promise<void> {
+/** `upTo` picks and stop (a leaver's), or the whole draft. */
+async function draft(p: Player, upTo = Number.POSITIVE_INFINITY): Promise<void> {
   const { page } = p.f;
   const grid = page.getByRole('group', { name: 'Pack layout' }).getByRole('button', { name: 'grid' });
   await expect(grid, `${p.name}: the draft is up`).toBeVisible({ timeout: UI_TIMEOUT });
   if ((await grid.getAttribute('aria-pressed')) !== 'true') await grid.click();
   const enabled = '[data-testid="pack"] button[data-testid="card"]:not([disabled])';
-  for (;;) {
+  for (let picked = 0; picked < upTo; picked++) {
     const next = await page.waitForFunction(
       // Done: the builder, or the draft screen gone (a field that ends at the draft stays in the room).
       (sel) => (window.location.hash.startsWith('#/deck/') || document.querySelector('[role="group"][aria-label="Pack layout"]') === null ? 'done' : document.querySelector(sel) !== null ? 'pick' : null),
@@ -317,6 +325,16 @@ async function draft(p: Player): Promise<void> {
     await page.waitForTimeout(450);
   }
   note(p, `drafted ${p.picks.length} picks seen, colours ${topColours(p.picks).join('')}`);
+}
+
+/** A few picks, then Leave and close the page: the person who walks out mid-draft. */
+async function leaveMidDraft(p: Player, run: Run): Promise<void> {
+  await draft(p, 3);
+  const res = await p.f.context.request.post(`${run.stack.origin}${PREFIX}/api/rooms/${run.roomId}/leave`, { data: {} });
+  expect(res.status(), `${p.name}: Leave`).toBe(200);
+  p.gone = true;
+  await p.f.page.close();
+  say(`${p.name} left mid-draft after ${p.picks.length} pick(s)`);
 }
 
 /* ── building: 23 spells in two colours, Auto for the lands ──────────── */
@@ -775,11 +793,12 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
 
     /* everyone ready; past eight, the leader splits and starts */
     await Promise.all(players.map((p) => readyPod(p.f.page, 90_000)));
+    let pods: string[][] = [];
     if (scenario.humans + scenario.bots > 8) {
       await expect(leader.f.page.getByTestId('pod-split'), 'the leader can split a ready room').toBeVisible({ timeout: UI_TIMEOUT });
       await leader.f.page.getByTestId('pod-split').click();
       await expect(leader.f.page.getByTestId('pod-split-pods')).toBeVisible({ timeout: UI_TIMEOUT });
-      const pods = (await roomOf(leader, run)).game.pod?.pods ?? [];
+      pods = (await roomOf(leader, run)).game.pod?.pods ?? [];
       say(`pods: ${pods.map((pod) => `[${pod.map((id) => (isAi(id) ? 'AI' : (players.find((p) => p.id === id)?.name ?? id))).join(' ')}]`).join(' ')}`);
       // The people split as evenly as they go and the bots are spread across the pods (`splitPods`, the operator 2026-11-23).
       expect(pods.map((pod) => pod.length), 'the people split evenly').toEqual(splitPods(scenario.humans));
@@ -789,18 +808,26 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
     /* draft and build, every person at once */
     await Promise.all(players.map((p) => expect(p.f.page.getByTestId('pod'), `${p.name}: the pod is dealt`).toBeVisible({ timeout: 90_000 })));
     const drafted = Date.now();
-    await Promise.all(players.map((p) => draft(p)));
+    // A leaver per pod: its first person who is not the leader.
+    const leaving = new Set(scenario.leaverPerPod === true ? pods.flatMap((pod) => pod.filter((id) => id !== leader.id && !isAi(id)).slice(0, 1)) : []);
+    await Promise.all(players.map((p) => (leaving.has(p.id) ? leaveMidDraft(p, run) : draft(p))));
     say(`drafted in ${Math.round((Date.now() - drafted) / 1000)} s`);
+    const staying = players.filter((p) => !p.gone);
     const afterDraft = (await roomOf(leader, run)).game.pod;
     if (afterDraft?.phase === 'done') {
       // Nobody to pair: the draft's end is the tournament's.
       finding(run, `the tournament ended with the draft: ${afterDraft.rounds} round(s), results ${JSON.stringify(afterDraft.results)}; no builder opened (${players.map((p) => `${p.name} at ${new URL(p.f.page.url()).hash}`).join(', ')})`);
-    } else await Promise.all(players.map((p) => build(p, run)));
+    } else await Promise.all(staying.map((p) => build(p, run)));
+    if (leaving.size > 0) {
+      const dealt = (await roomOf(leader, run)).game.pod;
+      say(`dropped at the deal: ${JSON.stringify(dealt?.dropped ?? [])}`);
+      for (const id of leaving) if (!(dealt?.dropped ?? []).includes(id)) finding(run, `${players.find((p) => p.id === id)?.name ?? id} left mid-draft and is not dropped: ${JSON.stringify(dealt?.pairings)}`);
+    }
 
     /* the tournament */
     const humans = new Set(players.map((p) => p.id));
     const deadline = started + (scenario.minutes - 4) * 60_000;
-    const agents = players.map((p) => playTournament(p, run));
+    const agents = staying.map((p) => playTournament(p, run));
     let pod: PodView;
     try {
       pod = await watchRoom(run, humans, deadline);
@@ -814,10 +841,14 @@ async function runScenario(browser: Browser, scenario: Scenario, info: TestInfo)
     const entrants = botsPlayIn(scenario) ? scenario.humans + scenario.bots : scenario.humans;
     expect.soft(pod.standings, 'one standings row per entrant').toHaveLength(entrants);
     expect.soft(pod.standings.map((r) => r.rank).sort((a, b) => a - b), 'ranks 1…n').toEqual(pod.standings.map((_, i) => i + 1));
-    for (const p of players) {
+    for (const p of staying) {
       await p.f.page.goto(run.roomUrl);
       const rows = p.f.page.getByTestId(/^pod-standings-row-\d+$/);
       await expect.soft(rows, `${p.name}: the final standings`).toHaveCount(entrants, { timeout: UI_TIMEOUT });
+      // Everyone is named, the ones who left too, never by a raw id.
+      const table = p.f.page.getByTestId('pod-standings');
+      for (const q of players) await expect.soft(table, `${p.name}: ${q.name} is named`).toContainText(`e2e-${q.name}`);
+      await expect.soft(table, `${p.name}: no raw id`).not.toContainText('fk:');
     }
     await screenshotAll(run, 'final');
   } finally {
