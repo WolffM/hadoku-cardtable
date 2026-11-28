@@ -12,13 +12,17 @@
  *   2. A click on Karn opens the picker with three rows in card order, +4 enabled and −3, −14 greyed;
  *      a greyed row answers nothing, None backs out, and Karn's loyalty is still 1.
  *
+ * Scenario `hw-hideaway-play`: alice plays Mosswort Bridge from her hand; its Hideaway exiles a card face
+ * down, which Forge lets her look at: under the bridge she sees its face, and bob a back.
+ *
  * Every step prints one `[hw]` line. Needs a Forge build (`CARDTABLE_FORGE_JAR` + `CARDTABLE_FORGE_RES`);
  * without one this SKIPS and the title says why. Serves the prebuilt `apps/ui/dist` — rebuild before running.
  */
 import { expect, test, type Page } from '@playwright/test';
 
-import { boardCard, clickPermanent, makeTitled, ownNamed } from './play/board.ts';
+import { boardCard, clickHandCard, clickPermanent, enabledOk, handCardNamed, makeTitled, ownNamed } from './play/board.ts';
 import { forgeAvailability, startPlayStack } from './play/harness.ts';
+import { answerPrompt } from './play/prompts.ts';
 import { startScenarioMatch } from './play/scenario.ts';
 
 const forge = forgeAvailability();
@@ -75,6 +79,50 @@ test(titled('a Hideaway card is drawn under its land on both screens, and a walk
     await alice.getByTestId('live-prompt').getByTestId('prompt-cancel').click();
     await expect(rows, 'None backs out').toHaveCount(0, { timeout: 10_000 });
     await expect(boardCard(alice, karn!).locator('.board-card__pt'), 'Karn is still at 1').toHaveText('1');
+  } finally {
+    await stack.stop();
+  }
+});
+
+test(titled('a real Hideaway: its owner sees the hidden card’s face under the land, the other player a back'), async ({ browser }) => {
+  test.skip(!forge.ok, forge.ok ? '' : forge.reason);
+  if (!forge.ok) return;
+  test.setTimeout(4 * 60_000);
+  const stack = await startPlayStack(forge);
+  try {
+    const { alice: a, bob: b } = await startScenarioMatch(browser, stack, 'hw-hideaway-play');
+    const alice = a.page;
+    const bob = b.page;
+    const inHand = await expect
+      .poll(() => handCardNamed(alice, 'Mosswort Bridge'), { timeout: 30_000, message: 'Mosswort Bridge is in alice’s hand' })
+      .not.toBeUndefined()
+      .then(() => handCardNamed(alice, 'Mosswort Bridge'));
+    expect(await clickHandCard(alice, inHand!), 'alice plays the bridge').toBe(true);
+
+    const both = async (keeper: number) => ({ alice: await tuckedUnder(alice, keeper), bob: await tuckedUnder(bob, keeper) });
+    let seen: Awaited<ReturnType<typeof both>> | null = null;
+    try {
+      // Pass the Hideaway trigger through and take the first card it offers, by state: answer
+      // whichever seat is asked, press a live OK, until the bridge has a card under it on both screens.
+      await expect
+        .poll(
+          async () => {
+            const [bridge] = await ownNamed(alice, 'Mosswort Bridge');
+            if (bridge === undefined) return null;
+            seen = await both(bridge);
+            if (seen.alice.length === 1 && seen.bob.length === 1) return [seen.alice[0]!.back, seen.bob[0]!.back];
+            for (const page of [alice, bob]) {
+              await answerPrompt(page).catch(() => null);
+              await enabledOk(page).click({ timeout: 500 }).catch(() => undefined);
+            }
+            return null;
+          },
+          { timeout: 60_000, intervals: [250], message: 'the hidden card under the bridge: its face for alice, a back for bob' },
+        )
+        .toEqual([false, true]);
+    } finally {
+      log('real hideaway', seen);
+    }
   } finally {
     await stack.stop();
   }

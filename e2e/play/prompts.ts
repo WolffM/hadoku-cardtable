@@ -97,7 +97,8 @@ export async function answerPrompt(
       break;
     }
     case 'choice-or-cancel': {
-      const choice = sheet.locator(`[data-testid="${ANSWER_TESTID.choice}"], [data-testid="${ANSWER_TESTID.face}"]`);
+      // A planeswalker's withheld abilities are listed greyed: never one to press.
+      const choice = sheet.locator(`[data-testid="${ANSWER_TESTID.choice}"]:not(:disabled), [data-testid="${ANSWER_TESTID.face}"]`);
       await ((await choice.count()) > 0 ? choice.first() : sheet.getByTestId(ANSWER_TESTID.cancel)).click();
       break;
     }

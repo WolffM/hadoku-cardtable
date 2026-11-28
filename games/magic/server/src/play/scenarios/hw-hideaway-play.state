@@ -1,0 +1,16 @@
+# e2e/hw-hideaway.spec.ts, the real Hideaway: alice (seat 0) plays Mosswort Bridge from her hand in her
+# main phase. Its Hideaway 4 looks at Grizzly Bears and three Forests and exiles one face down, which
+# Forge lets her look at: under the bridge she sees its face, and bob sees a back.
+turn=1
+activeplayer=human
+activephase=MAIN1
+humanlife=20
+ailife=20
+humanhand=Mosswort Bridge
+humanbattlefield=Forest
+humanlibrary=Grizzly Bears;Forest;Forest;Forest;Forest;Forest
+humangraveyard=
+aihand=
+aibattlefield=Plains
+ailibrary=Plains;Plains;Plains;Plains;Plains;Plains
+aigraveyard=
