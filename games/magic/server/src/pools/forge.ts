@@ -28,7 +28,16 @@
  * `main`: `{ id, op, ...body }` in, `{ id, ok, ...body }` or
  * `{ id, ok: false, error }` out. `id` correlates a response to its request;
  * `t` lines (`{"t":"ready"}`, `{"t":"fatal",...}`) are the boot handshake, not a
- * reply to anything, and are logged rather than matched.
+ * reply to anything: logged, and they settle the boot.
+ *
+ * ## Boot is not a call's time
+ *
+ * Forge loads every card before the service says ready: about 5 s on an idle
+ * host, 54 s on a loaded one (prod, 2026-11-25). A call waits for ready under
+ * `bootTimeoutMs`, and only then starts its own `callTimeoutMs`. When the first
+ * call's clock counted the boot, a slow boot failed it (the boot-time set list
+ * warm-up, never retried), and the first person to open a draft's Set tab then
+ * waited for every set to be walked.
  *
  * ## Serialisation and restart
  *
@@ -130,6 +139,9 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 	}
 
 	let child: ChildProcessWithoutNullStreams | null = null;
+	/** The current child's boot: settled by its ready or fatal line, its exit, or the boot deadline. */
+	let booted: Promise<void> = Promise.resolve();
+	let settleBoot: (err?: Error) => void = () => {};
 	let nextId = 1;
 	const pending = new Map<string, { resolve: (value: JsonResponse) => void; reject: (err: Error) => void }>();
 	let chain: Promise<void> = Promise.resolve();
@@ -137,6 +149,7 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 	function onExit(reason: string): void {
 		child = null;
 		const err = new Error(`the pool JVM is gone: ${reason}`);
+		settleBoot(err);
 		for (const waiter of pending.values()) waiter.reject(err);
 		pending.clear();
 	}
@@ -151,6 +164,9 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 		}
 		if (!isReply(value)) {
 			log({ evt: 'pool-line', value });
+			const boot = value as { t?: unknown; message?: unknown } | null;
+			if (boot?.t === 'ready') settleBoot();
+			if (boot?.t === 'fatal') settleBoot(new Error(`the pool JVM could not boot: ${String(boot.message)}`));
 			return;
 		}
 		const waiter = pending.get(value.id);
@@ -187,13 +203,28 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 		c.on('exit', (code, signal) => onExit(`exited (code ${code}, signal ${signal})`));
 		c.on('error', (err) => onExit(`could not be started: ${err.message}`));
 		child = c;
+		booted = new Promise<void>((resolveBoot, rejectBoot) => {
+			const timer = setTimeout(() => {
+				settleBoot(new Error(`the pool JVM did not boot within ${timing.bootTimeoutMs}ms`));
+				c.kill('SIGKILL');
+			}, timing.bootTimeoutMs);
+			settleBoot = (err) => {
+				clearTimeout(timer);
+				settleBoot = () => {};
+				if (err === undefined) resolveBoot();
+				else rejectBoot(err);
+			};
+		});
+		// A boot nobody is waiting on yet must not surface as an unhandled rejection.
+		booted.catch(() => {});
 		return c;
 	}
 
 	function call(op: string, body: Record<string, unknown>): Promise<JsonResponse> {
-		const run = (): Promise<JsonResponse> =>
-			new Promise<JsonResponse>((resolveCall, reject) => {
-				const c = child ?? spawnChild();
+		const run = async (): Promise<JsonResponse> => {
+			const c = child ?? spawnChild();
+			await booted;
+			return new Promise<JsonResponse>((resolveCall, reject) => {
 				const id = String(nextId++);
 				const timer = setTimeout(() => {
 					pending.delete(id);
@@ -217,6 +248,7 @@ export function createForgePools(config: JvmHostConfig, log: (entry: Record<stri
 					}
 				});
 			});
+		};
 		// Queued after whatever is already pending, so at most one request is ever
 		// in flight; a failed call does not break the chain for the next one.
 		const result = chain.then(run, run);

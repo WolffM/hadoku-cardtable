@@ -297,11 +297,12 @@ export function createSetsStore(opts: CreateSetsStoreOpts): SetsStore {
  * in-flight promise on a failure, so a dead rejection is never cached.
  */
 export async function warmSetsStore(store: Pick<SetsStore, 'list'>, warn: (entry: Record<string, unknown>) => void = log): Promise<void> {
+	const started = Date.now();
 	try {
 		const list = await store.list();
-		warn({ evt: 'sets-warmed', count: list.length });
+		warn({ evt: 'sets-warmed', count: list.length, ms: Date.now() - started });
 	} catch (err) {
-		warn({ evt: 'sets-warm-failed', detail: (err as Error).message });
+		warn({ evt: 'sets-warm-failed', detail: (err as Error).message, ms: Date.now() - started });
 	}
 }
 
